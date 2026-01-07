@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>지오메트리 캐논 - v37.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; color: white; font-family: 'Pretendard', sans-serif; user-select: none; touch-action: none; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        #game-container { position: relative; width: 100%; height: 100%; max-width: 500px; max-height: 100vh; background-color: #050505; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        canvas { display: block; width: 100%; height: 100%; }
+        .ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        .glow-text { text-shadow: 0 0 10px rgba(0, 255, 255, 0.6); }
+        .btn-main { background: linear-gradient(135deg, #00ffff 0%, #0088ff 100%); color: black; font-weight: 800; }
+        .btn-sub { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px); }
+        .btn-sub:active { transform: scale(0.95); background: rgba(0, 255, 255, 0.2); }
+        .stage-container { border-top: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0,0,0,0.3); backdrop-filter: blur(2px); width: 100%; }
+        .skill-card { background: rgba(20, 20, 20, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.2s; cursor: pointer; }
+        .skill-card:hover { transform: translateY(-5px); border-color: #00ffff; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); background: rgba(30, 30, 30, 0.95); }
+        .skill-card.unlock { border-color: #ffaa00; } 
+        .skill-card.unlock:hover { border-color: #ffd700; box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 80% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+        .msg-pop { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .diff-btn { padding: 6px 20px; font-size: 11px; font-weight: 800; border-radius: 6px; transition: all 0.2s; border: 1px solid rgba(255, 255, 255, 0.1); letter-spacing: 1px; }
+        .diff-btn.active.normal { background: #00ffff; color: black; box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); border-color: #00ffff; }
+        .diff-btn.active.hard { background: #ff3366; color: black; box-shadow: 0 0 15px rgba(255, 51, 102, 0.4); border-color: #ff3366; }
+        .toggle-checkbox:checked { right: 0; border-color: #68D391; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #68D391; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- 로비 UI -->
+        <div id="lobby-ui" class="ui-layer flex flex-col items-center justify-between py-6 px-6 mx-auto w-full h-full">
+            <div class="w-full flex justify-between items-start interactive">
+                <div class="flex flex-col">
+                    <h1 class="text-3xl font-black italic glow-text tracking-tighter leading-none">GEOMETRY<br>CANNON</h1>
+                    <p class="text-[9px] text-cyan-500 tracking-[0.3em] font-bold mt-2 opacity-80">HOTFIX v37.1</p>
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                    <div class="flex flex-col gap-1">
+                        <div class="bg-black/60 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 min-w-[80px] justify-between">
+                            <span class="text-cyan-400 text-xs">◆</span>
+                            <span id="lobby-fragments" class="font-mono text-sm font-bold text-cyan-100">0</span>
+                        </div>
+                        <div class="bg-black/60 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 min-w-[80px] justify-between">
+                            <span class="text-orange-400 text-xs">⬢</span>
+                            <span id="lobby-cores" class="font-mono text-sm font-bold text-orange-100">0</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 items-center">
+                        <button id="btn-god-mode" class="bg-red-900/80 border border-red-500/50 text-red-200 text-[9px] px-3 py-2 rounded font-bold hover:bg-red-600 transition-colors" onclick="activateGodMode()">GOD MODE</button>
+                        <button id="btn-test-stage" class="bg-orange-600 border border-orange-400 text-white text-[9px] px-3 py-2 rounded font-bold hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]" onclick="openTestConfig()">TEST STAGE</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center w-full gap-6 mt-4">
+                <div class="flex gap-3 interactive">
+                    <button id="diff-normal" class="diff-btn active normal" onclick="setDifficulty('NORMAL')">NORMAL</button>
+                    <button id="diff-hard" class="diff-btn" onclick="setDifficulty('HARD')">HARD</button>
+                </div>
+
+                <div class="stage-container py-8 flex flex-col items-center gap-2 rounded-xl">
+                    <div class="w-full flex items-center justify-between interactive px-4">
+                        <button id="prev-stage" class="w-12 h-12 flex items-center justify-center text-2xl text-white/30 hover:text-white transition-colors hover:scale-110" onclick="changeStage(-1)">◀</button>
+                        <div class="text-center">
+                            <div id="stage-num" class="text-cyan-500 text-xs font-black tracking-[0.2em] mb-2">STAGE 01</div>
+                            <div id="stage-name" class="text-3xl font-black tracking-tight italic text-white">NEON GRID</div>
+                        </div>
+                        <button id="next-stage" class="w-12 h-12 flex items-center justify-center text-2xl text-white/30 hover:text-white transition-colors hover:scale-110" onclick="changeStage(1)">▶</button>
+                    </div>
+                    <div class="mt-2 flex items-center gap-2 opacity-80">
+                        <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-gray-600"></span>
+                        <span id="status-text" class="text-[10px] font-bold tracking-widest text-gray-500">LOCKED</span>
+                    </div>
+                </div>
+                <div class="h-10 text-white/20 text-[10px] tracking-widest uppercase">Target Systems Ready</div>
+            </div>
+
+            <div class="w-full grid grid-cols-5 gap-3 interactive pb-4">
+                <button class="btn-sub h-14 rounded-xl flex items-center justify-center text-xl">⚙️</button>
+                <button class="btn-sub h-14 rounded-xl flex items-center justify-center flex-col gap-0.5"><span class="text-[8px] font-black text-gray-500">UPGR</span><span>⚔️</span></button>
+                <button id="start-btn" class="btn-main h-16 rounded-2xl flex items-center justify-center col-span-1 shadow-lg shadow-cyan-500/30 transform active:scale-95 transition-all text-lg tracking-widest" onclick="prepareGame(false)">START</button>
+                <button class="btn-sub h-14 rounded-xl flex items-center justify-center flex-col gap-0.5"><span class="text-[8px] font-black text-gray-500">SHOP</span><span>💎</span></button>
+                <button class="btn-sub h-14 rounded-xl flex items-center justify-center flex-col gap-0.5"><span class="text-[8px] font-black text-gray-500">RANK</span><span>🏆</span></button>
+            </div>
+            
+            <div class="absolute bottom-2 left-4 text-[10px] text-gray-600 font-mono">
+                DATA: <span id="debug-save-status">Checking...</span>
+            </div>
+        </div>
+
+        <!-- 인게임 UI -->
+        <div id="ingame-ui" class="hidden ui-layer flex flex-col justify-between p-4 pointer-events-none mx-auto w-full h-full">
+            <div class="flex justify-between items-start w-full">
+                <div class="flex gap-2">
+                    <div class="bg-black/50 px-4 py-2 rounded-lg backdrop-blur-md border border-white/10">
+                        <div class="text-[10px] text-gray-400">STAGE</div>
+                        <!-- [NEW] 인게임 스테이지 표시 -->
+                        <div id="ingame-stage" class="text-xl font-bold text-white">1</div>
+                    </div>
+                    <div class="bg-black/50 px-4 py-2 rounded-lg backdrop-blur-md border border-white/10">
+                        <div class="text-[10px] text-gray-400">WAVE</div>
+                        <div id="wave-text" class="text-xl font-bold text-cyan-400">1</div>
+                    </div>
+                </div>
+                <div class="bg-black/50 px-4 py-1 rounded-lg backdrop-blur-md border border-white/10 flex flex-col items-center min-w-[100px]">
+                    <div class="text-[9px] text-gray-400 tracking-widest">TIME LEFT</div>
+                    <div id="timer-text" class="text-2xl font-mono font-bold text-white tracking-widest tabular-nums">01:00.00</div>
+                </div>
+                <button id="btn-quit" class="pointer-events-auto bg-red-500/20 hover:bg-red-500/50 border border-red-500/50 px-3 py-2 rounded-lg text-xs font-bold text-red-100 transition-all" onclick="showQuitPopup()">EXIT</button>
+            </div>
+            
+            <div id="center-msg-overlay" class="absolute inset-0 flex items-center justify-center hidden pointer-events-none">
+                <h1 id="center-msg-text" class="text-4xl md:text-6xl font-black italic text-center glow-text text-white tracking-tighter msg-pop leading-tight">적이 몰려옵니다 !!!</h1>
+            </div>
+
+            <div class="flex flex-col gap-3 mt-auto mb-2 w-full max-w-md mx-auto px-2">
+                <div class="flex gap-4 justify-center text-[10px] font-mono text-gray-400 opacity-80">
+                    <span>GET: <span class="text-cyan-400">◆</span> <span id="ingame-fragments">0</span></span>
+                    <span>GET: <span class="text-orange-400">⬢</span> <span id="ingame-cores">0</span></span>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-end">
+                        <div class="text-[10px] text-cyan-400 font-bold tracking-widest">SHIELD INTEGRITY</div>
+                        <div class="text-[10px] text-cyan-400 font-mono" id="hp-text">100/100</div>
+                    </div>
+                    <div class="w-full bg-gray-900 h-2.5 rounded-full overflow-hidden border border-cyan-500/30">
+                        <div id="hp-bar" class="bg-cyan-500 h-full transition-all duration-300 shadow-[0_0_10px_#00ffff]" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-[10px] text-purple-300 font-bold px-0.5">
+                        <span>LV. <span id="level-text">1</span></span>
+                        <span id="exp-text">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-900 h-1.5 rounded-full overflow-hidden border border-purple-500/30">
+                        <div id="exp-bar" class="bg-purple-500 h-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overlays -->
+            <div id="test-config-overlay" class="hidden absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-50 p-6">
+                <h2 class="text-3xl font-black italic text-orange-400 mb-6 glow-text tracking-tighter">TEST LAB CONFIG</h2>
+                <div class="bg-white/5 border border-white/10 p-6 rounded-2xl w-full max-w-sm mb-8 overflow-y-auto max-h-[60vh]">
+                    <h3 class="text-sm font-bold text-gray-400 mb-4 tracking-widest border-b border-white/10 pb-2">WEAPON SYSTEMS</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center"><span class="text-cyan-400 font-bold">Cannon (Default)</span><span class="text-xs bg-cyan-900 text-cyan-300 px-2 py-1 rounded">ALWAYS ON</span></div>
+                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('missile')"><span class="text-white">🚀 Missile Pod</span><div id="toggle-missile" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
+                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('laser')"><span class="text-white">🛰️ Orbital Laser</span><div id="toggle-laser" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
+                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('gravity')"><span class="text-white">🌌 Gravity Cannon</span><div id="toggle-gravity" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
+                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('droplet')"><span class="text-white">💧 Droplet Probe</span><div id="toggle-droplet" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
+                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('barrier')"><span class="text-white">⚡ Electro Barrier</span><div id="toggle-barrier" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
+                    </div>
+                </div>
+                <div class="flex gap-4 w-full max-w-sm">
+                    <button onclick="cancelTest()" class="flex-1 bg-gray-700 text-white py-4 rounded-xl font-bold hover:bg-gray-600">CANCEL</button>
+                    <button onclick="startTestMatch()" class="flex-1 bg-orange-600 text-white py-4 rounded-xl font-black text-lg hover:bg-orange-500 shadow-[0_0_20px_rgba(255,165,0,0.4)]">START TEST ▶</button>
+                </div>
+            </div>
+
+            <div id="clear-overlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-50 p-6">
+                <h2 class="text-5xl font-black italic text-yellow-400 mb-2 glow-text tracking-tighter">STAGE CLEAR!</h2>
+                <div class="flex flex-col gap-4 w-full max-w-xs">
+                    <button id="btn-next-stage" class="bg-white text-black py-4 rounded-xl font-black text-lg hover:bg-cyan-400 hover:scale-105 transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)]" onclick="nextStage()">다음 스테이지 도전 ▶</button>
+                    <button id="btn-clear-lobby" class="bg-transparent border border-white/20 text-white py-3 rounded-xl font-bold text-sm hover:bg-white/10 transition-all" onclick="returnToLobby()">메인 화면으로</button>
+                </div>
+            </div>
+            <div id="upgrade-overlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-40 p-6">
+                <h2 id="upgrade-title" class="text-3xl font-black italic text-yellow-400 mb-2 glow-text">LEVEL UP!</h2>
+                <p id="upgrade-subtitle" class="text-gray-400 text-xs mb-8 tracking-widest">SELECT UPGRADE MODULE</p>
+                <div id="card-container" class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-2xl"></div>
+            </div>
+            <div id="gameover-popup" class="hidden absolute inset-0 bg-red-900/40 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-50">
+                <h2 class="text-4xl font-black italic text-red-500 mb-2 glow-text">SYSTEM DESTROYED</h2>
+                <div class="flex gap-4">
+                    <button id="btn-retry" class="bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-red-400" onclick="prepareGame(isTestStage)">재도전</button>
+                    <button id="btn-fail-lobby" class="bg-black/50 border border-white/20 text-white px-6 py-3 rounded-full font-bold hover:bg-white/10" onclick="returnToLobby()">메인으로</button>
+                </div>
+            </div>
+            <div id="quit-overlay" class="hidden absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-50 p-8 text-center">
+                <h2 class="text-2xl font-bold text-white mb-2">전투를 포기하시겠습니까?</h2>
+                <p class="text-red-400 text-sm mb-8">지금 나가면 획득한 아이템이 모두 사라집니다.</p>
+                <div class="flex gap-4 w-full max-w-xs">
+                    <button id="btn-quit-confirm" class="flex-1 bg-red-600 text-white py-3 rounded-lg font-bold hover:bg-red-500" onclick="quitGame()">포기하기</button>
+                    <button id="btn-quit-cancel" class="flex-1 bg-gray-700 text-white py-3 rounded-lg font-bold hover:bg-gray-600" onclick="cancelQuit()">계속하기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const container = document.getElementById('game-container');
+        const ctx = canvas.getContext('2d');
+        const SAVE_KEY = 'GEO_DEFENSE_V37_1'; 
+
+        let gameState = 'LOBBY';
+        let width, height;
+        let lastTime = 0;
+        let difficulty = 'NORMAL';
+        let currentStage = 1;
+        let isGodMode = false;
+        let isTestStage = false;
+
+        let testConfig = { missile: false, laser: false, gravity: false, droplet: false, barrier: false };
+        let savedData = { clearData: { 'NORMAL': [1], 'HARD': [] }, resources: { fragments: 0, cores: 0 } };
+        let tempResources = { fragments: 0, cores: 0 };
+
+        let player = null;
+        let enemies = [];
+        let bullets = [];
+        let particles = [];
+        let drops = []; 
+        let texts = [];
+        let missiles = [];
+        let gravityOrbs = [];
+        let electroBarriers = [];
+        let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 60 };
+
+        const SKILL_POOL = [
+            { id: 'atk', name: 'WEAPON DAMAGE', desc: '공격력 +25%', icon: '⚔️', type: 'stat', effect: () => { player.atk *= 1.25; } },
+            { id: 'spd', name: 'FIRE RATE', desc: '공격 속도 +15%', icon: '🚀', type: 'stat', effect: () => { player.fireRate *= 0.85; } },
+            { id: 'range', name: 'RADAR RANGE', desc: '인식 범위 +20%', icon: '📡', type: 'stat', effect: () => { player.range *= 1.2; } },
+            { id: 'turn', name: 'TURRET MOTOR', desc: '회전 속도 +30%', icon: '⚙️', type: 'stat', effect: () => { player.turnSpeed *= 1.3; } },
+            { id: 'multi', name: 'MULTI BARREL', desc: '투사체 개수 +1', icon: '💠', type: 'stat', effect: () => { player.multishot++; } },
+            { id: 'hp', name: 'SHIELD REPAIR', desc: '최대 체력 +30 & 회복', icon: '❤️', type: 'stat', effect: () => { gameInfo.maxHp += 30; gameInfo.hp = gameInfo.maxHp; } },
+
+            { id: 'unlock_missile', name: 'INSTALL MISSILE', desc: '미사일 포드 장착', icon: '🚀', type: 'unlock', weapon: 'missile', effect: () => { player.activeWeapons.missile = true; } },
+            { id: 'unlock_laser', name: 'INSTALL LASER', desc: '궤도 레이저 장착', icon: '🛰️', type: 'unlock', weapon: 'laser', effect: () => { player.activeWeapons.laser = true; } },
+            { id: 'unlock_gravity', name: 'INSTALL GRAVITY', desc: '중력포 장착', icon: '🌌', type: 'unlock', weapon: 'gravity', effect: () => { player.activeWeapons.gravity = true; } },
+            { id: 'unlock_droplet', name: 'INSTALL DROPLET', desc: '물방울 프로브 장착', icon: '💧', type: 'unlock', weapon: 'droplet', effect: () => { player.activeWeapons.droplet = true; } },
+            { id: 'unlock_barrier', name: 'INSTALL BARRIER', desc: '전자기 장벽 장착', icon: '⚡', type: 'unlock', weapon: 'barrier', effect: () => { player.activeWeapons.barrier = true; } },
+
+            { id: 'up_missile', name: 'MISSILE RELOAD', desc: '미사일 쿨다운 -20%', icon: '🚀', type: 'upgrade', weapon: 'missile', effect: () => { player.missileInterval *= 0.8; } },
+            { id: 'up_laser', name: 'LASER RECHARGE', desc: '레이저 쿨다운 -20%', icon: '🛰️', type: 'upgrade', weapon: 'laser', effect: () => { player.laserInterval *= 0.8; } },
+            { id: 'up_gravity', name: 'GRAVITY RECHARGE', desc: '중력포 쿨다운 -10%', icon: '🌌', type: 'upgrade', weapon: 'gravity', effect: () => { player.gravityInterval *= 0.9; } },
+            { id: 'up_droplet', name: 'DROPLET CHARGE', desc: '물방울 충전 -10%', icon: '💧', type: 'upgrade', weapon: 'droplet', effect: () => { player.droplet.maxCooldown *= 0.9; } },
+            { id: 'up_barrier', name: 'BARRIER RECHARGE', desc: '장벽 쿨다운 -15%', icon: '⚡', type: 'upgrade', weapon: 'barrier', effect: () => { player.barrierInterval *= 0.85; } }
+        ];
+
+        function init() {
+            loadGameData();
+            resize();
+            window.addEventListener('resize', resize);
+            updateLobbyUI();
+            requestAnimationFrame(loop);
+        }
+
+        // --- Helper Functions ---
+        function getValidSkills() {
+            return SKILL_POOL.filter(skill => {
+                if (skill.type === 'stat') return true;
+                if (skill.type === 'unlock') return !player.activeWeapons[skill.weapon];
+                if (skill.type === 'upgrade') return player.activeWeapons[skill.weapon];
+                return true;
+            });
+        }
+
+        function updateLobbyUI() {
+            const color = difficulty === 'NORMAL' ? '#00ffff' : '#ff3366';
+            document.getElementById('stage-num').innerText = `STAGE ${currentStage.toString().padStart(2,'0')}`;
+            document.getElementById('stage-num').style.color = color;
+            const names = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];
+            document.getElementById('stage-name').innerText = names[(currentStage-1)%names.length];
+            const isCleared = savedData.clearData[difficulty].includes(currentStage);
+            const statusText = document.getElementById('status-text');
+            const statusDot = document.getElementById('status-dot');
+            if(isCleared) {
+                statusText.innerText = "CLEARED"; statusText.style.color = color;
+                statusDot.style.backgroundColor = color; statusDot.style.boxShadow = `0 0 8px ${color}`;
+            } else {
+                statusText.innerText = "LOCKED"; statusText.style.color = "#555";
+                statusDot.style.backgroundColor = "#333"; statusDot.style.boxShadow = "none";
+            }
+            document.getElementById('lobby-fragments').innerText = savedData.resources.fragments;
+            document.getElementById('lobby-cores').innerText = savedData.resources.cores;
+        }
+
+        function updateIngameResources() {
+            document.getElementById('ingame-fragments').innerText = tempResources.fragments;
+            document.getElementById('ingame-cores').innerText = tempResources.cores;
+        }
+
+        function updateIngameUI() {
+            const hpPct = Math.max(0, (gameInfo.hp/gameInfo.maxHp)*100); 
+            document.getElementById('hp-bar').style.width = `${hpPct}%`; 
+            document.getElementById('hp-text').innerText = `${Math.ceil(gameInfo.hp)}/${gameInfo.maxHp}`;
+            document.getElementById('level-text').innerText = gameInfo.level; 
+            const expPct = Math.floor((gameInfo.exp / gameInfo.nextExp) * 100); 
+            document.getElementById('exp-bar').style.width = `${expPct}%`; 
+            document.getElementById('exp-text').innerText = `${expPct}%`;
+            document.getElementById('ingame-stage').innerText = currentStage;
+            updateIngameResources();
+        }
+
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            const displayWidth = container.clientWidth;
+            const displayHeight = container.clientHeight;
+            canvas.width = displayWidth * dpr;
+            canvas.height = displayHeight * dpr;
+            width = displayWidth;
+            height = displayHeight;
+            ctx.scale(dpr, dpr);
+            if (player && (gameState === 'LOBBY' || gameState === 'READY')) { 
+                player.x = width / 2; 
+                player.y = height / 2; 
+            }
+        }
+
+        function drawGrid() {
+            if (!ctx) return;
+            ctx.strokeStyle = '#222'; 
+            ctx.lineWidth = 1;
+            for(let x=0; x<width; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke(); }
+            for(let y=0; y<height; y+=50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke(); }
+        }
+
+        function resetGameData() {
+            enemies = []; bullets = []; particles = []; drops = []; texts = []; 
+            missiles = []; gravityOrbs = []; electroBarriers = [];
+            tempResources = { fragments: 0, cores: 0 };
+        }
+
+        // --- Logic ---
+        function prepareGame(testMode) {
+            isTestStage = testMode;
+            if (!isTestStage && currentStage > 1) {
+                const prevStageCleared = savedData.clearData[difficulty].includes(currentStage - 1);
+                if (!prevStageCleared) { alert("🚫 이전 스테이지를 먼저 클리어해주세요!"); return; }
+            }
+
+            gameState = 'READY';
+            ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('ingame-ui').classList.remove('hidden');
+            
+            resetGameData();
+            updateIngameResources();
+
+            let stageTime = 60;
+            if (isGodMode) stageTime = 10;
+            if (isTestStage) stageTime = 300;
+
+            gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 150, timeLeft: stageTime };
+            
+            player = { 
+                x: width/2, y: height/2, rotation: 0, 
+                atk: 4, fireRate: 0.4, lastShot: 0, multishot: 1, bulletSpeed: 600, bulletSize: 2, 
+                range: Math.min(width, height) * 0.35, turnSpeed: Math.PI, visible: true,
+                
+                target: null,
+
+                activeWeapons: isTestStage ? {...testConfig} : { missile: false, laser: false, gravity: false, droplet: false, barrier: false },
+
+                missileTimer: 0, missileInterval: 3.0, missileDmg: 15,
+                laserTimer: 0, laserInterval: 3.0, laserDmg: 8, laserOrbitRot: 0, laserDuration: 0.2, laserActive: false, laserTargetPos: null,
+                gravityTimer: 0, gravityInterval: 8.0,
+                barrierTimer: 0, barrierInterval: 6.0,
+                droplet: { active: true, state: 'ORBIT', x: 0, y: 0, rot: 0, orbitAngle: 0, chainCount: 0, maxChains: 5, target: null, waitTimer: 0, aimDuration: 1.0, cooldown: 0, maxCooldown: 5.0, hitList: [], velocity: {x:0, y:0}, dmg: 50, speed: 1200 }
+            };
+            
+            updateIngameUI();
+
+            if (!isTestStage) {
+                showSkillSelection(() => startBattleSequence());
+            } else {
+                startBattleSequence();
+            }
+        }
+
+        function startBattleSequence() {
+            const msgBox = document.getElementById('center-msg-overlay');
+            const msgText = document.getElementById('center-msg-text');
+            if (isTestStage) { msgText.innerText = "WEAPON TEST MODE"; msgText.style.color = "#ffaa00"; } 
+            else { msgText.innerText = "적이 몰려옵니다 !!!"; msgText.style.color = "#ffffff"; }
+            msgText.className = "text-4xl md:text-6xl font-black italic text-center glow-text tracking-tighter msg-pop leading-tight";
+            msgBox.classList.remove('hidden');
+            
+            const min = Math.floor(gameInfo.timeLeft / 60);
+            const sec = Math.floor(gameInfo.timeLeft % 60);
+            document.getElementById('timer-text').innerText = `${min.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}.00`;
+
+            setTimeout(() => { msgBox.classList.add('hidden'); startGame(); }, 1500);
+        }
+
+        function showSkillSelection(callback) {
+            gameState = 'UPGRADE';
+            const overlay = document.getElementById('upgrade-overlay');
+            const container = document.getElementById('card-container');
+            const title = document.querySelector('#upgrade-overlay h2');
+            if(title) title.innerText = "STARTING PERK";
+            
+            container.innerHTML = '';
+            
+            const validSkills = getValidSkills();
+            const choices = validSkills.sort(() => 0.5 - Math.random()).slice(0, 3);
+            
+            choices.forEach(skill => {
+                const card = document.createElement('div');
+                let borderClass = 'border-cyan-500/30 hover:border-cyan-400';
+                if(skill.type === 'unlock') borderClass = 'border-yellow-500/50 hover:border-yellow-400';
+
+                card.className = `skill-card rounded-xl p-6 flex flex-col items-center gap-3 bg-black/80 border ${borderClass} transition-all cursor-pointer`;
+                card.innerHTML = `<div class="text-4xl mb-2">${skill.icon}</div><div class="text-cyan-400 font-bold text-lg tracking-wider">${skill.name}</div><div class="text-gray-400 text-xs text-center">${skill.desc}</div>`;
+                card.onclick = () => {
+                    skill.effect(); 
+                    overlay.classList.add('hidden'); 
+                    if (callback) callback();
+                    else {
+                        gameState = 'PLAYING';
+                        createParticles(player.x, player.y, '#00ffff', 30);
+                        updateIngameUI();
+                    }
+                };
+                container.appendChild(card);
+            });
+            overlay.classList.remove('hidden');
+        }
+
+        function startGame() { gameState = 'PLAYING'; spawnEnemy(); }
+
+        function loop(timestamp) {
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            try {
+                ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, width, height);
+                drawGrid();
+                if (gameState === 'PLAYING') { updateGame(dt); drawGame(); } 
+                else if (['UPGRADE', 'CLEAR', 'PAUSED', 'GAMEOVER', 'READY'].includes(gameState)) { drawGame(); }
+            } catch (e) {
+                console.error("Game Loop Error:", e);
+                gameState = 'PAUSED';
+            }
+            requestAnimationFrame(loop);
+        }
+
+        function updateGame(dt) {
+            if (!player) return; 
+
+            gameInfo.timeLeft -= dt;
+            if (gameInfo.timeLeft <= 0) gameInfo.timeLeft = 0;
+            const min = Math.floor(gameInfo.timeLeft / 60);
+            const sec = Math.floor(gameInfo.timeLeft % 60);
+            const ms = Math.floor((gameInfo.timeLeft % 1) * 100);
+            document.getElementById('timer-text').innerText = `${min.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}.${ms.toString().padStart(2,'0')}`;
+
+            if (gameInfo.timeLeft <= 0 && enemies.length === 0) { stageClear(); return; }
+
+            let spawnRate = 0.8;
+            if (isTestStage) spawnRate = 0.4; 
+            if (gameInfo.timeLeft > 3) {
+                gameInfo.spawnTimer += dt;
+                if (gameInfo.spawnTimer > spawnRate) { spawnEnemy(); gameInfo.spawnTimer = 0; }
+            }
+
+            if (player.visible) {
+                if (player.activeWeapons.laser) {
+                    player.laserOrbitRot += 2.0 * dt; player.laserTimer += dt;
+                    if (player.laserActive) { player.laserTimer += dt; if (player.laserTimer > player.laserDuration) { player.laserActive = false; player.laserTimer = 0; } } 
+                    else { if (player.laserTimer >= player.laserInterval) fireLaser(); }
+                }
+                if (player.activeWeapons.missile) { player.missileTimer += dt; if (player.missileTimer >= player.missileInterval) { fireMissile(); player.missileTimer = 0; } }
+                if (player.activeWeapons.gravity) { player.gravityTimer += dt; if (player.gravityTimer >= player.gravityInterval) { fireGravity(); player.gravityTimer = 0; } }
+                if (player.activeWeapons.droplet) updateDroplet(dt);
+                if (player.activeWeapons.barrier) { player.barrierTimer += dt; if (player.barrierTimer >= player.barrierInterval) { fireBarrier(); player.barrierTimer = 0; } }
+            }
+
+            // Electro Barrier
+            for (let i = electroBarriers.length - 1; i >= 0; i--) {
+                const b = electroBarriers[i]; b.life -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
+                const dx = Math.cos(b.rot + Math.PI/2) * b.width/2; const dy = Math.sin(b.rot + Math.PI/2) * b.width/2;
+                const p1 = { x: b.x + dx, y: b.y + dy }; const p2 = { x: b.x - dx, y: b.y - dy };
+                enemies.forEach(e => {
+                    const dist = pointToLineDistance(e.x, e.y, p1.x, p1.y, p2.x, p2.y);
+                    if (dist < e.size + 10) {
+                        if (e.stunTimer <= 0) { e.hp -= 2; e.stunTimer = 1.0; createParticles(e.x, e.y, '#ffff00', 1); if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; } }
+                    }
+                });
+                if (b.life <= 0) electroBarriers.splice(i, 1);
+            }
+            // Gravity
+            for (let i = gravityOrbs.length - 1; i >= 0; i--) {
+                const g = gravityOrbs[i];
+                if (g.state === 'move') { g.x += g.vx * dt; g.y += g.vy * dt; g.traveled += Math.hypot(g.vx * dt, g.vy * dt); if (g.traveled >= g.maxDist) g.state = 'hold'; } 
+                else if (g.state === 'hold') { g.life -= dt; if (g.life <= 0) g.state = 'collapse'; } 
+                else if (g.state === 'collapse') {
+                    g.scale -= 2.0 * dt;
+                    if (g.scale <= 0) {
+                        createExplosion(g.x, g.y, '#8800ff', 20);
+                        enemies.forEach(e => {
+                            if (Math.hypot(g.x - e.x, g.y - e.y) < g.pullRange) {
+                                e.hp -= 80; texts.push({ x: e.x, y: e.y - 15, text: "CRUSH!", life: 1.0, color: '#8800ff' });
+                                if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(50); e.dead = true; }
+                            }
+                        });
+                        gravityOrbs.splice(i, 1); continue;
+                    }
+                }
+                if (g.state !== 'collapse') {
+                    enemies.forEach(e => {
+                        const dist = Math.hypot(g.x - e.x, g.y - e.y);
+                        if (dist < g.pullRange) {
+                            const angle = Math.atan2(g.y - e.y, g.x - e.x); e.x += Math.cos(angle) * g.pullForce * dt; e.y += Math.sin(angle) * g.pullForce * dt; e.hp -= g.dotDmg * dt;
+                            if (Math.random() < 0.1) texts.push({ x: e.x, y: e.y - 10, text: "1", life: 0.3, color: '#aa55ff' });
+                            if (e.hp <= 0 && !e.dead) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; }
+                        }
+                    });
+                }
+            }
+            for(let i=enemies.length-1; i>=0; i--) { if(enemies[i].dead) enemies.splice(i, 1); }
+            // Drops
+            for (let i = drops.length - 1; i >= 0; i--) {
+                const d = drops[i];
+                if (d.state === 'wait') { d.life -= dt; if (d.life <= 0) d.state = 'absorb'; } 
+                else if (d.state === 'absorb') {
+                    d.x += (player.x - d.x) * 5 * dt; d.y += (player.y - d.y) * 5 * dt;
+                    if (Math.hypot(player.x - d.x, player.y - d.y) < 20) {
+                        if (d.type === 'fragment') tempResources.fragments += d.val; else if (d.type === 'core') tempResources.cores += d.val;
+                        createParticles(player.x, player.y, d.type === 'fragment' ? '#00ffff' : '#ffaa00', 5); drops.splice(i, 1); updateIngameResources();
+                    }
+                }
+            }
+            for (let i = texts.length - 1; i >= 0; i--) { const t = texts[i]; t.y -= 20 * dt; t.life -= dt; if (t.life <= 0) texts.splice(i, 1); }
+
+            let closest = null; let minDist = Infinity;
+            enemies.forEach(e => { const d = Math.hypot(e.x - player.x, e.y - player.y); if(d <= player.range && d < minDist) { minDist = d; closest = e; } });
+
+            if (closest && player.visible) {
+                const targetAngle = Math.atan2(closest.y - player.y, closest.x - player.x);
+                let diff = targetAngle - player.rotation;
+                while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+                const maxRotate = player.turnSpeed * dt;
+                if (Math.abs(diff) < maxRotate) player.rotation = targetAngle; else player.rotation += Math.sign(diff) * maxRotate;
+                let currentDiff = targetAngle - player.rotation; while (currentDiff > Math.PI) currentDiff -= Math.PI * 2; while (currentDiff < -Math.PI) currentDiff += Math.PI * 2;
+                if (Math.abs(currentDiff) < 0.05 && Date.now() - player.lastShot > player.fireRate * 1000) { shoot(); player.lastShot = Date.now(); }
+            } else if (player.visible) { player.rotation += 0.5 * dt; }
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                if (e.stunTimer > 0) { e.stunTimer -= dt; if (Math.random() < 0.2) createParticles(e.x, e.y, '#ffff00', 1); } 
+                else { if (e.hitTimer > 0) e.hitTimer -= dt; const angle = Math.atan2(player.y - e.y, player.x - e.x); e.x += Math.cos(angle) * e.speed * dt; e.y += Math.sin(angle) * e.speed * dt; }
+                if (player.visible && Math.hypot(player.x - e.x, player.y - e.y) < 15) { gameInfo.hp -= 10; createParticles(e.x, e.y, '#ff0000', 10); enemies.splice(i, 1); updateIngameUI(); if(gameInfo.hp <= 0) gameOver(); }
+            }
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i]; b.x += Math.cos(b.rot) * b.speed * dt; b.y += Math.sin(b.rot) * b.speed * dt;
+                if(b.x < 0 || b.x > width || b.y < 0 || b.y > height) { bullets.splice(i, 1); continue; }
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const e = enemies[j];
+                    if (Math.hypot(b.x - e.x, b.y - e.y) < (e.size + b.size)) {
+                        e.hp -= player.atk; e.hitTimer = 0.1; texts.push({ x: e.x, y: e.y - 10, text: Math.floor(player.atk), life: 0.5, color: '#fff' });
+                        createParticles(e.x, e.y, e.color, 2); bullets.splice(i, 1);
+                        if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(20); e.dead = true; }
+                        break;
+                    }
+                }
+            }
+            for (let i = missiles.length - 1; i >= 0; i--) {
+                const m = missiles[i];
+                if (!m.target || !enemies.includes(m.target)) { let newTarget = null; let maxHp = -1; enemies.forEach(e => { if(e.hp > maxHp) { maxHp = e.hp; newTarget = e; } }); m.target = newTarget; }
+                if (m.target) { const targetAngle = Math.atan2(m.target.y - m.y, m.target.x - m.x); let diff = targetAngle - m.rot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; m.rot += Math.sign(diff) * Math.min(Math.abs(diff), 3.0 * dt); }
+                m.x += Math.cos(m.rot) * m.speed * dt; m.y += Math.sin(m.rot) * m.speed * dt; m.life -= dt; m.trailTimer -= dt;
+                if (m.trailTimer <= 0) { particles.push({x: m.x, y: m.y, vx: 0, vy: 0, life: 0.5, color: '#ffaa00', size: 2}); m.trailTimer = 0.05; }
+                if (m.target && Math.hypot(m.x - m.target.x, m.y - m.target.y) < (m.target.size + 5)) {
+                    m.target.hp -= player.missileDmg; m.target.hitTimer = 0.2; texts.push({ x: m.target.x, y: m.target.y - 15, text: "BOOM!", life: 0.8, color: '#ffaa00' }); createExplosion(m.x, m.y, '#ffaa00', 5);
+                    if (m.target.hp <= 0) { createExplosion(m.target.x, m.target.y, m.target.color); spawnDrop(m.target.x, m.target.y, m.target.rank); gainExp(40); m.target.dead = true; }
+                    missiles.splice(i, 1); continue;
+                }
+                if (m.life <= 1) missiles.splice(i, 1);
+            }
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * (p.type === 'shockwave' ? 3 : 2);
+                if (p.type === 'shockwave') p.size += 50 * dt; if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        // --- Drawing ---
+        function drawGame() {
+            if (!player) return;
+            const color = difficulty === 'NORMAL' ? '#00ffff' : '#ff3366';
+            
+            if (player.visible) {
+                ctx.save();
+                ctx.beginPath(); ctx.setLineDash([6, 6]); ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; ctx.lineWidth = 1.5; 
+                ctx.arc(player.x, player.y, player.range, 0, Math.PI * 2); ctx.stroke();
+                
+                // [NEW] Gravity Orb Indicator (Always visible if equipped)
+                if (player.activeWeapons.gravity) {
+                    const ready = player.gravityTimer >= player.gravityInterval;
+                    ctx.beginPath(); ctx.arc(player.x, player.y, 6, 0, Math.PI*2);
+                    ctx.fillStyle = ready ? '#aa00ff' : '#440066'; 
+                    ctx.shadowBlur = ready ? 15 : 0; ctx.shadowColor = '#aa00ff';
+                    ctx.fill();
+                }
+
+                const orbitR = 30;
+                const satX = player.x + Math.cos(player.laserOrbitRot) * orbitR;
+                const satY = player.y + Math.sin(player.laserOrbitRot) * orbitR;
+                if (player.activeWeapons.laser) {
+                    ctx.save(); ctx.translate(satX, satY); ctx.rotate(player.laserOrbitRot + Math.PI/2);
+                    ctx.fillStyle = '#333'; ctx.fillRect(-5, -5, 10, 10); ctx.fillStyle = '#ff00ff'; ctx.fillRect(-8, -2, 3, 4); ctx.fillRect(5, -2, 3, 4); ctx.restore();
+                }
+                ctx.restore();
+
+                if (player.activeWeapons.laser && player.laserActive && player.laserTargetPos) {
+                    const lSatX = player.x + Math.cos(player.laserOrbitRot) * orbitR;
+                    const lSatY = player.y + Math.sin(player.laserOrbitRot) * orbitR;
+                    ctx.save(); ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+                    ctx.beginPath(); ctx.moveTo(lSatX, lSatY); ctx.lineTo(player.laserTargetPos.ex, player.laserTargetPos.ey); ctx.strokeStyle = 'rgba(255, 0, 255, 0.2)'; ctx.lineWidth = 15; ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(lSatX, lSatY); ctx.lineTo(player.laserTargetPos.ex, player.laserTargetPos.ey); ctx.strokeStyle = '#ff66ff'; ctx.lineWidth = 4; ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(lSatX, lSatY); ctx.lineTo(player.laserTargetPos.ex, player.laserTargetPos.ey); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+                }
+            }
+
+            drops.forEach(d => {
+                ctx.save(); ctx.translate(d.x, d.y);
+                if (d.type === 'fragment') { ctx.fillStyle = '#00ffff'; ctx.shadowBlur = 5; ctx.shadowColor = '#00ffff'; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(3, 3); ctx.lineTo(-3, 3); ctx.fill(); } 
+                else { ctx.fillStyle = '#ffaa00'; ctx.shadowBlur = 5; ctx.shadowColor = '#ffaa00'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill(); }
+                ctx.restore();
+            });
+
+            gravityOrbs.forEach(g => {
+                ctx.save(); ctx.translate(g.x, g.y); ctx.scale(g.scale, g.scale);
+                if (g.state !== 'collapse') { ctx.beginPath(); ctx.arc(0, 0, g.pullRange, 0, Math.PI*2); ctx.fillStyle = 'rgba(130, 0, 255, 0.1)'; ctx.fill(); ctx.strokeStyle = 'rgba(130, 0, 255, 0.3)'; ctx.lineWidth = 1; ctx.stroke(); }
+                const pulse = 1 + Math.sin(Date.now() * 0.01) * 0.1;
+                ctx.beginPath(); ctx.arc(0, 0, 10 * pulse, 0, Math.PI*2); ctx.fillStyle = '#220044'; ctx.fill(); ctx.strokeStyle = '#8800ff'; ctx.lineWidth = 2; ctx.stroke(); ctx.shadowBlur = 15; ctx.shadowColor = '#8800ff'; ctx.stroke(); ctx.restore();
+                if (g.state !== 'collapse') {
+                    enemies.forEach(e => { if (Math.hypot(g.x - e.x, g.y - e.y) < g.pullRange) { ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(e.x, e.y); ctx.strokeStyle = 'rgba(136, 0, 255, 0.4)'; ctx.lineWidth = 1; ctx.stroke(); } });
+                }
+            });
+
+            const d = player.droplet;
+            if (player.visible && d.active && player.activeWeapons.droplet) {
+                ctx.save(); ctx.translate(d.x, d.y);
+                if (d.state === 'ORBIT') ctx.rotate(d.orbitAngle + Math.PI/2); else ctx.rotate(Math.atan2(d.velocity.y, d.velocity.x) + Math.PI/2);
+                ctx.shadowBlur = 10; ctx.shadowColor = '#00ffff'; ctx.fillStyle = '#e0ffff'; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI, true); ctx.lineTo(0, 12); ctx.closePath(); ctx.fill();
+                if (d.state === 'AIMING' && d.target) {
+                    ctx.restore(); ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(300, 0); ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)'; ctx.setLineDash([2, 4]); ctx.stroke();
+                    ctx.restore(); ctx.save(); 
+                }
+                ctx.restore();
+            }
+
+            electroBarriers.forEach(b => {
+                ctx.save();
+                const dx = Math.cos(b.rot + Math.PI/2) * b.width/2; const dy = Math.sin(b.rot + Math.PI/2) * b.width/2;
+                const p1 = { x: b.x + dx, y: b.y + dy }; const p2 = { x: b.x - dx, y: b.y - dy };
+                ctx.fillStyle = '#333'; ctx.shadowBlur = 5; ctx.shadowColor = '#ffff00';
+                ctx.beginPath(); ctx.arc(p1.x, p1.y, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(p2.x, p2.y, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(p1.x, p1.y);
+                const midX = (p1.x + p2.x) / 2; const midY = (p1.y + p2.y) / 2;
+                const jitter = (Math.random() - 0.5) * 10;
+                ctx.lineTo(midX + jitter, midY + jitter); ctx.lineTo(p2.x, p2.y);
+                ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.stroke();
+                ctx.restore();
+            });
+
+            enemies.forEach(e => {
+                if (e.stunTimer > 0) { ctx.fillStyle = '#ffff00'; ctx.shadowColor = '#ffff00'; } 
+                else { ctx.fillStyle = (e.hitTimer > 0) ? '#ffffff' : e.color; ctx.shadowColor = e.color; }
+                ctx.shadowBlur = 5; ctx.beginPath();
+                if (e.rank >= 2) { ctx.rect(e.x - e.size/2, e.y - e.size/2, e.size, e.size); ctx.strokeRect(e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4); } 
+                else if(e.type === 'fast') { ctx.moveTo(e.x + Math.cos(0)*e.size, e.y + Math.sin(0)*e.size); ctx.lineTo(e.x + Math.cos(2.1)*e.size, e.y + Math.sin(2.1)*e.size); ctx.lineTo(e.x + Math.cos(4.2)*e.size, e.y + Math.sin(4.2)*e.size); } 
+                else { ctx.rect(e.x - e.size/2, e.y - e.size/2, e.size, e.size); }
+                ctx.fill(); ctx.stroke();
+                if (e.hp < e.maxHp) {
+                    const hpPct = e.hp / e.maxHp; const barW = 20;
+                    ctx.fillStyle = '#555'; ctx.fillRect(e.x - barW/2, e.y - e.size - 8, barW, 3);
+                    ctx.fillStyle = (hpPct > 0.5) ? '#00ff00' : (hpPct > 0.2 ? '#ffff00' : '#ff0000');
+                    ctx.fillRect(e.x - barW/2, e.y - e.size - 8, barW * hpPct, 3);
+                }
+            });
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = color;
+            bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill(); });
+
+            missiles.forEach(m => {
+                ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.rot); ctx.fillStyle = '#ffaa00';
+                ctx.beginPath(); ctx.moveTo(5, 0); ctx.lineTo(-3, 3); ctx.lineTo(-3, -3); ctx.fill(); ctx.restore();
+            });
+
+            ctx.font = 'bold 12px Pretendard'; ctx.textAlign = 'center';
+            texts.forEach(t => { ctx.fillStyle = `rgba(${t.color === '#00ff00' ? '0,255,0' : (t.color === '#ff00ff' ? '255,0,255' : (t.color === '#ffaa00' ? '255,170,0' : '255,255,255'))}, ${t.life * 2})`; ctx.fillText(t.text, t.x, t.y); });
+
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                if (p.type === 'shockwave') { ctx.strokeStyle = p.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.stroke(); } 
+                else { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size || 2, p.size || 2); }
+            });
+            ctx.globalAlpha = 1;
+
+            if (player.visible) {
+                ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.rotation); ctx.shadowBlur = 15; ctx.shadowColor = color; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(20, 0); ctx.stroke(); ctx.fillStyle = '#333'; ctx.fillRect(0, -18, 10, 6); ctx.fillRect(0, 12, 10, 6); ctx.fillStyle = '#ffaa00'; if (player.missileTimer >= player.missileInterval) { ctx.fillRect(2, -16, 6, 2); ctx.fillRect(2, 14, 6, 2); } if (player.activeWeapons.gravity && player.gravityTimer >= player.gravityInterval) { ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fillStyle = '#8800ff'; ctx.fill(); } ctx.restore(); ctx.shadowBlur = 0;
+            }
+        }
+        
+        // --- Helper & Management ---
+        function activateGodMode() {
+            isGodMode = true;
+            savedData.clearData[difficulty] = Array.from({length: 50}, (_, i) => i + 1);
+            savedData.resources.fragments += 100000;
+            savedData.resources.cores += 100000;
+            saveGameData();
+            updateLobbyUI();
+            alert(`[GOD MODE ACTIVATED]\n- All Stages Unlocked\n- Resources +100,000\n- Clear Time: 10s`);
+        }
+        function saveGameData() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(savedData)); document.getElementById('debug-save-status').innerText = "Saved OK"; } catch (e) { document.getElementById('debug-save-status').innerText = "Save Failed"; } updateLobbyUI(); }
+        function loadGameData() { try { const data = localStorage.getItem(SAVE_KEY); if (data) { savedData = JSON.parse(data); if (!savedData.resources) savedData.resources = { fragments: 0, cores: 0 }; if (!savedData.clearData) savedData.clearData = { 'NORMAL': [1], 'HARD': [] }; document.getElementById('debug-save-status').innerText = "Loaded"; } else { document.getElementById('debug-save-status').innerText = "New Game"; } } catch (e) { document.getElementById('debug-save-status').innerText = "Load Error"; } }
+        function setDifficulty(diff) { difficulty = diff; document.getElementById('diff-normal').classList.toggle('active', diff === 'NORMAL'); document.getElementById('diff-hard').classList.toggle('active', diff === 'HARD'); updateLobbyUI(); }
+        function changeStage(dir) { currentStage += dir; if(currentStage < 1) currentStage = 50; if(currentStage > 50) currentStage = 1; updateLobbyUI(); }
+        function gameOver() { if (gameState === 'GAMEOVER') return; gameState = 'GAMEOVER'; createExplosion(player.x, player.y, '#00ffff', 50); player.visible = false; if (!isTestStage) { savedData.resources.fragments += tempResources.fragments; savedData.resources.cores += tempResources.cores; saveGameData(); } setTimeout(() => { document.getElementById('gameover-popup').classList.remove('hidden'); }, 1500); }
+        function stageClear() { gameState = 'CLEAR'; if (!isTestStage) { savedData.resources.fragments += tempResources.fragments; savedData.resources.cores += tempResources.cores; if(!savedData.clearData[difficulty].includes(currentStage)) { savedData.clearData[difficulty].push(currentStage); } saveGameData(); } document.getElementById('clear-overlay').classList.remove('hidden'); }
+        function quitGame() { returnToLobby(); }
+        function showQuitPopup() { gameState = 'PAUSED'; document.getElementById('quit-overlay').classList.remove('hidden'); }
+        function cancelQuit() { gameState = 'PLAYING'; document.getElementById('quit-overlay').classList.add('hidden'); }
+        function nextStage() { currentStage++; if(currentStage > 50) currentStage = 1; prepareGame(isTestStage); }
+        function openTestConfig() { document.getElementById('lobby-ui').classList.add('hidden'); document.getElementById('test-config-overlay').classList.remove('hidden'); testConfig = { missile: false, laser: false, gravity: false, droplet: false, barrier: false }; updateTestConfigUI(); }
+        function cancelTest() { document.getElementById('test-config-overlay').classList.add('hidden'); document.getElementById('lobby-ui').classList.remove('hidden'); }
+        function toggleTestWeapon(type) { testConfig[type] = !testConfig[type]; updateTestConfigUI(); }
+        function updateTestConfigUI() { const types = ['missile', 'laser', 'gravity', 'droplet', 'barrier']; types.forEach(type => { const el = document.getElementById(`toggle-${type}`); if (!el) return; const knob = el.querySelector('div'); if (testConfig[type]) { el.classList.remove('bg-gray-600'); el.classList.add('bg-green-500'); knob.style.transform = 'translateX(20px)'; } else { el.classList.add('bg-gray-600'); el.classList.remove('bg-green-500'); knob.style.transform = 'translateX(0)'; } }); }
+        function startTestMatch() { document.getElementById('test-config-overlay').classList.add('hidden'); prepareGame(true); }
+
+        function returnToLobby() {
+            gameState = 'LOBBY';
+            document.getElementById('ingame-ui').classList.add('hidden');
+            document.getElementById('lobby-ui').classList.remove('hidden');
+            ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            saveGameData(); 
+            updateLobbyUI();
+        }
+
+        // --- Restored Missing Functions ---
+        function gainExp(amount) {
+            gameInfo.exp += amount;
+            if (gameInfo.exp >= gameInfo.nextExp) {
+                gameInfo.level++;
+                gameInfo.exp = 0;
+                gameInfo.nextExp = Math.floor(150 * Math.pow(1.35, gameInfo.level - 1));
+                showLevelUpUI();
+            }
+            updateIngameUI();
+        }
+
+        function showLevelUpUI() {
+            gameState = 'UPGRADE';
+            const overlay = document.getElementById('upgrade-overlay');
+            const container = document.getElementById('card-container');
+            const title = document.querySelector('#upgrade-overlay h2');
+            const sub = document.querySelector('#upgrade-overlay p');
+            
+            if(title) title.innerText = "LEVEL UP!";
+            if(sub) sub.innerText = "SELECT UPGRADE MODULE";
+            
+            container.innerHTML = '';
+            // [FIX] Valid Skill Selector using SKILL_POOL
+            const validSkills = getValidSkills();
+            const choices = validSkills.sort(() => 0.5 - Math.random()).slice(0, 3);
+            
+            choices.forEach(skill => {
+                const card = document.createElement('div');
+                let borderClass = 'border-cyan-500/30 hover:border-cyan-400';
+                if(skill.type === 'unlock') borderClass = 'border-yellow-500/50 hover:border-yellow-400';
+
+                card.className = `skill-card rounded-xl p-6 flex flex-col items-center gap-3 bg-black/80 border ${borderClass} transition-all cursor-pointer`;
+                card.innerHTML = `<div class="text-4xl mb-2">${skill.icon}</div><div class="text-cyan-400 font-bold text-lg tracking-wider">${skill.name}</div><div class="text-gray-400 text-xs text-center">${skill.desc}</div>`;
+                card.onclick = () => {
+                    skill.effect(); 
+                    overlay.classList.add('hidden'); 
+                    gameState = 'PLAYING';
+                    createParticles(player.x, player.y, '#00ffff', 30);
+                    updateIngameUI();
+                };
+                container.appendChild(card);
+            });
+            overlay.classList.remove('hidden');
+        }
+
+        function spawnEnemy() {
+            const isVertical = Math.random() < 0.7; const buffer = 50;
+            let x, y;
+            if (isVertical) { x = Math.random() * width; y = (Math.random() < 0.5) ? -buffer : height + buffer; } 
+            else { y = Math.random() * height; x = (Math.random() < 0.5) ? -buffer : width + buffer; }
+            const isFast = Math.random() > 0.8; const isElite = Math.random() < 0.1; 
+            let rank = 1; let size = isFast ? 5.5 : 8; let hp = 10; 
+            if (isFast) hp = 6.6; if (isElite) { rank = 2; size = 12; hp = 30; }
+            enemies.push({ x: x, y: y, speed: isFast ? 64 : 32, size: size, type: isFast ? 'fast' : 'normal', rank: rank, color: isElite ? '#ffaa00' : (isFast ? '#ff3366' : '#ffffff'), hp: hp, maxHp: hp, hitTimer: 0, stunTimer: 0 });
+        }
+        function shoot() {
+            const spread = 0.1;
+            for(let i=0; i<player.multishot; i++) {
+                const angleOffset = (player.multishot > 1) ? (i - (player.multishot-1)/2) * spread : 0;
+                bullets.push({ x: player.x, y: player.y, rot: player.rotation + angleOffset, speed: player.bulletSpeed, size: player.bulletSize });
+            }
+        }
+        function createParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) { const a = Math.random() * Math.PI * 2; const s = Math.random() * 30 + 10; particles.push({x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 1, color}); }
+        }
+        function fireMissile() {
+            let target = null; let maxHp = -1; enemies.forEach(e => { if (e.hp > maxHp) { maxHp = e.hp; target = e; } });
+            if (target) {
+                const offset = 15;
+                const spawnPoints = [{ x: player.x + Math.cos(player.rotation - Math.PI/2) * offset, y: player.y + Math.sin(player.rotation - Math.PI/2) * offset }, { x: player.x + Math.cos(player.rotation + Math.PI/2) * offset, y: player.y + Math.sin(player.rotation + Math.PI/2) * offset }];
+                spawnPoints.forEach(p => { missiles.push({ x: p.x, y: p.y, rot: player.rotation, speed: 300, target: target, life: 3.0, trailTimer: 0 }); });
+            }
+        }
+        function fireLaser() {
+            let closest = null; let minDist = Infinity;
+            enemies.forEach(e => { const d = Math.hypot(e.x - player.x, e.y - player.y); if(d < minDist) { minDist = d; closest = e; } });
+            if (closest) {
+                player.laserActive = true; player.laserTimer = 0; 
+                const orbitR = 30; const lx = player.x + Math.cos(player.laserOrbitRot) * orbitR; const ly = player.y + Math.sin(player.laserOrbitRot) * orbitR;
+                const angle = Math.atan2(closest.y - ly, closest.x - lx); const laserLen = Math.max(width, height) * 1.5;
+                const ex = lx + Math.cos(angle) * laserLen; const ey = ly + Math.sin(angle) * laserLen;
+                player.laserTargetPos = { sx: lx, sy: ly, ex: ex, ey: ey };
+                enemies.forEach(e => {
+                    const dist = pointToLineDistance(e.x, e.y, lx, ly, ex, ey);
+                    if (dist < e.size + 5) {
+                        e.hp -= player.laserDmg; e.hitTimer = 0.2; texts.push({ x: e.x, y: e.y - 15, text: "LASER!", life: 0.8, color: '#ff00ff' });
+                        createParticles(e.x, e.y, '#ff00ff', 3);
+                        if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(25); e.dead = true; }
+                    }
+                });
+                for(let i=enemies.length-1; i>=0; i--) { if(enemies[i].dead) enemies.splice(i, 1); }
+            }
+        }
+        function fireGravity() {
+            let target = null; let maxHp = -1; enemies.forEach(e => { if (e.hp > maxHp) { maxHp = e.hp; target = e; } });
+            const angle = target ? Math.atan2(target.y - player.y, target.x - player.x) : Math.random() * Math.PI * 2;
+            gravityOrbs.push({ x: player.x, y: player.y, vx: Math.cos(angle) * 40, vy: Math.sin(angle) * 40, life: 2.0, state: 'move', maxDist: 300, traveled: 0, pullRange: 50, pullForce: 50, dotDmg: 10, scale: 1.0 });
+        }
+        function fireBarrier() {
+            const speed = 150; const width = 120; 
+            electroBarriers.push({ x: player.x, y: player.y, vx: Math.cos(player.rotation) * speed, vy: Math.sin(player.rotation) * speed, rot: player.rotation, width: width, life: 3.0 });
+        }
+        function updateDroplet(dt) { 
+            const d = player.droplet;
+            if (d.state === 'ORBIT') { d.orbitAngle += dt; d.x = player.x + Math.cos(d.orbitAngle) * 35; d.y = player.y + Math.sin(d.orbitAngle) * 35; if (d.cooldown > 0) d.cooldown -= dt; else { let closest = null; let minDist = 300; enemies.forEach(e => { const dist = Math.hypot(e.x - player.x, e.y - player.y); if (dist < minDist) { minDist = dist; closest = e; } }); if (closest) { d.target = closest; d.state = 'ATTACK'; d.chainCount = 1; d.hitList = []; const angle = Math.atan2(closest.y - d.y, closest.x - d.x); d.velocity.x = Math.cos(angle) * d.speed; d.velocity.y = Math.sin(angle) * d.speed; } } } 
+            else if (d.state === 'ATTACK') { d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; particles.push({x: d.x, y: d.y, vx: 0, vy: 0, life: 0.3, color: '#00ffff', size: 3}); enemies.forEach(e => { if (!d.hitList.includes(e) && Math.hypot(d.x - e.x, d.y - e.y) < 15) { d.hitList.push(e); const dmg = (e === d.target) ? d.dmg : (d.dmg * 0.5); e.hp -= dmg; e.hitTimer = 0.2; texts.push({ x: e.x, y: e.y - 15, text: "PIERCE", life: 0.5, color: '#00ffff' }); createExplosion(e.x, e.y, '#00ffff', 3); if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(30); e.dead = true; } if (e === d.target) { d.state = 'OVERSHOOT'; d.waitTimer = 0.15; } } }); } 
+            else if (d.state === 'OVERSHOOT') { d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; d.waitTimer -= dt; if (d.waitTimer <= 0) { d.state = 'STOPPED'; d.waitTimer = 0; } } 
+            else if (d.state === 'STOPPED') { let nextTarget = null; let minDist = 200; enemies.forEach(e => { if (e.dead) return; const dist = Math.hypot(d.x - e.x, d.y - e.y); if (dist > 200) { if (!nextTarget || dist < Math.hypot(d.x - nextTarget.x, d.y - nextTarget.y)) { nextTarget = e; } } }); if (nextTarget && d.chainCount < d.maxChains) { d.target = nextTarget; d.state = 'AIMING'; d.waitTimer = 0; } else { d.state = 'RETURNING'; } } 
+            else if (d.state === 'AIMING') { d.waitTimer += dt; d.rot = Math.atan2(d.target.y - d.y, d.target.x - d.x); if (d.waitTimer >= d.aimDuration) { d.state = 'ATTACK'; d.chainCount++; d.hitList = []; d.velocity.x = Math.cos(d.rot) * d.speed; d.velocity.y = Math.sin(d.rot) * d.speed; } } 
+            else if (d.state === 'RETURNING') { const angle = Math.atan2(player.y - d.y, player.x - d.x); d.x += Math.cos(angle) * d.speed * dt; d.y += Math.sin(angle) * d.speed * dt; if (Math.hypot(player.x - d.x, player.y - d.y) < 20) { d.state = 'ORBIT'; d.cooldown = d.maxCooldown; } }
+        }
+        function pointToLineDistance(px, py, x1, y1, x2, y2) { const A = px - x1; const B = py - y1; const C = x2 - x1; const D = y2 - y1; const dot = A * C + B * D; const len_sq = C * C + D * D; let param = -1; if (len_sq != 0) param = dot / len_sq; let xx, yy; if (param < 0) { xx = x1; yy = y1; } else if (param > 1) { xx = x2; yy = y2; } else { xx = x1 + param * C; yy = y1 + param * D; } const dx = px - xx; const dy = py - yy; return Math.sqrt(dx * dx + dy * dy); }
+        function spawnDrop(x, y, rank) { if (difficulty === 'NORMAL') { const baseVal = Math.floor(Math.random() * 6) + 5; const val = Math.floor(baseVal * (1 + currentStage * 0.1)); drops.push({ x, y, type: 'fragment', val, life: 1.0, state: 'wait' }); } else { if (rank >= 2 || Math.random() < 0.05) { const val = (rank >= 2) ? Math.floor(Math.random() * 3) + 2 : 1; drops.push({ x, y, type: 'core', val, life: 1.0, state: 'wait' }); } } }
+        function createExplosion(x, y, color, count=8) { createParticles(x, y, color, count); particles.push({ x, y, vx: 0, vy: 0, life: 1, color: color, type: 'shockwave', size: 10 }); }
+
+        init();
+    </script>
+</body>
+</html>
