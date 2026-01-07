@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>지오메트리 캐논 - v37.1.3</title>
+    <title>지오메트리 캐논 - v37.2.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -90,6 +90,34 @@
         .dev-btn { padding: 12px 10px; border-radius: 14px; font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; }
         .toggle-checkbox:checked { right: 0; border-color: #68D391; }
         .toggle-checkbox:checked + .toggle-label { background-color: #68D391; }
+        #rotate-overlay .rotate-continue-btn{
+            margin-top:18px; min-height:44px; padding:12px 18px;
+            border-radius:14px;
+            border:1px solid rgba(0,255,255,.25);
+            background:rgba(0,0,0,.35);
+            color:rgba(200,255,255,.92);
+            font-weight:800; letter-spacing:.08em;
+            backdrop-filter: blur(10px);
+        }
+        #rotate-overlay .rotate-continue-btn:active{
+            transform:scale(.98); filter:brightness(1.08);
+        }
+        #btn-upgr { pointer-events: auto; }
+        .meta-upgrade-overlay { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; }
+        .meta-upgrade-overlay.hidden { display: none; }
+        .meta-upgrade-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7); }
+        .meta-upgrade-sheet { position: relative; width: min(96%, 480px); max-height: 85dvh; border-radius: 20px; border: 1px solid var(--border); background: rgba(6, 6, 6, 0.95); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+        .meta-upgrade-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+        .meta-upgrade-title { font-size: 14px; font-weight: 800; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(103, 232, 249, 0.9); }
+        .meta-upgrade-close { min-width: 44px; min-height: 44px; border-radius: 12px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.4); color: rgba(255, 255, 255, 0.7); font-size: 12px; font-weight: 800; letter-spacing: 0.2em; }
+        .meta-upgrade-resources { display: flex; gap: 8px; padding: 12px 18px 0; }
+        .meta-upgrade-pill { flex: 1; border-radius: 999px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.5); padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+        .meta-upgrade-list { padding: 14px 18px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .meta-upgrade-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 12px; border-radius: 16px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.04); }
+        .meta-upgrade-item h4 { margin: 0; font-size: 12px; letter-spacing: 0.12em; }
+        .meta-upgrade-item p { margin: 4px 0 0; font-size: 10px; color: rgba(255, 255, 255, 0.6); }
+        .meta-upgrade-buy { min-width: 96px; min-height: 44px; border-radius: 12px; border: 1px solid rgba(0, 255, 255, 0.25); background: rgba(0, 0, 0, 0.35); color: rgba(200, 255, 255, 0.92); font-weight: 800; font-size: 11px; letter-spacing: 0.18em; }
+        .meta-upgrade-buy:disabled { opacity: 0.35; }
     </style>
 </head>
 <body>
@@ -98,8 +126,9 @@
         <canvas id="gameCanvas"></canvas>
         <div id="rotate-overlay" class="hidden absolute inset-0 z-[999] bg-black/90 backdrop-blur-md flex items-center justify-center text-center p-8">
             <div>
-                <div class="text-3xl font-black italic text-cyan-300 glow-text">세로 모드로<br/>돌려주세요</div>
+                <div class="text-3xl font-black italic text-cyan-300 glow-text">게임화면에 맞게<br/>세로로 창을 조절해 주세요</div>
                 <div class="mt-3 text-xs text-gray-400 tracking-widest">PORTRAIT MODE RECOMMENDED</div>
+                <button id="rotate-continue" class="rotate-continue-btn" type="button">계속 진행</button>
             </div>
         </div>
 
@@ -112,7 +141,7 @@
                 <div class="title-block">
                     <h1 class="italic glow-text">GEOMETRY<br>CANNON</h1>
                     <button id="version-toggle" class="version-toggle tap-target" type="button" aria-label="버전 5회 탭 시 DEV 패널">
-                        <span id="version-text">v37.1.3</span>
+                        <span id="version-text">v37.2.0</span>
                     </button>
                 </div>
                 <div class="resource-stack">
@@ -154,7 +183,7 @@
 
             <div class="bottom-bar interactive mt-auto">
                 <button class="btn-sub nav-btn tap-target" aria-label="설정">⚙️</button>
-                <button class="btn-sub nav-btn tap-target" aria-label="업그레이드">
+                <button id="btn-upgr" class="btn-sub nav-btn tap-target" aria-label="업그레이드">
                     <span class="nav-label">UPGR</span>
                     ⚔️
                 </button>
@@ -178,10 +207,31 @@
                 <div class="dev-panel-sheet">
                     <div class="dev-panel-title">DEV PANEL</div>
                     <div class="dev-panel-actions">
-                        <button id="btn-god-mode" class="dev-btn bg-red-900/80 border border-red-500/50 text-red-200 hover:bg-red-600 transition-colors" onclick="activateGodMode()">GOD MODE</button>
-                        <button id="btn-test-stage" class="dev-btn bg-orange-600 border border-orange-400 text-white hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]" onclick="openTestConfig()">TEST STAGE</button>
+                        <button id="dev-god-btn" class="dev-btn bg-red-900/80 border border-red-500/50 text-red-200 hover:bg-red-600 transition-colors">GOD MODE</button>
+                        <button id="dev-test-btn" class="dev-btn bg-orange-600 border border-orange-400 text-white hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]">TEST STAGE</button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div id="meta-upgrade-overlay" class="meta-upgrade-overlay hidden" role="dialog" aria-modal="true" aria-label="메타 업그레이드">
+            <button id="meta-upgrade-backdrop" class="meta-upgrade-backdrop" type="button" aria-label="메타 업그레이드 닫기"></button>
+            <div class="meta-upgrade-sheet">
+                <div class="meta-upgrade-header">
+                    <div class="meta-upgrade-title">UPGR</div>
+                    <button id="meta-upgrade-close" class="meta-upgrade-close" type="button">CLOSE</button>
+                </div>
+                <div class="meta-upgrade-resources">
+                    <div class="meta-upgrade-pill">
+                        <span class="text-cyan-300">◆</span>
+                        <span id="meta-upgrade-fragments" class="font-mono text-cyan-100">0</span>
+                    </div>
+                    <div class="meta-upgrade-pill">
+                        <span class="text-orange-300">⬢</span>
+                        <span id="meta-upgrade-cores" class="font-mono text-orange-100">0</span>
+                    </div>
+                </div>
+                <div id="meta-upgrade-list" class="meta-upgrade-list"></div>
             </div>
         </div>
 

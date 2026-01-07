@@ -3,6 +3,7 @@ import { STORAGE_PREFIX } from './version.js';
 export const keys = {
   save: `${STORAGE_PREFIX}:save`,
   meta: `${STORAGE_PREFIX}:meta`,
+  metaUpgrades: `${STORAGE_PREFIX}:metaUpgrades`,
 };
 
 const legacySaveKeys = [
@@ -59,4 +60,31 @@ export const saveSavedData = (payload) => {
 
 export const saveMeta = (payload) => {
   return writeStorage(keys.meta, JSON.stringify(payload));
+};
+
+const defaultMetaUpgrades = {
+  atk: 0,
+  fireRate: 0,
+  range: 0,
+  maxHp: 0,
+  pickup: 0,
+  startLevel: 0,
+  startChoices: 0,
+  rerolls: 0,
+};
+
+export const getMetaUpgrades = () => {
+  const raw = readStorage(keys.metaUpgrades);
+  if (!raw) {
+    return { ...defaultMetaUpgrades };
+  }
+  try {
+    return { ...defaultMetaUpgrades, ...JSON.parse(raw) };
+  } catch (error) {
+    return { ...defaultMetaUpgrades };
+  }
+};
+
+export const setMetaUpgrades = (payload) => {
+  return writeStorage(keys.metaUpgrades, JSON.stringify(payload));
 };

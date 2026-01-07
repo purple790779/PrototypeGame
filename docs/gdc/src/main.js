@@ -1,5 +1,5 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
-import { loadSavedData, saveMeta, saveSavedData } from './storage.js';
+import { getMetaUpgrades, loadSavedData, saveMeta, saveSavedData, setMetaUpgrades } from './storage.js';
 
 document.addEventListener('DOMContentLoaded', () => {
         const canvas = document.getElementById('gameCanvas');
@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentStage = 1;
         let isGodMode = false;
         let isTestStage = false;
+        let orientationOverlayDismissed = false;
 
         let testConfig = { missile: false, laser: false, gravity: false, droplet: false, barrier: false };
         let savedData = { clearData: { 'NORMAL': [1], 'HARD': [] }, resources: { fragments: 0, cores: 0 } };
@@ -33,6 +34,21 @@ document.addEventListener('DOMContentLoaded', () => {
         let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 60 };
         let devTapCount = 0;
         let devTapTimer = null;
+        let metaUpgrades = getMetaUpgrades();
+
+        const STAGE_COUNT = 50;
+        const STAGE_NAMES = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];
+
+        const META_UPGRADES = [
+            { key: 'atk', name: 'WEAPON POWER', desc: '공격력 +2%/lv', max: 20, base: 50, growth: 1.22, currency: 'fragments' },
+            { key: 'fireRate', name: 'FIRE RATE', desc: '공격 속도 +2%/lv', max: 15, base: 60, growth: 1.22, currency: 'fragments' },
+            { key: 'range', name: 'RADAR RANGE', desc: '인식 범위 +2%/lv', max: 10, base: 40, growth: 1.22, currency: 'fragments' },
+            { key: 'maxHp', name: 'SHIELD CAPACITY', desc: '최대 체력 +3%/lv', max: 10, base: 70, growth: 1.22, currency: 'fragments' },
+            { key: 'pickup', name: 'RESOURCE PICKUP', desc: '획득량 +2%/lv', max: 10, base: 80, growth: 1.22, currency: 'fragments' },
+            { key: 'startLevel', name: 'START LEVEL', desc: '시작 레벨 +1/lv', max: 3, base: 2, growth: 1.35, currency: 'cores' },
+            { key: 'startChoices', name: 'START CHOICES', desc: '시작 선택지 +1/lv', max: 2, base: 3, growth: 1.35, currency: 'cores' },
+            { key: 'rerolls', name: 'REROLL', desc: '리롤 +1/lv', max: 3, base: 2, growth: 1.35, currency: 'cores' },
+        ];
 
         const SKILL_POOL = [
             { id: 'atk', name: 'WEAPON DAMAGE', desc: '공격력 +25%', icon: '⚔️', type: 'stat', effect: () => { player.atk *= 1.25; } },
@@ -64,9 +80,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.dataset.storagePrefix = STORAGE_PREFIX;
             saveMeta({ version: VERSION, updatedAt: Date.now() });
             loadGameData();
+            metaUpgrades = getMetaUpgrades();
             resize();
             window.addEventListener('resize', resize);
             setupDevPanelToggle();
+            setupOverlayActions();
             updateLobbyUI();
             requestAnimationFrame(loop);
         }
@@ -124,8 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('stage-num').innerText = `STAGE ${currentStage.toString().padStart(2,'0')}`;
             document.getElementById('stage-num').style.color = color;
 
-            const names = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];
-            document.getElementById('stage-name').innerText = names[(currentStage-1)%names.length];
+            document.getElementById('stage-name').innerText = STAGE_NAMES[(currentStage-1)%STAGE_NAMES.length];
 
             const isCleared = savedData.clearData[difficulty].includes(currentStage);
             const isPlayable = (currentStage === 1) || savedData.clearData[difficulty].includes(currentStage - 1);
@@ -187,8 +204,18 @@ document.addEventListener('DOMContentLoaded', () => {
         function updateOrientationOverlay() {
             const overlay = document.getElementById('rotate-overlay');
             if (!overlay) return;
+            const shortSide = Math.min(window.innerWidth, window.innerHeight);
+            if (shortSide >= 600) {
+                overlay.classList.add('hidden');
+                return;
+            }
             const isLandscape = window.innerWidth > window.innerHeight;
-            overlay.classList.toggle('hidden', !isLandscape);
+            if (!isLandscape) {
+                orientationOverlayDismissed = false;
+                overlay.classList.add('hidden');
+                return;
+            }
+            overlay.classList.toggle('hidden', orientationOverlayDismissed);
         }
 
         function resize() {
@@ -242,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             gameState = 'READY';
-            ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'meta-upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById('ingame-ui').classList.remove('hidden');
             
             resetGameData();
@@ -252,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGodMode) stageTime = 10;
             if (isTestStage) stageTime = 300;
 
-            gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 150, timeLeft: stageTime };
+            gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 150, timeLeft: stageTime, startChoices: 3, rerolls: 0, pickupMultiplier: 1 };
             
             player = { 
                 x: width/2, y: height/2, rotation: 0, 
@@ -269,6 +296,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 barrierTimer: 0, barrierInterval: 6.0,
                 droplet: { active: true, state: 'ORBIT', x: 0, y: 0, rot: 0, orbitAngle: 0, chainCount: 0, maxChains: 5, target: null, waitTimer: 0, aimDuration: 1.0, cooldown: 0, maxCooldown: 5.0, hitList: [], velocity: {x:0, y:0}, dmg: 50, speed: 1200 }
             };
+
+            applyMetaUpgrades();
             
             updateIngameUI();
 
@@ -304,7 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = '';
             
             const validSkills = getValidSkills();
-            const choices = validSkills.sort(() => 0.5 - Math.random()).slice(0, 3);
+            const choiceCount = Math.min(gameInfo.startChoices || 3, validSkills.length);
+            const choices = validSkills.sort(() => 0.5 - Math.random()).slice(0, choiceCount);
             
             choices.forEach(skill => {
                 const card = document.createElement('div');
@@ -438,7 +468,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (d.state === 'absorb') {
                     d.x += (player.x - d.x) * 5 * dt; d.y += (player.y - d.y) * 5 * dt;
                     if (Math.hypot(player.x - d.x, player.y - d.y) < 20) {
-                        if (d.type === 'fragment') tempResources.fragments += d.val; else if (d.type === 'core') tempResources.cores += d.val;
+                        const multiplier = gameInfo.pickupMultiplier || 1;
+                        if (d.type === 'fragment') tempResources.fragments += Math.round(d.val * multiplier);
+                        else if (d.type === 'core') tempResources.cores += Math.round(d.val * multiplier);
                         createParticles(player.x, player.y, d.type === 'fragment' ? '#00ffff' : '#ffaa00', 5); drops.splice(i, 1); updateIngameResources();
                     }
                 }
@@ -622,7 +654,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Helper & Management ---
         function activateGodMode() {
             isGodMode = true;
-            savedData.clearData[difficulty] = Array.from({length: 50}, (_, i) => i + 1);
+            const allStages = Array.from({ length: STAGE_COUNT }, (_, i) => i + 1);
+            savedData.clearData.NORMAL = [...allStages];
+            savedData.clearData.HARD = [...allStages];
             savedData.resources.fragments += 100000;
             savedData.resources.cores += 100000;
             saveGameData();
@@ -646,13 +680,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         function setDifficulty(diff) { difficulty = diff; document.getElementById('diff-normal').classList.toggle('active', diff === 'NORMAL'); document.getElementById('diff-hard').classList.toggle('active', diff === 'HARD'); updateLobbyUI(); }
-        function changeStage(dir) { currentStage += dir; if(currentStage < 1) currentStage = 50; if(currentStage > 50) currentStage = 1; updateLobbyUI(); }
+        function changeStage(dir) { currentStage += dir; if(currentStage < 1) currentStage = STAGE_COUNT; if(currentStage > STAGE_COUNT) currentStage = 1; updateLobbyUI(); }
         function gameOver() { if (gameState === 'GAMEOVER') return; gameState = 'GAMEOVER'; createExplosion(player.x, player.y, '#00ffff', 50); player.visible = false; if (!isTestStage) { savedData.resources.fragments += tempResources.fragments; savedData.resources.cores += tempResources.cores; saveGameData(); } setTimeout(() => { document.getElementById('gameover-popup').classList.remove('hidden'); }, 1500); }
         function stageClear() { gameState = 'CLEAR'; if (!isTestStage) { savedData.resources.fragments += tempResources.fragments; savedData.resources.cores += tempResources.cores; if(!savedData.clearData[difficulty].includes(currentStage)) { savedData.clearData[difficulty].push(currentStage); } saveGameData(); } document.getElementById('clear-overlay').classList.remove('hidden'); }
         function quitGame() { returnToLobby(); }
         function showQuitPopup() { gameState = 'PAUSED'; document.getElementById('quit-overlay').classList.remove('hidden'); }
         function cancelQuit() { gameState = 'PLAYING'; document.getElementById('quit-overlay').classList.add('hidden'); }
-        function nextStage() { currentStage++; if(currentStage > 50) currentStage = 1; prepareGame(isTestStage); }
+        function nextStage() { currentStage++; if(currentStage > STAGE_COUNT) currentStage = 1; prepareGame(isTestStage); }
         function openTestConfig() { document.getElementById('lobby-ui').classList.add('hidden'); document.getElementById('test-config-overlay').classList.remove('hidden'); testConfig = { missile: false, laser: false, gravity: false, droplet: false, barrier: false }; updateTestConfigUI(); }
         function cancelTest() { document.getElementById('test-config-overlay').classList.add('hidden'); document.getElementById('lobby-ui').classList.remove('hidden'); }
         function toggleTestWeapon(type) { testConfig[type] = !testConfig[type]; updateTestConfigUI(); }
@@ -663,9 +697,130 @@ document.addEventListener('DOMContentLoaded', () => {
             gameState = 'LOBBY';
             document.getElementById('ingame-ui').classList.add('hidden');
             document.getElementById('lobby-ui').classList.remove('hidden');
-            ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay', 'meta-upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
             saveGameData(); 
             updateLobbyUI();
+        }
+
+        function setupOverlayActions() {
+            const rotateContinue = document.getElementById('rotate-continue');
+            const devGodButton = document.getElementById('dev-god-btn');
+            const devTestButton = document.getElementById('dev-test-btn');
+            const upgrButton = document.getElementById('btn-upgr');
+            const metaBackdrop = document.getElementById('meta-upgrade-backdrop');
+            const metaClose = document.getElementById('meta-upgrade-close');
+
+            if (rotateContinue) {
+                rotateContinue.addEventListener('click', () => {
+                    orientationOverlayDismissed = true;
+                    updateOrientationOverlay();
+                });
+            }
+            if (devGodButton) {
+                devGodButton.addEventListener('click', activateGodMode);
+            }
+            if (devTestButton) {
+                devTestButton.addEventListener('click', openTestConfig);
+            }
+            if (upgrButton) {
+                upgrButton.addEventListener('click', openMetaUpgradeModal);
+            }
+            if (metaBackdrop) {
+                metaBackdrop.addEventListener('click', closeMetaUpgradeModal);
+            }
+            if (metaClose) {
+                metaClose.addEventListener('click', closeMetaUpgradeModal);
+            }
+        }
+
+        function openMetaUpgradeModal() {
+            const overlay = document.getElementById('meta-upgrade-overlay');
+            if (!overlay) return;
+            metaUpgrades = getMetaUpgrades();
+            overlay.classList.remove('hidden');
+            renderMetaUpgradeList();
+        }
+
+        function closeMetaUpgradeModal() {
+            const overlay = document.getElementById('meta-upgrade-overlay');
+            if (!overlay) return;
+            overlay.classList.add('hidden');
+        }
+
+        function renderMetaUpgradeList() {
+            const list = document.getElementById('meta-upgrade-list');
+            if (!list) return;
+            const fragmentEl = document.getElementById('meta-upgrade-fragments');
+            const coreEl = document.getElementById('meta-upgrade-cores');
+            if (fragmentEl) fragmentEl.innerText = savedData.resources.fragments;
+            if (coreEl) coreEl.innerText = savedData.resources.cores;
+            list.innerHTML = '';
+            META_UPGRADES.forEach((meta) => {
+                const level = metaUpgrades[meta.key] || 0;
+                const isMax = level >= meta.max;
+                const cost = Math.round(meta.base * Math.pow(meta.growth, level));
+                const hasResource = meta.currency === 'fragments'
+                    ? savedData.resources.fragments >= cost
+                    : savedData.resources.cores >= cost;
+
+                const item = document.createElement('div');
+                item.className = 'meta-upgrade-item';
+                item.innerHTML = `
+                    <div>
+                        <h4>${meta.name} <span class="text-xs text-cyan-200">LV ${level}/${meta.max}</span></h4>
+                        <p>${meta.desc}</p>
+                        <p>${meta.currency === 'fragments' ? '◆' : '⬢'} ${isMax ? 'MAX' : cost}</p>
+                    </div>
+                `;
+
+                const button = document.createElement('button');
+                button.className = 'meta-upgrade-buy';
+                button.type = 'button';
+                button.disabled = isMax || !hasResource;
+                button.innerText = isMax ? 'MAX' : 'BUY';
+                button.addEventListener('click', () => tryBuyMetaUpgrade(meta.key));
+                item.appendChild(button);
+                list.appendChild(item);
+            });
+        }
+
+        function tryBuyMetaUpgrade(key) {
+            const meta = META_UPGRADES.find(item => item.key === key);
+            if (!meta) return;
+            const currentLevel = metaUpgrades[key] || 0;
+            if (currentLevel >= meta.max) return;
+            const cost = Math.round(meta.base * Math.pow(meta.growth, currentLevel));
+            if (meta.currency === 'fragments') {
+                if (savedData.resources.fragments < cost) return;
+                savedData.resources.fragments -= cost;
+            } else {
+                if (savedData.resources.cores < cost) return;
+                savedData.resources.cores -= cost;
+            }
+            metaUpgrades[key] = currentLevel + 1;
+            setMetaUpgrades(metaUpgrades);
+            saveGameData();
+            renderMetaUpgradeList();
+        }
+
+        function applyMetaUpgrades() {
+            const meta = metaUpgrades;
+            if (!meta || !player || !gameInfo) return;
+            if (meta.atk) player.atk *= (1 + 0.02 * meta.atk);
+            if (meta.fireRate) player.fireRate /= (1 + 0.02 * meta.fireRate);
+            if (meta.range) player.range *= (1 + 0.02 * meta.range);
+            if (meta.maxHp) {
+                gameInfo.maxHp *= (1 + 0.03 * meta.maxHp);
+                gameInfo.hp = gameInfo.maxHp;
+            }
+            gameInfo.pickupMultiplier = 1 + 0.02 * (meta.pickup || 0);
+            gameInfo.startChoices = Math.min(5, 3 + (meta.startChoices || 0));
+            if (meta.startLevel) {
+                gameInfo.level = 1 + meta.startLevel;
+                gameInfo.exp = 0;
+                gameInfo.nextExp = Math.floor(150 * Math.pow(1.35, gameInfo.level - 1));
+            }
+            gameInfo.rerolls = meta.rerolls || 0;
         }
 
         // --- Restored Missing Functions ---
