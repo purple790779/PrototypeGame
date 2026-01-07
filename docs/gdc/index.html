@@ -3,9 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>지오메트리 캐논 - v37.1.1</title>
+    <title>지오메트리 캐논 - v37.1.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root {
+            --pad: 18px;
+            --radius: 16px;
+            --radius-lg: 20px;
+            --glass: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.14);
+            --accent: #00ffff;
+            --accent-strong: #0088ff;
+            --accent-hard: #ff3366;
+            --shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        }
         body {
             margin: 0;
             overflow: hidden;
@@ -33,10 +44,10 @@
         canvas { display: block; width: 100%; height: 100%; }
         .ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
         .interactive { pointer-events: auto; }
-        #hub-link { top: calc(0.75rem + env(safe-area-inset-top)); left: calc(0.75rem + env(safe-area-inset-left)); }
+        #hub-link { position: static; }
         .glow-text { text-shadow: 0 0 10px rgba(0, 255, 255, 0.6); }
-        .btn-main { background: linear-gradient(135deg, #00ffff 0%, #0088ff 100%); color: black; font-weight: 800; }
-        .btn-sub { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px); }
+        .btn-main { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%); color: black; font-weight: 800; }
+        .btn-sub { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); backdrop-filter: blur(5px); }
         .btn-sub:active { transform: scale(0.95); background: rgba(0, 255, 255, 0.2); }
         .stage-container { border-top: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0,0,0,0.3); backdrop-filter: blur(2px); width: 100%; }
         .skill-card { background: rgba(20, 20, 20, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.2s; cursor: pointer; }
@@ -45,9 +56,38 @@
         .skill-card.unlock:hover { border-color: #ffd700; box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); }
         @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 80% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
         .msg-pop { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        .diff-btn { padding: 6px 20px; font-size: 11px; font-weight: 800; border-radius: 6px; transition: all 0.2s; border: 1px solid rgba(255, 255, 255, 0.1); letter-spacing: 1px; }
-        .diff-btn.active.normal { background: #00ffff; color: black; box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); border-color: #00ffff; }
-        .diff-btn.active.hard { background: #ff3366; color: black; box-shadow: 0 0 15px rgba(255, 51, 102, 0.4); border-color: #ff3366; }
+        .lobby-layout { padding: 0 var(--pad); gap: 12px; }
+        .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 0.5rem; }
+        .title-block { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .title-block h1 { font-size: 1.5rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1; }
+        .version-toggle { font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase; color: rgba(103, 232, 249, 0.9); padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(103, 232, 249, 0.35); background: rgba(0, 0, 0, 0.4); }
+        .resource-stack { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; min-width: 96px; }
+        .resource-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.55); min-width: 96px; font-size: 12px; }
+        .resource-pill span:last-child { font-weight: 800; }
+        .tap-target { min-width: 44px; min-height: 44px; }
+        .difficulty-toggle { display: flex; width: min(94%, 360px); border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); overflow: hidden; }
+        .diff-btn { flex: 1; padding: 10px 0; font-size: 11px; font-weight: 800; letter-spacing: 0.2em; transition: all 0.2s; text-transform: uppercase; }
+        .diff-btn.active { color: #050505; }
+        .diff-btn.normal { color: rgba(255, 255, 255, 0.7); }
+        .diff-btn.hard { color: rgba(255, 255, 255, 0.7); }
+        .diff-btn.active.normal { background: var(--accent); box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); }
+        .diff-btn.active.hard { background: var(--accent-hard); box-shadow: 0 0 15px rgba(255, 51, 102, 0.4); }
+        .stage-card { width: min(94%, 420px); padding: 22px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: rgba(8, 8, 8, 0.65); box-shadow: var(--shadow); }
+        .stage-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+        .stage-arrow { width: 48px; height: 48px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: center; font-size: 20px; color: rgba(255, 255, 255, 0.6); transition: all 0.2s; }
+        .stage-arrow:active { transform: scale(0.95); }
+        .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.05); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 255, 255, 0.7); }
+        .bottom-bar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+        .nav-btn { height: 56px; border-radius: var(--radius); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 18px; color: rgba(255, 255, 255, 0.85); }
+        .nav-label { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; color: rgba(255, 255, 255, 0.4); }
+        #start-btn { height: 66px; border-radius: 22px; font-size: 18px; letter-spacing: 0.25em; }
+        .dev-panel { position: absolute; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+        .dev-panel.hidden { display: none; }
+        .dev-panel-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); }
+        .dev-panel-sheet { position: relative; width: min(100%, 500px); padding: 16px; border-radius: 22px 22px 0 0; border: 1px solid var(--border); background: rgba(6, 6, 6, 0.96); box-shadow: var(--shadow); }
+        .dev-panel-title { font-size: 12px; letter-spacing: 0.35em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); text-align: center; margin-bottom: 12px; }
+        .dev-panel-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .dev-btn { padding: 12px 10px; border-radius: 14px; font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; }
         .toggle-checkbox:checked { right: 0; border-color: #68D391; }
         .toggle-checkbox:checked + .toggle-label { background-color: #68D391; }
     </style>
@@ -55,9 +95,6 @@
 <body>
 
     <div id="game-container">
-        <a id="hub-link" href="../" class="absolute top-3 left-3 z-[999] px-3 py-2 rounded-lg text-xs font-black tracking-widest text-cyan-200 border border-cyan-300/30 bg-black/40 backdrop-blur-md">
-            HUB
-        </a>
         <canvas id="gameCanvas"></canvas>
         <div id="rotate-overlay" class="hidden absolute inset-0 z-[999] bg-black/90 backdrop-blur-md flex items-center justify-center text-center p-8">
             <div>
@@ -67,63 +104,84 @@
         </div>
 
         <!-- 로비 UI -->
-        <div id="lobby-ui" class="ui-layer flex flex-col items-center justify-between py-6 px-6 mx-auto w-full h-full">
-            <div class="w-full flex justify-between items-start interactive">
-                <div class="flex flex-col">
-                    <h1 class="text-3xl font-black italic glow-text tracking-tighter leading-none">GEOMETRY<br>CANNON</h1>
-                    <p class="text-[9px] text-cyan-500 tracking-[0.3em] font-bold mt-2 opacity-80">HOTFIX <span id="version-text">v37.1.1</span></p>
+        <div id="lobby-ui" class="ui-layer lobby-layout flex flex-col mx-auto w-full h-full">
+            <div class="top-bar interactive">
+                <a id="hub-link" href="../" class="tap-target px-3 py-2 rounded-lg text-xs font-black tracking-widest text-cyan-200 border border-cyan-300/30 bg-black/40 backdrop-blur-md" aria-label="HUB로 이동">
+                    HUB
+                </a>
+                <div class="title-block">
+                    <h1 class="italic glow-text">GEOMETRY<br>CANNON</h1>
+                    <button id="version-toggle" class="version-toggle tap-target" type="button" aria-label="버전 5회 탭 시 DEV 패널">
+                        <span id="version-text">v37.1.2</span>
+                    </button>
                 </div>
-                <div class="flex flex-col items-end gap-2">
-                    <div class="flex flex-col gap-1">
-                        <div class="bg-black/60 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 min-w-[80px] justify-between">
-                            <span class="text-cyan-400 text-xs">◆</span>
-                            <span id="lobby-fragments" class="font-mono text-sm font-bold text-cyan-100">0</span>
-                        </div>
-                        <div class="bg-black/60 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 min-w-[80px] justify-between">
-                            <span class="text-orange-400 text-xs">⬢</span>
-                            <span id="lobby-cores" class="font-mono text-sm font-bold text-orange-100">0</span>
-                        </div>
+                <div class="resource-stack">
+                    <div class="resource-pill">
+                        <span class="text-cyan-300 text-xs">◆</span>
+                        <span id="lobby-fragments" class="font-mono text-sm text-cyan-100">0</span>
                     </div>
-                    <div class="flex gap-2 items-center">
-                        <button id="btn-god-mode" class="bg-red-900/80 border border-red-500/50 text-red-200 text-[9px] px-3 py-2 rounded font-bold hover:bg-red-600 transition-colors" onclick="activateGodMode()">GOD MODE</button>
-                        <button id="btn-test-stage" class="bg-orange-600 border border-orange-400 text-white text-[9px] px-3 py-2 rounded font-bold hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]" onclick="openTestConfig()">TEST STAGE</button>
+                    <div class="resource-pill">
+                        <span class="text-orange-300 text-xs">⬢</span>
+                        <span id="lobby-cores" class="font-mono text-sm text-orange-100">0</span>
                     </div>
                 </div>
             </div>
 
-            <div class="flex flex-col items-center w-full gap-6 mt-4">
-                <div class="flex gap-3 interactive">
-                    <button id="diff-normal" class="diff-btn active normal" onclick="setDifficulty('NORMAL')">NORMAL</button>
-                    <button id="diff-hard" class="diff-btn" onclick="setDifficulty('HARD')">HARD</button>
+            <div class="flex flex-col items-center justify-center w-full gap-6 mt-3">
+                <div class="difficulty-toggle interactive">
+                    <button id="diff-normal" class="diff-btn normal active tap-target" onclick="setDifficulty('NORMAL')">NORMAL</button>
+                    <button id="diff-hard" class="diff-btn hard tap-target" onclick="setDifficulty('HARD')">HARD</button>
                 </div>
 
-                <div class="stage-container py-8 flex flex-col items-center gap-2 rounded-xl">
-                    <div class="w-full flex items-center justify-between interactive px-4">
-                        <button id="prev-stage" class="w-12 h-12 flex items-center justify-center text-2xl text-white/30 hover:text-white transition-colors hover:scale-110" onclick="changeStage(-1)">◀</button>
+                <div class="stage-card flex flex-col items-center gap-3">
+                    <div class="stage-nav interactive">
+                        <button id="prev-stage" class="stage-arrow tap-target" onclick="changeStage(-1)" aria-label="이전 스테이지">◀</button>
                         <div class="text-center">
-                            <div id="stage-num" class="text-cyan-500 text-xs font-black tracking-[0.2em] mb-2">STAGE 01</div>
-                            <div id="stage-name" class="text-3xl font-black tracking-tight italic text-white">NEON GRID</div>
+                            <div id="stage-num" class="text-cyan-400 text-xs font-black tracking-[0.3em]">STAGE 01</div>
+                            <div id="stage-name" class="text-3xl font-black tracking-tight italic text-white mt-2">NEON GRID</div>
                         </div>
-                        <button id="next-stage" class="w-12 h-12 flex items-center justify-center text-2xl text-white/30 hover:text-white transition-colors hover:scale-110" onclick="changeStage(1)">▶</button>
+                        <button id="next-stage" class="stage-arrow tap-target" onclick="changeStage(1)" aria-label="다음 스테이지">▶</button>
                     </div>
-                    <div class="mt-2 flex items-center gap-2 opacity-80">
-                        <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-gray-600"></span>
-                        <span id="status-text" class="text-[10px] font-bold tracking-widest text-gray-500">LOCKED</span>
+                    <div class="flex items-center justify-center">
+                        <span class="status-badge">
+                            <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-gray-600"></span>
+                            <span id="status-text">LOCKED</span>
+                        </span>
                     </div>
                 </div>
-                <div class="h-10 text-white/20 text-[10px] tracking-widest uppercase">Target Systems Ready</div>
+                <div class="h-8 text-white/20 text-[10px] tracking-widest uppercase">Target Systems Ready</div>
             </div>
 
-            <div class="w-full grid grid-cols-5 gap-3 interactive pb-4">
-                <button class="btn-sub h-14 rounded-xl flex items-center justify-center text-xl">⚙️</button>
-                <button class="btn-sub h-14 rounded-xl flex items-center justify-center flex-col gap-0.5"><span class="text-[8px] font-black text-gray-500">UPGR</span><span>⚔️</span></button>
-                <button id="start-btn" class="btn-main h-16 rounded-2xl flex items-center justify-center col-span-1 shadow-lg shadow-cyan-500/30 transform active:scale-95 transition-all text-lg tracking-widest" onclick="prepareGame(false)">START</button>
-                <button class="btn-sub h-14 rounded-xl flex items-center justify-center flex-col gap-0.5"><span class="text-[8px] font-black text-gray-500">SHOP</span><span>💎</span></button>
-                <button class="btn-sub h-14 rounded-xl flex items-center justify-center flex-col gap-0.5"><span class="text-[8px] font-black text-gray-500">RANK</span><span>🏆</span></button>
+            <div class="bottom-bar interactive mt-auto">
+                <button class="btn-sub nav-btn tap-target" aria-label="설정">⚙️</button>
+                <button class="btn-sub nav-btn tap-target" aria-label="업그레이드">
+                    <span class="nav-label">UPGR</span>
+                    ⚔️
+                </button>
+                <button id="start-btn" class="btn-main tap-target flex items-center justify-center shadow-lg shadow-cyan-500/30 transform active:scale-95 transition-all" onclick="prepareGame(false)" aria-label="게임 시작">START</button>
+                <button class="btn-sub nav-btn tap-target" aria-label="상점">
+                    <span class="nav-label">SHOP</span>
+                    💎
+                </button>
+                <button class="btn-sub nav-btn tap-target" aria-label="랭킹">
+                    <span class="nav-label">RANK</span>
+                    🏆
+                </button>
             </div>
-            
+
             <div class="absolute bottom-2 left-4 text-[10px] text-gray-600 font-mono">
                 DATA: <span id="debug-save-status">Checking...</span>
+            </div>
+
+            <div id="dev-panel-overlay" class="dev-panel hidden">
+                <button id="dev-panel-backdrop" class="dev-panel-backdrop" aria-label="DEV 패널 닫기"></button>
+                <div class="dev-panel-sheet">
+                    <div class="dev-panel-title">DEV PANEL</div>
+                    <div class="dev-panel-actions">
+                        <button id="btn-god-mode" class="dev-btn bg-red-900/80 border border-red-500/50 text-red-200 hover:bg-red-600 transition-colors" onclick="activateGodMode()">GOD MODE</button>
+                        <button id="btn-test-stage" class="dev-btn bg-orange-600 border border-orange-400 text-white hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]" onclick="openTestConfig()">TEST STAGE</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -227,6 +285,67 @@
         </div>
     </div>
 
+    <script>
+        window.addEventListener('load', () => {
+            const versionToggle = document.getElementById('version-toggle');
+            const devPanel = document.getElementById('dev-panel-overlay');
+            const devBackdrop = document.getElementById('dev-panel-backdrop');
+            const stageCard = document.querySelector('.stage-card');
+            let tapCount = 0;
+            let tapTimer;
+
+            const resetTap = () => {
+                tapCount = 0;
+                if (tapTimer) {
+                    clearTimeout(tapTimer);
+                    tapTimer = null;
+                }
+            };
+
+            const toggleDevPanel = () => {
+                devPanel.classList.toggle('hidden');
+            };
+
+            if (versionToggle && devPanel) {
+                versionToggle.addEventListener('click', () => {
+                    tapCount += 1;
+                    if (tapCount >= 5) {
+                        toggleDevPanel();
+                        resetTap();
+                        return;
+                    }
+                    if (tapTimer) {
+                        clearTimeout(tapTimer);
+                    }
+                    tapTimer = setTimeout(resetTap, 1500);
+                });
+            }
+
+            if (devBackdrop && devPanel) {
+                devBackdrop.addEventListener('click', () => {
+                    devPanel.classList.add('hidden');
+                });
+            }
+
+            if (stageCard) {
+                let touchStartX = 0;
+                stageCard.addEventListener('touchstart', (event) => {
+                    touchStartX = event.changedTouches[0].screenX;
+                }, { passive: true });
+
+                stageCard.addEventListener('touchend', (event) => {
+                    const deltaX = event.changedTouches[0].screenX - touchStartX;
+                    if (Math.abs(deltaX) > 40) {
+                        if (deltaX > 0) {
+                            window.changeStage?.(-1);
+                        } else {
+                            window.changeStage?.(1);
+                        }
+                    }
+                }, { passive: true });
+            }
+        });
+    </script>
     <script type="module" src="./src/main.js"></script>
 </body>
 
