@@ -1,0 +1,62 @@
+import { STORAGE_PREFIX } from './version.js';
+
+export const keys = {
+  save: `${STORAGE_PREFIX}:save`,
+  meta: `${STORAGE_PREFIX}:meta`,
+};
+
+const legacySaveKeys = [
+  'GEO_DEFENSE_V37_1',
+];
+
+const readStorage = (key) => {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    return null;
+  }
+};
+
+const writeStorage = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+export const loadSavedData = () => {
+  let raw = readStorage(keys.save);
+  let migratedFrom = null;
+
+  if (!raw) {
+    for (const legacyKey of legacySaveKeys) {
+      const legacyValue = readStorage(legacyKey);
+      if (legacyValue) {
+        writeStorage(keys.save, legacyValue);
+        raw = legacyValue;
+        migratedFrom = legacyKey;
+        break;
+      }
+    }
+  }
+
+  if (!raw) {
+    return { data: null, migratedFrom };
+  }
+
+  try {
+    return { data: JSON.parse(raw), migratedFrom };
+  } catch (error) {
+    return { data: null, migratedFrom };
+  }
+};
+
+export const saveSavedData = (payload) => {
+  return writeStorage(keys.save, JSON.stringify(payload));
+};
+
+export const saveMeta = (payload) => {
+  return writeStorage(keys.meta, JSON.stringify(payload));
+};
