@@ -1,60 +1,70 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Castle_Simul Prototype</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="./css/style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Castle_Simul v0.3.0</title>
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div id="castle-stage">
-    <a
-      id="hub-link"
-      href="../"
-      class="absolute top-3 left-3 z-[999] px-3 py-2 rounded-lg text-xs font-black tracking-widest text-cyan-200 border border-cyan-300/30 bg-black/40 backdrop-blur-md"
-    >
-      HUB
-    </a>
-    <main class="castle-panel">
-      <header class="castle-header">
-        <img src="./img/castle.svg" alt="Castle emblem" />
-        <div>
-          <div class="text-xs tracking-[0.4em] text-slate-400">PROTOTYPE</div>
-          <h1>Castle_Simul</h1>
-          <p>
-            성과 마을을 성장시키는 경영 시뮬레이션 프로토타입입니다. 자원과 인구, 시설을 조합해
-            확장 전략을 준비하세요.
-          </p>
-        </div>
-      </header>
+  <a id="hub-link" href="../" class="hub-link">HUB</a>
+  <header class="topbar">
+    <div class="title">
+      <h1>성주 경영 시뮬레이션 (MVP)</h1>
+      <p class="subtitle">식량/노동/건설/세금 + 사건 + 치안/정통성의 최소 구현 <span class="version">v0.3.0</span></p>
+    </div>
+    <div class="controls">
+      <button id="btnTick">하루 진행</button>
+      <button id="btnAuto">자동 진행: OFF</button>
+      <button id="btnSave">저장</button>
+      <button id="btnLoad">불러오기</button>
+      <button id="btnReset" class="danger">초기화</button>
+    </div>
+  </header>
 
-      <section class="castle-columns">
-        <div class="card">
-          <h2>성장 지표</h2>
-          <div class="metrics">
-            <div class="metric">사기 <span data-metric="morale">--</span></div>
-            <div class="metric">방어력 <span data-metric="defense">--</span></div>
-            <div class="metric">식량 <span data-metric="food">--</span></div>
-            <div class="metric">인구 <span data-metric="population">--</span></div>
-          </div>
-        </div>
-        <div class="card">
-          <h2>지휘 패널</h2>
-          <div class="controls">
-            <button type="button" data-action="start">시뮬레이션 시작</button>
-            <button type="button" data-action="pause" class="secondary" disabled>일시정지</button>
-            <button type="button" data-action="event" class="secondary">성벽 보강</button>
-          </div>
-          <p class="notice">시작 버튼을 눌러 루프가 실행됩니다.</p>
-        </div>
-        <div class="card">
-          <h2>상황 로그</h2>
-          <div id="status-log"></div>
-        </div>
-      </section>
-    </main>
+  <main class="layout">
+    <section class="card span-7">
+      <h2>현황</h2>
+      <div class="grid stats" id="stats"></div>
+      <div class="hint" id="hints"></div>
+    </section>
+
+    <section class="card span-5">
+      <h2>노동 배치</h2>
+      <p class="muted">총 노동력 내에서 직업을 배치하세요. 생산/치안/건설 효율이 바뀝니다.</p>
+      <div class="grid" id="jobs"></div>
+
+      <div class="row">
+        <label>세율(주간): <span id="taxLabel"></span></label>
+        <input id="taxRate" type="range" min="0" max="30" step="1" />
+      </div>
+      <p class="muted small">세율↑ → 금고↑ (주간) / 행복↓·정통성↓ 압박(일 단위).</p>
+    </section>
+
+    <section class="card span-7">
+      <h2>건설</h2>
+      <p class="muted">건설은 자원과 금을 소모합니다. 일부 건물은 매일 유지비가 듭니다.</p>
+      <div class="grid buildings" id="buildings"></div>
+    </section>
+
+    <section class="card span-5">
+      <h2>로그</h2>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-inner">
+      <h3 id="modalTitle"></h3>
+      <p id="modalBody"></p>
+      <div id="modalChoices" class="choices"></div>
+    </div>
   </div>
-  <script src="./js/main.js"></script>
+
+  <footer class="footer">
+    <span class="muted small">팁: 초반엔 농부/목수로 안정화 → 저장고/농장 확장 → 경비병/성벽으로 안전 확보.</span>
+  </footer>
+
+  <script src="./game.js" defer></script>
 </body>
 </html>
