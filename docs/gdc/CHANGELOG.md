@@ -15,6 +15,13 @@
 ### Removed
 -
 
+## v37.2.1 - 2026-01-07
+### Fixed
+- DEV 패널 오픈 시 하단 UI(UPGR 등) 클릭이 관통되던 문제(pointer-events/backdrop)
+- GOD MODE / TEST STAGE 버튼이 동작하지 않던 문제(이벤트 연결/함수 적용 지점)
+### Added
+- TEST MODE: 특수 무기 선택 패널 + 다음 전투 시작 시 선택 무기 강제 적용(테스트용)
+
 ## v37.2.0 - 2026-01-07
 ### Added
 - UPGR(영구 업그레이드) 모달: 파편/코어로 구매, 저장, 런 시작 시 자동 적용

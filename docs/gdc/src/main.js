@@ -1,6 +1,8 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
 import { getMetaUpgrades, loadSavedData, saveMeta, saveSavedData, setMetaUpgrades } from './storage.js';
 
+const DEV_TOOLS_ENABLED = true;
+
 document.addEventListener('DOMContentLoaded', () => {
         const canvas = document.getElementById('gameCanvas');
         const container = document.getElementById('game-container');
@@ -8,6 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const versionToggle = document.getElementById('version-toggle');
         const devPanel = document.getElementById('dev-panel-overlay');
         const devBackdrop = document.getElementById('dev-panel-backdrop');
+        const devSheet = devPanel?.querySelector('.dev-sheet');
+        const testConfigOverlay = document.getElementById('test-config-overlay');
+        const testConfigBackdrop = document.getElementById('test-config-backdrop');
+        const testConfigClose = document.getElementById('test-config-close');
+        const testWeaponSelect = document.getElementById('test-weapon-select');
+        const testApplyButton = document.getElementById('test-apply-btn');
 
         let gameState = 'LOBBY';
         let width, height;
@@ -17,8 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let isGodMode = false;
         let isTestStage = false;
         let orientationOverlayDismissed = false;
-
-        let testConfig = { missile: false, laser: false, gravity: false, droplet: false, barrier: false };
         let savedData = { clearData: { 'NORMAL': [1], 'HARD': [] }, resources: { fragments: 0, cores: 0 } };
         let tempResources = { fragments: 0, cores: 0 };
 
@@ -38,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const STAGE_COUNT = 50;
         const STAGE_NAMES = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];
+        const TEST_MODE_ENABLED_KEY = `${STORAGE_PREFIX}:testModeEnabled`;
+        const TEST_WEAPON_KEY = `${STORAGE_PREFIX}:testWeaponKey`;
 
         const META_UPGRADES = [
             { key: 'atk', name: 'WEAPON POWER', desc: '공격력 +2%/lv', max: 20, base: 50, growth: 1.22, currency: 'fragments' },
@@ -71,6 +79,14 @@ document.addEventListener('DOMContentLoaded', () => {
             { id: 'up_barrier', name: 'BARRIER RECHARGE', desc: '장벽 쿨다운 -15%', icon: '⚡', type: 'upgrade', weapon: 'barrier', effect: () => { player.barrierInterval *= 0.85; } }
         ];
 
+        const SPECIAL_WEAPON_LABELS = {
+            missile: '🚀 Missile Pod',
+            laser: '🛰️ Orbital Laser',
+            gravity: '🌌 Gravity Cannon',
+            droplet: '💧 Droplet Probe',
+            barrier: '⚡ Electro Barrier'
+        };
+
         function init() {
             const versionLabel = document.getElementById('version-text');
             if (versionLabel) {
@@ -90,8 +106,83 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // --- Helper Functions ---
+        function getSpecialWeaponKeys() {
+            const keys = new Set();
+            SKILL_POOL.forEach((skill) => {
+                if (skill.type === 'unlock' && skill.weapon) {
+                    keys.add(skill.weapon);
+                }
+            });
+            const ordered = Object.keys(SPECIAL_WEAPON_LABELS).filter((key) => keys.has(key));
+            keys.forEach((key) => {
+                if (!ordered.includes(key)) ordered.push(key);
+            });
+            return ordered;
+        }
+
+        function getTestModeState() {
+            return {
+                enabled: localStorage.getItem(TEST_MODE_ENABLED_KEY) === '1',
+                weaponKey: localStorage.getItem(TEST_WEAPON_KEY) || ''
+            };
+        }
+
+        function setTestModeState(enabled, weaponKey) {
+            localStorage.setItem(TEST_MODE_ENABLED_KEY, enabled ? '1' : '0');
+            if (enabled && weaponKey) {
+                localStorage.setItem(TEST_WEAPON_KEY, weaponKey);
+            } else {
+                localStorage.removeItem(TEST_WEAPON_KEY);
+            }
+        }
+
+        function setTestModeIndicator(enabled) {
+            const indicator = document.getElementById('test-mode-indicator');
+            if (indicator) {
+                indicator.classList.toggle('hidden', !enabled);
+            }
+        }
+
+        function populateTestWeaponSelect() {
+            if (!testWeaponSelect) return;
+            const keys = getSpecialWeaponKeys();
+            testWeaponSelect.innerHTML = '';
+            keys.forEach((key) => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = SPECIAL_WEAPON_LABELS[key] || key;
+                testWeaponSelect.appendChild(option);
+            });
+            const saved = getTestModeState().weaponKey;
+            if (saved && keys.includes(saved)) {
+                testWeaponSelect.value = saved;
+            } else if (keys.length > 0) {
+                testWeaponSelect.value = keys[0];
+            }
+            return keys.length;
+        }
+
+        function openDevPanel() {
+            if (!DEV_TOOLS_ENABLED || !devPanel) return;
+            devPanel.classList.remove('hidden');
+            versionToggle?.setAttribute('aria-expanded', 'true');
+            document.body.classList.add('modal-open');
+        }
+
+        function closeDevPanel() {
+            if (!devPanel) return;
+            devPanel.classList.add('hidden');
+            versionToggle?.setAttribute('aria-expanded', 'false');
+            document.body.classList.remove('modal-open');
+        }
+
         function setupDevPanelToggle() {
             if (!versionToggle || !devPanel) return;
+            if (!DEV_TOOLS_ENABLED) {
+                devPanel.classList.add('hidden');
+                versionToggle.setAttribute('aria-expanded', 'false');
+                return;
+            }
 
             const resetDevTap = () => {
                 devTapCount = 0;
@@ -101,13 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            const setDevPanelOpen = (isOpen) => {
-                devPanel.classList.toggle('hidden', !isOpen);
-                versionToggle.setAttribute('aria-expanded', String(isOpen));
-            };
-
             if (versionToggle.getAttribute('aria-expanded') === null) {
-                setDevPanelOpen(!devPanel.classList.contains('hidden'));
+                versionToggle.setAttribute('aria-expanded', String(!devPanel.classList.contains('hidden')));
             }
 
             versionToggle.addEventListener('click', () => {
@@ -116,14 +202,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 devTapCount += 1;
                 if (devTapCount >= 5) {
-                    setDevPanelOpen(devPanel.classList.contains('hidden'));
+                    if (devPanel.classList.contains('hidden')) {
+                        openDevPanel();
+                    } else {
+                        closeDevPanel();
+                    }
                     resetDevTap();
                 }
             });
 
             if (devBackdrop) {
                 devBackdrop.addEventListener('click', () => {
-                    setDevPanelOpen(false);
+                    closeDevPanel();
                     resetDevTap();
                 });
             }
@@ -260,6 +350,27 @@ document.addEventListener('DOMContentLoaded', () => {
             tempResources = { fragments: 0, cores: 0 };
         }
 
+        function applyTestModeToPlayer(playerData) {
+            const testState = getTestModeState();
+            if (!testState.enabled) {
+                setTestModeIndicator(false);
+                return;
+            }
+            const validKeys = getSpecialWeaponKeys();
+            if (!testState.weaponKey || !validKeys.includes(testState.weaponKey)) {
+                setTestModeState(false, '');
+                setTestModeIndicator(false);
+                alert('TEST MODE 설정이 유효하지 않아 해제되었습니다.');
+                return;
+            }
+            const activeWeapons = { missile: false, laser: false, gravity: false, droplet: false, barrier: false };
+            if (Object.prototype.hasOwnProperty.call(activeWeapons, testState.weaponKey)) {
+                activeWeapons[testState.weaponKey] = true;
+                playerData.activeWeapons = activeWeapons;
+            }
+            setTestModeIndicator(true);
+        }
+
         // --- Logic ---
         function prepareGame(testMode) {
             isTestStage = testMode;
@@ -269,6 +380,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             gameState = 'READY';
+            closeDevPanel();
+            closeTestConfig();
             ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'meta-upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById('ingame-ui').classList.remove('hidden');
             
@@ -288,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 target: null,
 
-                activeWeapons: isTestStage ? {...testConfig} : { missile: false, laser: false, gravity: false, droplet: false, barrier: false },
+                activeWeapons: { missile: false, laser: false, gravity: false, droplet: false, barrier: false },
 
                 missileTimer: 0, missileInterval: 3.0, missileDmg: 15,
                 laserTimer: 0, laserInterval: 3.0, laserDmg: 8, laserOrbitRot: 0, laserDuration: 0.2, laserActive: false, laserTargetPos: null,
@@ -298,6 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             applyMetaUpgrades();
+            applyTestModeToPlayer(player);
             
             updateIngameUI();
 
@@ -654,14 +768,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Helper & Management ---
         function activateGodMode() {
             isGodMode = true;
-            const allStages = Array.from({ length: STAGE_COUNT }, (_, i) => i + 1);
-            savedData.clearData.NORMAL = [...allStages];
-            savedData.clearData.HARD = [...allStages];
-            savedData.resources.fragments += 100000;
-            savedData.resources.cores += 100000;
-            saveGameData();
+            const totalStages = Number.isFinite(STAGE_COUNT) ? STAGE_COUNT : STAGE_NAMES.length;
+            const allStages = Array.from({ length: totalStages }, (_, i) => i + 1);
+            const normalSet = new Set(savedData.clearData.NORMAL || []);
+            const hardSet = new Set(savedData.clearData.HARD || []);
+            allStages.forEach((stage) => {
+                normalSet.add(stage);
+                hardSet.add(stage);
+            });
+            savedData.clearData.NORMAL = Array.from(normalSet).sort((a, b) => a - b);
+            savedData.clearData.HARD = Array.from(hardSet).sort((a, b) => a - b);
+            savedData.resources.fragments = Math.max(savedData.resources.fragments || 0, 100000);
+            savedData.resources.cores = Math.max(savedData.resources.cores || 0, 100000);
+            const ok = saveSavedData(savedData);
+            document.getElementById('debug-save-status').innerText = ok ? "Saved OK" : "Save Failed";
             updateLobbyUI();
-            alert(`[GOD MODE ACTIVATED]\n- All Stages Unlocked\n- Resources +100,000\n- Clear Time: 10s`);
+            alert('[GOD MODE enabled]\n- All stages unlocked\n- Fragments/Cores >= 100000');
         }
         function saveGameData() {
             const ok = saveSavedData(savedData);
@@ -687,17 +809,44 @@ document.addEventListener('DOMContentLoaded', () => {
         function showQuitPopup() { gameState = 'PAUSED'; document.getElementById('quit-overlay').classList.remove('hidden'); }
         function cancelQuit() { gameState = 'PLAYING'; document.getElementById('quit-overlay').classList.add('hidden'); }
         function nextStage() { currentStage++; if(currentStage > STAGE_COUNT) currentStage = 1; prepareGame(isTestStage); }
-        function openTestConfig() { document.getElementById('lobby-ui').classList.add('hidden'); document.getElementById('test-config-overlay').classList.remove('hidden'); testConfig = { missile: false, laser: false, gravity: false, droplet: false, barrier: false }; updateTestConfigUI(); }
-        function cancelTest() { document.getElementById('test-config-overlay').classList.add('hidden'); document.getElementById('lobby-ui').classList.remove('hidden'); }
-        function toggleTestWeapon(type) { testConfig[type] = !testConfig[type]; updateTestConfigUI(); }
-        function updateTestConfigUI() { const types = ['missile', 'laser', 'gravity', 'droplet', 'barrier']; types.forEach(type => { const el = document.getElementById(`toggle-${type}`); if (!el) return; const knob = el.querySelector('div'); if (testConfig[type]) { el.classList.remove('bg-gray-600'); el.classList.add('bg-green-500'); knob.style.transform = 'translateX(20px)'; } else { el.classList.add('bg-gray-600'); el.classList.remove('bg-green-500'); knob.style.transform = 'translateX(0)'; } }); }
-        function startTestMatch() { document.getElementById('test-config-overlay').classList.add('hidden'); prepareGame(true); }
+        function openTestConfig() {
+            if (!testConfigOverlay) return;
+            const optionCount = populateTestWeaponSelect();
+            if (!optionCount) {
+                alert('특수 무기 목록을 찾을 수 없습니다.');
+                return;
+            }
+            closeDevPanel();
+            testConfigOverlay.classList.remove('hidden');
+            document.body.classList.add('modal-open');
+        }
+
+        function closeTestConfig() {
+            if (!testConfigOverlay) return;
+            testConfigOverlay.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+        }
+
+        function applyTestConfig() {
+            if (!testWeaponSelect) return;
+            const weaponKey = testWeaponSelect.value;
+            if (!weaponKey) {
+                alert('특수 무기를 선택하세요.');
+                return;
+            }
+            setTestModeState(true, weaponKey);
+            closeTestConfig();
+            closeDevPanel();
+            alert('적용됨. START를 눌러 전투에서 확인하세요.');
+        }
 
         function returnToLobby() {
             gameState = 'LOBBY';
             document.getElementById('ingame-ui').classList.add('hidden');
             document.getElementById('lobby-ui').classList.remove('hidden');
             ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay', 'meta-upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            closeDevPanel();
+            closeTestConfig();
             saveGameData(); 
             updateLobbyUI();
         }
@@ -722,6 +871,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (devTestButton) {
                 devTestButton.addEventListener('click', openTestConfig);
             }
+            if (devSheet) {
+                devSheet.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+            }
             if (upgrButton) {
                 upgrButton.addEventListener('click', openMetaUpgradeModal);
             }
@@ -730,6 +884,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (metaClose) {
                 metaClose.addEventListener('click', closeMetaUpgradeModal);
+            }
+            if (testConfigBackdrop) {
+                testConfigBackdrop.addEventListener('click', closeTestConfig);
+            }
+            if (testConfigClose) {
+                testConfigClose.addEventListener('click', closeTestConfig);
+            }
+            if (testApplyButton) {
+                testApplyButton.addEventListener('click', applyTestConfig);
             }
         }
 
@@ -949,9 +1112,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.cancelQuit = cancelQuit;
         window.nextStage = nextStage;
         window.returnToLobby = returnToLobby;
-        window.cancelTest = cancelTest;
-        window.startTestMatch = startTestMatch;
-        window.toggleTestWeapon = toggleTestWeapon;
 
         init();
 });
