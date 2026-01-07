@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Castle_Simul Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1f2937 0%, #0b0f19 60%, #05070d 100%);
+      font-family: 'Pretendard', sans-serif;
+      color: white;
+    }
+    #castle-stage {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 3rem 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="castle-stage">
+    <a
+      id="hub-link"
+      href="../"
+      class="absolute top-3 left-3 z-[999] px-3 py-2 rounded-lg text-xs font-black tracking-widest text-cyan-200 border border-cyan-300/30 bg-black/40 backdrop-blur-md"
+    >
+      HUB
+    </a>
+    <div class="max-w-md">
+      <div class="text-xs tracking-[0.4em] text-gray-400">PROTOTYPE</div>
+      <h1 class="mt-4 text-4xl font-black">Castle_Simul</h1>
+      <p class="mt-4 text-sm text-gray-300 leading-relaxed">
+        성과 마을을 성장시키는 경영 시뮬레이션 프로토타입입니다. 자원과 인구, 시설을 조합해
+        확장 전략을 준비하세요.
+      </p>
+      <div class="mt-8 grid gap-3 text-left text-sm text-gray-300">
+        <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">🏰 성 방어력을 강화해 기반을 다집니다.</div>
+        <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">🌾 자원을 확보해 주민과 시설을 성장시킵니다.</div>
+        <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">🏘️ 마을 확장을 준비하며 성장 루트를 계획합니다.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
