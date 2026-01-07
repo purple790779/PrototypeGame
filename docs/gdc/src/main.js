@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const canvas = document.getElementById('gameCanvas');
         const container = document.getElementById('game-container');
         const ctx = canvas.getContext('2d');
+        const versionToggle = document.getElementById('version-toggle');
+        const devPanel = document.getElementById('dev-panel-overlay');
+        const devBackdrop = document.getElementById('dev-panel-backdrop');
 
         let gameState = 'LOBBY';
         let width, height;
@@ -28,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let gravityOrbs = [];
         let electroBarriers = [];
         let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 60 };
+        let devTapCount = 0;
+        let devTapTimer = null;
 
         const SKILL_POOL = [
             { id: 'atk', name: 'WEAPON DAMAGE', desc: '공격력 +25%', icon: '⚔️', type: 'stat', effect: () => { player.atk *= 1.25; } },
@@ -61,11 +66,50 @@ document.addEventListener('DOMContentLoaded', () => {
             loadGameData();
             resize();
             window.addEventListener('resize', resize);
+            setupDevPanelToggle();
             updateLobbyUI();
             requestAnimationFrame(loop);
         }
 
         // --- Helper Functions ---
+        function setupDevPanelToggle() {
+            if (!versionToggle || !devPanel) return;
+
+            const resetDevTap = () => {
+                devTapCount = 0;
+                if (devTapTimer) {
+                    clearTimeout(devTapTimer);
+                    devTapTimer = null;
+                }
+            };
+
+            const setDevPanelOpen = (isOpen) => {
+                devPanel.classList.toggle('hidden', !isOpen);
+                versionToggle.setAttribute('aria-expanded', String(isOpen));
+            };
+
+            if (versionToggle.getAttribute('aria-expanded') === null) {
+                setDevPanelOpen(!devPanel.classList.contains('hidden'));
+            }
+
+            versionToggle.addEventListener('click', () => {
+                if (devTapCount === 0) {
+                    devTapTimer = setTimeout(resetDevTap, 1500);
+                }
+                devTapCount += 1;
+                if (devTapCount >= 5) {
+                    setDevPanelOpen(devPanel.classList.contains('hidden'));
+                    resetDevTap();
+                }
+            });
+
+            if (devBackdrop) {
+                devBackdrop.addEventListener('click', () => {
+                    setDevPanelOpen(false);
+                    resetDevTap();
+                });
+            }
+        }
         function getValidSkills() {
             return SKILL_POOL.filter(skill => {
                 if (skill.type === 'stat') return true;
