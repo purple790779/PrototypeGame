@@ -2,13 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ProtoTypeGame Hub - v0.1.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ProtoTypeGame Hub - v0.2.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
       margin: 0;
-      min-height: 100vh;
+      min-height: 100dvh;
       background: radial-gradient(circle at top, #1f2937 0%, #0b0f19 60%, #05070d 100%);
       font-family: 'Pretendard', sans-serif;
       color: white;
@@ -25,75 +25,104 @@
   </style>
 </head>
 <body>
-  <div class="min-h-screen px-6 py-10">
-    <div class="mx-auto max-w-xl">
-      <header class="mb-10">
+  <div class="min-h-[100dvh] px-6 py-10">
+    <div class="mx-auto max-w-[520px]">
+      <header class="mb-8">
         <div class="text-xs tracking-[0.45em] text-gray-400">PROTO HUB</div>
-        <h1 class="mt-3 text-3xl font-black tracking-tight">ProtoTypeGame Hub</h1>
-        <p class="mt-2 text-sm text-gray-300">v0.1.1</p>
+        <h1 id="hub-title" class="mt-3 text-3xl font-black tracking-tight">ProtoTypeGame Hub v0.2.0</h1>
+        <p id="hub-version" class="mt-2 text-sm text-gray-300">v0.2.0</p>
       </header>
 
-      <div class="space-y-6">
-        <section class="card rounded-2xl p-5">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <div class="text-xs tracking-[0.35em] text-gray-400">GAME</div>
-              <div class="mt-1 text-xl font-extrabold text-white">지오메트리 캐논 디펜스</div>
-              <div class="mt-2 text-sm text-gray-300 leading-relaxed">
-                탄막을 뚫고 코어를 지켜내는 액션 디펜스. 무기와 스테이지를 강화하며 버텨보세요.
-              </div>
-            </div>
-            <div class="text-2xl">💠</div>
-          </div>
+      <p id="hub-warning" class="mb-6 hidden rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+        GAMES.json을 불러오지 못했습니다
+      </p>
 
-          <a href="./gdc/" class="btn mt-5 block w-full rounded-xl py-4 text-center font-extrabold text-cyan-200 tracking-widest">
-            PLAY
-          </a>
-
-          <div class="mt-3 text-[11px] text-gray-500">
-            경로: /docs/gdc/ (GitHub Pages에서는 /ProtoTypeGame/gdc/ 로 접근)
-          </div>
-        </section>
-
-        <section class="card rounded-2xl p-5">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <div class="text-xs tracking-[0.35em] text-gray-400">GAME</div>
-              <div class="mt-1 text-xl font-extrabold text-white">Castle_Simul</div>
-              <div class="mt-2 text-sm text-gray-300 leading-relaxed">
-                성+마을 경영 시뮬레이션 프로토타입. 자원/인구/시설을 운영하며 성장.
-              </div>
-            </div>
-            <div class="text-2xl">🏰</div>
-          </div>
-
-          <a href="./castle/" class="btn mt-5 block w-full rounded-xl py-4 text-center font-extrabold text-cyan-200 tracking-widest">
-            PLAY
-          </a>
-
-          <div class="mt-3 text-[11px] text-gray-500">
-            경로: /docs/castle/ (GitHub Pages에서는 /ProtoTypeGame/castle/ 로 접근)
-          </div>
-        </section>
-
-        <section class="card rounded-2xl p-5 opacity-60">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <div class="text-xs tracking-[0.35em] text-gray-400">NEXT</div>
-              <div class="mt-1 text-xl font-extrabold text-white">COMING SOON</div>
-              <div class="mt-2 text-sm text-gray-300 leading-relaxed">
-                다음 프로토타입을 준비 중입니다. 곧 더 많은 콘텐츠로 돌아옵니다.
-              </div>
-            </div>
-            <div class="text-2xl">🛰️</div>
-          </div>
-
-          <div class="mt-5 block w-full rounded-xl py-4 text-center font-extrabold text-gray-400 tracking-widest border border-gray-700">
-            PREPARE
-          </div>
-        </section>
-      </div>
+      <div id="game-list" class="space-y-6"></div>
     </div>
   </div>
+
+  <script>
+    const fallbackGames = [
+      {
+        id: 'gdc',
+        title: '지오메트리 캐논 디펜스',
+        path: './gdc/',
+        icon: '🧿',
+        version: 'v37.2',
+        summary: '자동 조준/자동 발사 기반의 생존형 디펜스 프로토타입.',
+        order: 10
+      },
+      {
+        id: 'castle',
+        title: 'Castle_Simul',
+        path: './castle/',
+        icon: '🏰',
+        version: 'v0.3.0',
+        summary: '성+마을 경영 시뮬레이션 프로토타입. 자원/인구/시설 운영.',
+        order: 20
+      }
+    ];
+
+    const defaultHubVersion = 'v0.2.0';
+    const warningEl = document.getElementById('hub-warning');
+    const gameListEl = document.getElementById('game-list');
+    const hubTitleEl = document.getElementById('hub-title');
+    const hubVersionEl = document.getElementById('hub-version');
+
+    function renderHubVersion(version) {
+      const label = version || defaultHubVersion;
+      hubTitleEl.textContent = `ProtoTypeGame Hub ${label}`;
+      hubVersionEl.textContent = label;
+    }
+
+    function createCard(game) {
+      const section = document.createElement('section');
+      section.className = 'card rounded-2xl p-5';
+
+      section.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs tracking-[0.35em] text-gray-400">GAME</div>
+            <div class="mt-1 text-xl font-extrabold text-white">${game.title}</div>
+            <div class="mt-1 text-xs uppercase tracking-[0.2em] text-cyan-300">${game.version || ''}</div>
+            <div class="mt-2 text-sm text-gray-300 leading-relaxed">${game.summary || ''}</div>
+          </div>
+          <div class="text-2xl">${game.icon || '🎮'}</div>
+        </div>
+        <a href="${game.path}" class="btn mt-5 block w-full rounded-xl py-4 text-center font-extrabold text-cyan-200 tracking-widest">
+          PLAY
+        </a>
+      `;
+
+      return section;
+    }
+
+    function renderGames(games) {
+      const sorted = [...games].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      gameListEl.innerHTML = '';
+      sorted.forEach((game) => {
+        gameListEl.appendChild(createCard(game));
+      });
+    }
+
+    async function loadGames() {
+      try {
+        const response = await fetch('./GAMES.json', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('Failed to load');
+        }
+        const data = await response.json();
+        renderHubVersion(data.hubVersion);
+        renderGames(data.games || []);
+      } catch (error) {
+        warningEl.classList.remove('hidden');
+        renderHubVersion(defaultHubVersion);
+        renderGames(fallbackGames);
+      }
+    }
+
+    renderHubVersion(defaultHubVersion);
+    loadGames();
+  </script>
 </body>
 </html>

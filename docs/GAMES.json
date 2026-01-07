@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "hubVersion": "v0.2.0",
+  "updatedAt": "2026-01-07",
+  "games": [
+    {
+      "id": "gdc",
+      "title": "지오메트리 캐논 디펜스",
+      "slug": "gdc",
+      "path": "./gdc/",
+      "icon": "🧿",
+      "version": "v37.2",
+      "status": "active",
+      "summary": "자동 조준/자동 발사 기반의 생존형 디펜스 프로토타입.",
+      "order": 10,
+      "tags": ["mobile", "action", "defense"]
+    },
+    {
+      "id": "castle",
+      "title": "Castle_Simul",
+      "slug": "castle",
+      "path": "./castle/",
+      "icon": "🏰",
+      "version": "v0.3.0",
+      "status": "active",
+      "summary": "성+마을 경영 시뮬레이션 프로토타입. 자원/인구/시설 운영.",
+      "order": 20,
+      "tags": ["mobile", "simulation", "management"]
+    }
+  ]
+}
