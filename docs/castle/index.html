@@ -5,25 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Castle_Simul Prototype</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: radial-gradient(circle at top, #1f2937 0%, #0b0f19 60%, #05070d 100%);
-      font-family: 'Pretendard', sans-serif;
-      color: white;
-    }
-    #castle-stage {
-      position: relative;
-      width: 100%;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 3rem 1.5rem;
-    }
-  </style>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
   <div id="castle-stage">
@@ -34,19 +16,45 @@
     >
       HUB
     </a>
-    <div class="max-w-md">
-      <div class="text-xs tracking-[0.4em] text-gray-400">PROTOTYPE</div>
-      <h1 class="mt-4 text-4xl font-black">Castle_Simul</h1>
-      <p class="mt-4 text-sm text-gray-300 leading-relaxed">
-        성과 마을을 성장시키는 경영 시뮬레이션 프로토타입입니다. 자원과 인구, 시설을 조합해
-        확장 전략을 준비하세요.
-      </p>
-      <div class="mt-8 grid gap-3 text-left text-sm text-gray-300">
-        <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">🏰 성 방어력을 강화해 기반을 다집니다.</div>
-        <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">🌾 자원을 확보해 주민과 시설을 성장시킵니다.</div>
-        <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">🏘️ 마을 확장을 준비하며 성장 루트를 계획합니다.</div>
-      </div>
-    </div>
+    <main class="castle-panel">
+      <header class="castle-header">
+        <img src="./img/castle.svg" alt="Castle emblem" />
+        <div>
+          <div class="text-xs tracking-[0.4em] text-slate-400">PROTOTYPE</div>
+          <h1>Castle_Simul</h1>
+          <p>
+            성과 마을을 성장시키는 경영 시뮬레이션 프로토타입입니다. 자원과 인구, 시설을 조합해
+            확장 전략을 준비하세요.
+          </p>
+        </div>
+      </header>
+
+      <section class="castle-columns">
+        <div class="card">
+          <h2>성장 지표</h2>
+          <div class="metrics">
+            <div class="metric">사기 <span data-metric="morale">--</span></div>
+            <div class="metric">방어력 <span data-metric="defense">--</span></div>
+            <div class="metric">식량 <span data-metric="food">--</span></div>
+            <div class="metric">인구 <span data-metric="population">--</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>지휘 패널</h2>
+          <div class="controls">
+            <button type="button" data-action="start">시뮬레이션 시작</button>
+            <button type="button" data-action="pause" class="secondary" disabled>일시정지</button>
+            <button type="button" data-action="event" class="secondary">성벽 보강</button>
+          </div>
+          <p class="notice">시작 버튼을 눌러 루프가 실행됩니다.</p>
+        </div>
+        <div class="card">
+          <h2>상황 로그</h2>
+          <div id="status-log"></div>
+        </div>
+      </section>
+    </main>
   </div>
+  <script src="./js/main.js"></script>
 </body>
 </html>
