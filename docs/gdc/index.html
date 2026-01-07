@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>지오메트리 캐논 - v37.2.0</title>
+    <title>지오메트리 캐논 - v37.2.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -81,12 +81,50 @@
         .nav-btn { height: 56px; border-radius: var(--radius); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 18px; color: rgba(255, 255, 255, 0.85); }
         .nav-label { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; color: rgba(255, 255, 255, 0.4); }
         #start-btn { height: 66px; border-radius: 22px; font-size: clamp(14px, 3.6vw, 16px); letter-spacing: 0.18em; }
-        .dev-panel { position: absolute; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
-        .dev-panel.hidden { display: none; }
-        .dev-panel-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); }
-        .dev-panel-sheet { position: relative; width: min(100%, 500px); padding: 16px; border-radius: 22px 22px 0 0; border: 1px solid var(--border); background: rgba(6, 6, 6, 0.96); box-shadow: var(--shadow); }
-        .dev-panel-title { font-size: 12px; letter-spacing: 0.35em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); text-align: center; margin-bottom: 12px; }
-        .dev-panel-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .hidden { display: none !important; }
+        body.modal-open { overflow: hidden; }
+        #dev-panel-overlay,
+        #test-config-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            pointer-events: auto;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        #dev-panel-backdrop,
+        #test-config-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            pointer-events: auto;
+        }
+        .dev-sheet,
+        .test-sheet {
+            position: relative;
+            width: min(100%, 500px);
+            padding: 18px 16px calc(20px + env(safe-area-inset-bottom));
+            border-radius: 22px 22px 0 0;
+            border: 1px solid var(--border);
+            background: rgba(6, 6, 6, 0.96);
+            box-shadow: var(--shadow);
+            pointer-events: auto;
+        }
+        .dev-sheet-title,
+        .test-sheet-title { font-size: 12px; letter-spacing: 0.35em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); text-align: center; margin-bottom: 12px; }
+        .dev-sheet-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .test-sheet-desc { font-size: 12px; text-align: center; color: rgba(255, 255, 255, 0.7); margin-bottom: 12px; }
+        .test-sheet-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+        #test-weapon-select {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.45);
+            color: white;
+        }
         .dev-btn { padding: 12px 10px; border-radius: 14px; font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; }
         .toggle-checkbox:checked { right: 0; border-color: #68D391; }
         .toggle-checkbox:checked + .toggle-label { background-color: #68D391; }
@@ -141,7 +179,7 @@
                 <div class="title-block">
                     <h1 class="italic glow-text">GEOMETRY<br>CANNON</h1>
                     <button id="version-toggle" class="version-toggle tap-target" type="button" aria-label="버전 5회 탭 시 DEV 패널">
-                        <span id="version-text">v37.2.0</span>
+                    <span id="version-text">v37.2.1</span>
                     </button>
                 </div>
                 <div class="resource-stack">
@@ -201,15 +239,27 @@
             <div class="absolute bottom-2 left-4 text-[10px] text-gray-600 font-mono">
                 DATA: <span id="debug-save-status">Checking...</span>
             </div>
+        </div>
 
-            <div id="dev-panel-overlay" class="dev-panel hidden">
-                <button id="dev-panel-backdrop" class="dev-panel-backdrop" aria-label="DEV 패널 닫기"></button>
-                <div class="dev-panel-sheet">
-                    <div class="dev-panel-title">DEV PANEL</div>
-                    <div class="dev-panel-actions">
-                        <button id="dev-god-btn" class="dev-btn bg-red-900/80 border border-red-500/50 text-red-200 hover:bg-red-600 transition-colors">GOD MODE</button>
-                        <button id="dev-test-btn" class="dev-btn bg-orange-600 border border-orange-400 text-white hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]">TEST STAGE</button>
-                    </div>
+        <div id="dev-panel-overlay" class="hidden">
+            <button id="dev-panel-backdrop" type="button" aria-label="Close dev panel"></button>
+            <div class="dev-sheet" role="dialog" aria-modal="true">
+                <div class="dev-sheet-title">DEV PANEL</div>
+                <div class="dev-sheet-actions">
+                    <button id="dev-god-btn" class="dev-btn bg-red-900/80 border border-red-500/50 text-red-200 hover:bg-red-600 transition-colors" type="button">GOD MODE</button>
+                    <button id="dev-test-btn" class="dev-btn bg-orange-600 border border-orange-400 text-white hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]" type="button">TEST STAGE</button>
+                </div>
+            </div>
+        </div>
+        <div id="test-config-overlay" class="hidden">
+            <button id="test-config-backdrop" type="button" aria-label="Close test config"></button>
+            <div class="test-sheet" role="dialog" aria-modal="true">
+                <div class="test-sheet-title">TEST MODE</div>
+                <div class="test-sheet-desc">특수 무기를 선택하면 다음 전투에서 해당 무기로 시작합니다.</div>
+                <select id="test-weapon-select"></select>
+                <div class="test-sheet-actions">
+                    <button id="test-config-close" class="btn-sub" type="button">닫기</button>
+                    <button id="test-apply-btn" class="btn-main" type="button">적용</button>
                 </div>
             </div>
         </div>
@@ -253,6 +303,9 @@
                     <div class="text-[9px] text-gray-400 tracking-widest">TIME LEFT</div>
                     <div id="timer-text" class="text-2xl font-mono font-bold text-white tracking-widest tabular-nums">01:00.00</div>
                 </div>
+                <div id="test-mode-indicator" class="hidden bg-orange-500/20 border border-orange-400/60 px-3 py-2 rounded-lg text-[10px] font-black tracking-[0.3em] text-orange-200">
+                    TEST MODE
+                </div>
                 <button id="btn-quit" class="pointer-events-auto bg-red-500/20 hover:bg-red-500/50 border border-red-500/50 px-3 py-2 rounded-lg text-xs font-bold text-red-100 transition-all" onclick="showQuitPopup()">EXIT</button>
             </div>
             
@@ -286,24 +339,6 @@
             </div>
 
             <!-- Overlays -->
-            <div id="test-config-overlay" class="hidden absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-50 p-6">
-                <h2 class="text-3xl font-black italic text-orange-400 mb-6 glow-text tracking-tighter">TEST LAB CONFIG</h2>
-                <div class="bg-white/5 border border-white/10 p-6 rounded-2xl w-full max-w-sm mb-8 overflow-y-auto max-h-[60vh]">
-                    <h3 class="text-sm font-bold text-gray-400 mb-4 tracking-widest border-b border-white/10 pb-2">WEAPON SYSTEMS</h3>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center"><span class="text-cyan-400 font-bold">Cannon (Default)</span><span class="text-xs bg-cyan-900 text-cyan-300 px-2 py-1 rounded">ALWAYS ON</span></div>
-                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('missile')"><span class="text-white">🚀 Missile Pod</span><div id="toggle-missile" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
-                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('laser')"><span class="text-white">🛰️ Orbital Laser</span><div id="toggle-laser" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
-                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('gravity')"><span class="text-white">🌌 Gravity Cannon</span><div id="toggle-gravity" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
-                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('droplet')"><span class="text-white">💧 Droplet Probe</span><div id="toggle-droplet" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
-                        <div class="flex justify-between items-center cursor-pointer" onclick="toggleTestWeapon('barrier')"><span class="text-white">⚡ Electro Barrier</span><div id="toggle-barrier" class="w-10 h-5 bg-gray-600 rounded-full relative transition-colors duration-300"><div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-all duration-300"></div></div></div>
-                    </div>
-                </div>
-                <div class="flex gap-4 w-full max-w-sm">
-                    <button onclick="cancelTest()" class="flex-1 bg-gray-700 text-white py-4 rounded-xl font-bold hover:bg-gray-600">CANCEL</button>
-                    <button onclick="startTestMatch()" class="flex-1 bg-orange-600 text-white py-4 rounded-xl font-black text-lg hover:bg-orange-500 shadow-[0_0_20px_rgba(255,165,0,0.4)]">START TEST ▶</button>
-                </div>
-            </div>
 
             <div id="clear-overlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-50 p-6">
                 <h2 class="text-5xl font-black italic text-yellow-400 mb-2 glow-text tracking-tighter">STAGE CLEAR!</h2>
