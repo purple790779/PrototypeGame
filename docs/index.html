@@ -3,11 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>지오메트리 캐논 - v37.1</title>
+    <title>지오메트리 캐논 - v37.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #1a1a1a; color: white; font-family: 'Pretendard', sans-serif; user-select: none; touch-action: none; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        #game-container { position: relative; width: 100%; height: 100%; max-width: 500px; max-height: 100vh; background-color: #050505; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Pretendard', sans-serif;
+            user-select: none;
+            touch-action: none;
+            width: 100vw;
+            height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100dvh;
+            max-width: 500px;
+            max-height: 100dvh;
+            background-color: #050505;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
         canvas { display: block; width: 100%; height: 100%; }
         .ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
         .interactive { pointer-events: auto; }
@@ -33,13 +55,19 @@
 
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
+        <div id="rotate-overlay" class="hidden absolute inset-0 z-[999] bg-black/90 backdrop-blur-md flex items-center justify-center text-center p-8">
+            <div>
+                <div class="text-3xl font-black italic text-cyan-300 glow-text">세로 모드로<br/>돌려주세요</div>
+                <div class="mt-3 text-xs text-gray-400 tracking-widest">PORTRAIT MODE RECOMMENDED</div>
+            </div>
+        </div>
 
         <!-- 로비 UI -->
         <div id="lobby-ui" class="ui-layer flex flex-col items-center justify-between py-6 px-6 mx-auto w-full h-full">
             <div class="w-full flex justify-between items-start interactive">
                 <div class="flex flex-col">
                     <h1 class="text-3xl font-black italic glow-text tracking-tighter leading-none">GEOMETRY<br>CANNON</h1>
-                    <p class="text-[9px] text-cyan-500 tracking-[0.3em] font-bold mt-2 opacity-80">HOTFIX v37.1</p>
+                    <p class="text-[9px] text-cyan-500 tracking-[0.3em] font-bold mt-2 opacity-80">HOTFIX v37.2</p>
                 </div>
                 <div class="flex flex-col items-end gap-2">
                     <div class="flex flex-col gap-1">
@@ -267,18 +295,46 @@
             const color = difficulty === 'NORMAL' ? '#00ffff' : '#ff3366';
             document.getElementById('stage-num').innerText = `STAGE ${currentStage.toString().padStart(2,'0')}`;
             document.getElementById('stage-num').style.color = color;
+
             const names = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];
             document.getElementById('stage-name').innerText = names[(currentStage-1)%names.length];
+
             const isCleared = savedData.clearData[difficulty].includes(currentStage);
+            const isPlayable = (currentStage === 1) || savedData.clearData[difficulty].includes(currentStage - 1);
+
             const statusText = document.getElementById('status-text');
             const statusDot = document.getElementById('status-dot');
-            if(isCleared) {
-                statusText.innerText = "CLEARED"; statusText.style.color = color;
-                statusDot.style.backgroundColor = color; statusDot.style.boxShadow = `0 0 8px ${color}`;
+            const startBtn = document.getElementById('start-btn');
+
+            if (isCleared) {
+                statusText.innerText = "CLEARED";
+                statusText.style.color = color;
+                statusDot.style.backgroundColor = color;
+                statusDot.style.boxShadow = `0 0 8px ${color}`;
+
+                startBtn.disabled = false;
+                startBtn.classList.remove('opacity-40', 'pointer-events-none');
+                startBtn.innerText = "START";
+            } else if (isPlayable) {
+                statusText.innerText = "READY";
+                statusText.style.color = "#9afcff";
+                statusDot.style.backgroundColor = "#00ffff";
+                statusDot.style.boxShadow = `0 0 8px #00ffff`;
+
+                startBtn.disabled = false;
+                startBtn.classList.remove('opacity-40', 'pointer-events-none');
+                startBtn.innerText = "START";
             } else {
-                statusText.innerText = "LOCKED"; statusText.style.color = "#555";
-                statusDot.style.backgroundColor = "#333"; statusDot.style.boxShadow = "none";
+                statusText.innerText = "LOCKED";
+                statusText.style.color = "#555";
+                statusDot.style.backgroundColor = "#333";
+                statusDot.style.boxShadow = "none";
+
+                startBtn.disabled = true;
+                startBtn.classList.add('opacity-40', 'pointer-events-none');
+                startBtn.innerText = "LOCKED";
             }
+
             document.getElementById('lobby-fragments').innerText = savedData.resources.fragments;
             document.getElementById('lobby-cores').innerText = savedData.resources.cores;
         }
@@ -300,19 +356,39 @@
             updateIngameResources();
         }
 
+        function updateOrientationOverlay() {
+            const overlay = document.getElementById('rotate-overlay');
+            if (!overlay) return;
+            const isLandscape = window.innerWidth > window.innerHeight;
+            overlay.classList.toggle('hidden', !isLandscape);
+        }
+
         function resize() {
             const dpr = window.devicePixelRatio || 1;
+
+            // 모바일 주소창/툴바 변화 대응
+            container.style.height = `${window.innerHeight}px`;
+
             const displayWidth = container.clientWidth;
             const displayHeight = container.clientHeight;
-            canvas.width = displayWidth * dpr;
-            canvas.height = displayHeight * dpr;
+
+            canvas.width = Math.floor(displayWidth * dpr);
+            canvas.height = Math.floor(displayHeight * dpr);
+
             width = displayWidth;
             height = displayHeight;
+
+            // 스케일 누적 방지
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.scale(dpr, dpr);
-            if (player && (gameState === 'LOBBY' || gameState === 'READY')) { 
-                player.x = width / 2; 
-                player.y = height / 2; 
+
+            // 로비/준비 상태에서 플레이어를 중앙 정렬 (존재할 때만)
+            if (player && (gameState === 'LOBBY' || gameState === 'READY')) {
+                player.x = width / 2;
+                player.y = height / 2;
             }
+
+            updateOrientationOverlay();
         }
 
         function drawGrid() {
@@ -427,17 +503,29 @@
         function startGame() { gameState = 'PLAYING'; spawnEnemy(); }
 
         function loop(timestamp) {
-            const dt = (timestamp - lastTime) / 1000;
+            if (!lastTime) lastTime = timestamp; // 첫 프레임 안정화
+            let dt = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
+
+            // 백그라운드 복귀/렉 대비 dt 클램프
+            dt = Math.min(dt, 0.05);
+
             try {
-                ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, width, height);
+                ctx.fillStyle = '#050505';
+                ctx.fillRect(0, 0, width, height);
                 drawGrid();
-                if (gameState === 'PLAYING') { updateGame(dt); drawGame(); } 
-                else if (['UPGRADE', 'CLEAR', 'PAUSED', 'GAMEOVER', 'READY'].includes(gameState)) { drawGame(); }
+
+                if (gameState === 'PLAYING') {
+                    updateGame(dt);
+                    drawGame();
+                } else if (['UPGRADE', 'CLEAR', 'PAUSED', 'GAMEOVER', 'READY'].includes(gameState)) {
+                    drawGame();
+                }
             } catch (e) {
                 console.error("Game Loop Error:", e);
                 gameState = 'PAUSED';
             }
+
             requestAnimationFrame(loop);
         }
 
