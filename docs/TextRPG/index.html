@@ -11,7 +11,7 @@
       <header class="app__header">
         <div>
           <h1>프로젝트 오메가 - 에테르의 눈물</h1>
-          <p class="subtitle">D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.1.1</span></p>
+          <p class="subtitle">D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.1.2</span></p>
         </div>
         <div class="header__controls">
           <label class="toggle">
@@ -26,6 +26,22 @@
         <div class="hud__controls">
           <button id="btn-save" class="btn btn--ghost btn--save">저장</button>
           <span class="hud__save-status" id="save-status" aria-live="polite"></span>
+          <span class="hud__autosave" id="autosave-status" aria-live="polite">자동저장: -</span>
+        </div>
+        <div class="hud__slots" aria-label="세이브 슬롯">
+          <div class="hud__slots-title">저장/불러오기</div>
+          <div class="hud__slots-controls">
+            <label class="select">
+              <span class="sr-only">슬롯 선택</span>
+              <select id="slot-select">
+                <option value="1">Slot 1</option>
+                <option value="2">Slot 2</option>
+                <option value="3">Slot 3</option>
+              </select>
+            </label>
+            <button id="btn-slot-save" class="btn btn--ghost">슬롯 저장</button>
+            <button id="btn-slot-load" class="btn btn--ghost">불러오기</button>
+          </div>
         </div>
         <div class="hud__stats">
           <div class="stat" id="hud-hp">HP 0/0</div>
@@ -54,11 +70,53 @@
         </div>
       </section>
 
+      <section class="combat" id="combat-panel" hidden aria-live="polite">
+        <div class="combat__header">
+          <div class="combat__block">
+            <div class="combat__label">전투 대상</div>
+            <div class="combat__name" id="combat-enemy-name">-</div>
+            <div class="combat__stats" id="combat-enemy-stats">HP - / AC -</div>
+            <div class="combat__status" id="combat-enemy-status">상태: -</div>
+          </div>
+          <div class="combat__block">
+            <div class="combat__label">당신</div>
+            <div class="combat__stats" id="combat-player-stats">HP - / AC -</div>
+            <div class="combat__status" id="combat-player-status">상태: -</div>
+          </div>
+        </div>
+      </section>
+
       <section class="choices" id="choices" aria-label="선택지"></section>
 
+      <section class="backup" aria-label="백업">
+        <div class="backup__header">
+          <h3>백업</h3>
+          <div class="backup__actions">
+            <button id="btn-export" class="btn btn--ghost">내보내기</button>
+            <button id="btn-import" class="btn btn--ghost">가져오기</button>
+          </div>
+        </div>
+        <p class="backup__desc">현재 자동저장 상태를 JSON으로 내보내거나 가져올 수 있습니다.</p>
+        <div class="backup__fields">
+          <textarea id="import-text" placeholder="가져올 세이브 JSON을 붙여넣거나 파일을 선택하세요."></textarea>
+          <label class="file">
+            <input type="file" id="import-file" accept="application/json" />
+            <span>파일 선택</span>
+          </label>
+        </div>
+      </section>
+
       <section class="log" aria-label="텍스트 로그">
-        <h3>로그</h3>
+        <div class="log__header">
+          <h3>로그</h3>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-autoscroll" checked />
+            <span>자동 스크롤</span>
+          </label>
+        </div>
+        <div class="log__summary" id="log-summary">최근 요약: -</div>
         <div class="log__entries" id="log"></div>
+        <button class="log__scroll-bottom" id="log-scroll-bottom">맨 아래로</button>
       </section>
     </div>
 

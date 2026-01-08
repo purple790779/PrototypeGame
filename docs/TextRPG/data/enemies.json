@@ -2,37 +2,37 @@
   {
     "id": "gloom_wolf",
     "name": "그림자 늑대",
-    "hp": 26,
-    "ac": 12,
-    "attack": 4,
-    "damage": { "min": 4, "max": 8 },
-    "status_attack": { "id": "bleed", "chance": 0.3, "turns": 2 }
+    "hp": 22,
+    "ac": 11,
+    "attack": 3,
+    "damage": { "min": 3, "max": 6 },
+    "status_attack": { "id": "bleed", "chance": 0.25, "turns": 2 }
   },
   {
     "id": "corrupted_scout",
     "name": "오염된 정찰병",
-    "hp": 22,
-    "ac": 13,
-    "attack": 5,
-    "damage": { "min": 3, "max": 7 },
-    "status_attack": { "id": "poison", "chance": 0.25, "turns": 2 }
+    "hp": 20,
+    "ac": 12,
+    "attack": 4,
+    "damage": { "min": 2, "max": 6 },
+    "status_attack": { "id": "poison", "chance": 0.2, "turns": 2 }
   },
   {
     "id": "ether_slime",
     "name": "에테르 점액체",
-    "hp": 30,
+    "hp": 26,
     "ac": 10,
     "attack": 3,
-    "damage": { "min": 2, "max": 6 },
-    "status_attack": { "id": "poison", "chance": 0.4, "turns": 3 }
+    "damage": { "min": 2, "max": 5 },
+    "status_attack": { "id": "poison", "chance": 0.3, "turns": 2 }
   },
   {
     "id": "ash_wisp",
     "name": "재의 망령",
-    "hp": 18,
-    "ac": 14,
-    "attack": 6,
-    "damage": { "min": 4, "max": 9 }
+    "hp": 16,
+    "ac": 13,
+    "attack": 5,
+    "damage": { "min": 3, "max": 7 }
   },
   {
     "id": "rift_knight",
