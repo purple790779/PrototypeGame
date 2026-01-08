@@ -1,4 +1,4 @@
-const VERSION = "v0.2.1";
+const VERSION = "v0.2.2";
 const AUTOSAVE_KEY = "textrpg-omega-save";
 const SLOT_KEYS = ["textrpg_slot_1", "textrpg_slot_2", "textrpg_slot_3"];
 const MAX_LOG_ENTRIES = 60;
@@ -6,6 +6,7 @@ const MAX_COMBAT_LOG = 6;
 
 const state = {
   data: null,
+  dataReady: false,
   player: null,
   nodeId: "NODE_PROLOGUE",
   inCombat: false,
@@ -85,7 +86,13 @@ const elements = {
   saveToast: document.getElementById("save-toast"),
   versionLabel: document.getElementById("version-label"),
   resetButton: document.getElementById("btn-reset"),
-  emergencyResetButton: document.getElementById("btn-emergency-reset")
+  emergencyResetButton: document.getElementById("btn-emergency-reset"),
+  dataError: document.getElementById("data-error"),
+  dataErrorList: document.getElementById("data-error-list"),
+  retryLoadButton: document.getElementById("btn-retry-load"),
+  hardResetButton: document.getElementById("btn-hard-reset"),
+  combatRecover: document.getElementById("combat-recover"),
+  combatRecoverButton: document.getElementById("btn-combat-recover")
 };
 
 const statusCatalog = {
@@ -173,7 +180,7 @@ function recoverFromInvalidCombat({ announce = true } = {}) {
   setChoicesDisabled(false);
   resetTransientUI();
   if (announce) {
-    const message = "저장 데이터가 이전 버전과 달라 전투를 종료하고 탐험으로 복귀했습니다.";
+    const message = "이전 저장 전투를 복원할 수 없어 탐험으로 복귀했습니다.";
     logEntry(message, { highlight: true, badge: "복구" });
     setLogSummary(message);
     showToast("전투 상태를 복구했습니다.", "success");
@@ -911,6 +918,10 @@ function startCombat(enemyId, nextNode = null) {
 
 function resumeCombat() {
   if (!state.pendingCombat) return;
+  if (!state.data) {
+    showToast("데이터 로딩 후 전투를 재개할 수 있습니다.", "error");
+    return;
+  }
   if (!isCombatSnapshotValid(state.pendingCombat)) {
     recoverFromInvalidCombat();
     renderNode();
@@ -931,6 +942,15 @@ function resumeCombat() {
 
 function renderResumeCombat() {
   if (!elements.resumeCombat) return;
+  if (!state.data) {
+    elements.resumeCombat.hidden = true;
+    return;
+  }
+  if (state.pendingCombat && !isCombatSnapshotValid(state.pendingCombat)) {
+    recoverFromInvalidCombat();
+    elements.resumeCombat.hidden = true;
+    return;
+  }
   elements.resumeCombat.hidden = !state.pendingCombat;
 }
 
@@ -951,6 +971,9 @@ function renderCombatScene() {
   elements.combatScene.hidden = !state.inCombat;
   if (!state.inCombat) return;
   const isValidCombat = Boolean(state.player) && isCombatSnapshotValid(state.enemy);
+  if (elements.combatRecover) {
+    elements.combatRecover.hidden = isValidCombat;
+  }
   if (elements.combatDicePanel) {
     elements.combatDicePanel.hidden = !isValidCombat;
   }
@@ -964,7 +987,7 @@ function renderCombatScene() {
     elements.combatEnemyHp.style.width = "0%";
     elements.combatPlayerStatus.textContent = "상태 없음";
     elements.combatEnemyStatus.textContent = "상태 없음";
-    elements.combatSituation.textContent = "전투 데이터를 불러올 수 없습니다.";
+    elements.combatSituation.textContent = "전투 데이터를 복원할 수 없습니다.";
     elements.combatAdvantage.style.width = "0%";
     elements.combatAdvantageLabel.textContent = "-";
     if (elements.combatLog) {
@@ -1074,9 +1097,12 @@ async function useItem(item, { context }) {
   if (context === "combat") {
     state.isBusy = true;
     setChoicesDisabled(true);
-    await enemyTurn();
-    state.isBusy = false;
-    setChoicesDisabled(false);
+    try {
+      await enemyTurn();
+    } finally {
+      state.isBusy = false;
+      setChoicesDisabled(false);
+    }
   }
 }
 
@@ -1379,14 +1405,56 @@ function runEmergencyReset({ confirm = true } = {}) {
 }
 
 async function loadData() {
-  const [events, items, enemies, nodes, endings] = await Promise.all([
-    fetch("data/events.json").then((res) => res.json()),
-    fetch("data/items.json").then((res) => res.json()),
-    fetch("data/enemies.json").then((res) => res.json()),
-    fetch("data/nodes.json").then((res) => res.json()),
-    fetch("data/endings.json").then((res) => res.json())
-  ]);
-  state.data = { events, items, enemies, nodes, endings };
+  const base = new URL("./", window.location.href);
+  const sources = [
+    { key: "events", file: "data/events.json" },
+    { key: "items", file: "data/items.json" },
+    { key: "enemies", file: "data/enemies.json" },
+    { key: "nodes", file: "data/nodes.json" },
+    { key: "endings", file: "data/endings.json" }
+  ];
+  const fetchJson = async ({ file }) => {
+    const url = new URL(`${file}?v=${Date.now()}`, base);
+    let response;
+    try {
+      response = await fetch(url, { cache: "no-store" });
+    } catch (error) {
+      throw new Error(`네트워크 오류: ${error.message}`);
+    }
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    try {
+      return await response.json();
+    } catch (error) {
+      throw new Error(`JSON 파싱 오류: ${error.message}`);
+    }
+  };
+
+  const results = await Promise.allSettled(sources.map((source) => fetchJson(source)));
+  const failures = [];
+  const payload = {};
+
+  results.forEach((result, index) => {
+    const source = sources[index];
+    if (result.status === "fulfilled") {
+      payload[source.key] = result.value;
+    } else {
+      failures.push({ file: source.file, error: result.reason?.message ?? "알 수 없는 오류" });
+    }
+  });
+
+  if (failures.length) {
+    state.data = null;
+    state.dataReady = false;
+    renderDataLoadError(failures);
+    return false;
+  }
+
+  state.data = payload;
+  state.dataReady = true;
+  renderDataLoadError([]);
+  return true;
 }
 
 function resetTransientUI() {
@@ -1406,6 +1474,39 @@ function resetTransientUI() {
   closeSheet(elements.statusSheet);
   closeSheet(elements.actionSheet);
   closeSheet(elements.itemSheet);
+}
+
+function renderDataLoadError(failures) {
+  if (!elements.dataError || !elements.dataErrorList) return;
+  if (!failures.length) {
+    elements.dataError.hidden = true;
+    elements.dataErrorList.innerHTML = "";
+    return;
+  }
+  elements.dataError.hidden = false;
+  elements.dataErrorList.innerHTML = "";
+  failures.forEach((failure) => {
+    const item = document.createElement("li");
+    item.textContent = `${failure.file}: ${failure.error}`;
+    elements.dataErrorList.appendChild(item);
+  });
+}
+
+async function startDataLoad({ shouldReset = false } = {}) {
+  setScene("준비 중...", "데이터를 불러오는 중입니다.");
+  renderResumeCombat();
+  const ok = await loadData();
+  if (!ok) {
+    setScene("데이터 로드 실패", "데이터 로드에 실패했습니다. 아래 오류를 확인해주세요.");
+    showToast("데이터 로드 실패", "error");
+    return false;
+  }
+  if (shouldReset) {
+    runEmergencyReset({ confirm: false });
+    return true;
+  }
+  loadGame();
+  return true;
 }
 
 function scheduleSave() {
@@ -1454,6 +1555,15 @@ function setupEventListeners() {
   });
   elements.resetButton.addEventListener("click", () => resetGame());
   elements.emergencyResetButton?.addEventListener("click", () => runEmergencyReset());
+  elements.retryLoadButton?.addEventListener("click", () => {
+    void startDataLoad();
+  });
+  elements.hardResetButton?.addEventListener("click", () => runEmergencyReset());
+  elements.combatRecoverButton?.addEventListener("click", () => {
+    recoverFromInvalidCombat();
+    renderNode();
+    renderCombatScene();
+  });
   elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
   elements.slotSaveButton?.addEventListener("click", () => saveSlot());
   elements.slotLoadButton?.addEventListener("click", () => loadSlot());
@@ -1498,18 +1608,10 @@ function init() {
   setLogSummary("준비 중...");
   setupEventListeners();
 
-  loadData()
-    .then(() => {
-      if (shouldReset) {
-        runEmergencyReset({ confirm: false });
-        return;
-      }
-      loadGame();
-    })
-    .catch(() => {
-      setScene("오류", "데이터를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.");
-      showToast("데이터를 불러오지 못했습니다.", "error");
-    });
+  startDataLoad({ shouldReset }).catch(() => {
+    setScene("오류", "데이터를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.");
+    showToast("데이터를 불러오지 못했습니다.", "error");
+  });
 }
 
 init();
