@@ -1,4 +1,4 @@
-const VERSION = "v0.1.0";
+const VERSION = "v0.1.1";
 const SAVE_KEY = "textrpg-omega-save";
 
 const state = {
@@ -8,7 +8,9 @@ const state = {
   inCombat: false,
   enemy: null,
   typing: false,
-  log: []
+  log: [],
+  isBusy: false,
+  diceTimer: null
 };
 
 const elements = {
@@ -28,6 +30,10 @@ const elements = {
   hudLuk: document.getElementById("hud-luk"),
   hudStatus: document.getElementById("hud-status"),
   hudInventory: document.getElementById("hud-inventory"),
+  saveButton: document.getElementById("btn-save"),
+  saveStatus: document.getElementById("save-status"),
+  saveToast: document.getElementById("save-toast"),
+  versionLabel: document.getElementById("version-label"),
   toggleTyping: document.getElementById("toggle-typing"),
   resetButton: document.getElementById("btn-reset")
 };
@@ -36,6 +42,10 @@ const statusCatalog = {
   bleed: { label: "출혈", damage: 2 },
   poison: { label: "중독", damage: 3 }
 };
+
+let saveDebounceId = null;
+let toastTimerId = null;
+let statusTimerId = null;
 
 function defaultPlayer() {
   return {
@@ -67,6 +77,7 @@ function renderLog() {
 }
 
 function updateHud() {
+  if (!state.player) return;
   const { player } = state;
   elements.hudHp.textContent = `HP ${player.hp}/${player.maxHp}`;
   elements.hudGold.textContent = `골드 ${player.gold}`;
@@ -81,9 +92,26 @@ function updateHud() {
     : "정상";
   elements.hudStatus.textContent = `상태: ${statusText}`;
   const inventoryNames = player.inventory
-    .map((id) => state.data.items.find((item) => item.id === id)?.name)
+    .map((id) => state.data?.items?.find((item) => item.id === id)?.name)
     .filter(Boolean);
   elements.hudInventory.textContent = inventoryNames.length ? `보유: ${inventoryNames.join(", ")}` : "보유: -";
+}
+
+function setSaveStatus(message) {
+  elements.saveStatus.textContent = message;
+}
+
+function showToast(message, tone = "success") {
+  if (!elements.saveToast) return;
+  elements.saveToast.textContent = message;
+  elements.saveToast.classList.add("is-visible");
+  elements.saveToast.classList.toggle("is-error", tone === "error");
+  if (toastTimerId) {
+    clearTimeout(toastTimerId);
+  }
+  toastTimerId = setTimeout(() => {
+    elements.saveToast.classList.remove("is-visible");
+  }, 1600);
 }
 
 function setScene(title, text) {
@@ -109,7 +137,18 @@ function renderChoices(choiceList) {
     const button = document.createElement("button");
     button.className = `choice-btn${choice.danger ? " choice-btn--danger" : ""}`;
     button.textContent = choice.text;
-    button.addEventListener("click", choice.onSelect);
+    button.disabled = state.isBusy;
+    button.addEventListener("click", async () => {
+      if (state.isBusy) return;
+      state.isBusy = true;
+      setChoicesDisabled(true);
+      try {
+        await Promise.resolve(choice.onSelect());
+      } finally {
+        state.isBusy = false;
+        setChoicesDisabled(false);
+      }
+    });
     elements.choices.appendChild(button);
   });
 }
@@ -118,15 +157,20 @@ function animateDice(finalValue, label = "주사위") {
   elements.diceLabel.textContent = label;
   return new Promise((resolve) => {
     let count = 0;
+    if (state.diceTimer) {
+      clearInterval(state.diceTimer);
+    }
     const timer = setInterval(() => {
       elements.diceValue.textContent = Math.floor(Math.random() * 20) + 1;
       count += 1;
       if (count > 8) {
         clearInterval(timer);
+        state.diceTimer = null;
         elements.diceValue.textContent = finalValue;
         resolve();
       }
     }, 60);
+    state.diceTimer = timer;
   });
 }
 
@@ -280,13 +324,13 @@ function renderNode() {
   if (node.event_pool && node.event_pool.length) {
     choices.push({
       text: "주변을 탐색한다",
-      onSelect: () => {
+      onSelect: async () => {
         const pool = node.event_pool.filter((eventId) => {
           const event = state.data.events.find((item) => item.id === eventId);
           return event && eventConditionMet(event.condition);
         });
         const eventId = pool.length ? pool[Math.floor(Math.random() * pool.length)] : node.event_pool[0];
-        runEvent(eventId);
+        await runEvent(eventId);
       }
     });
   }
@@ -296,7 +340,7 @@ function renderNode() {
     choices.push({
       text: locked ? `${choice.text} (조건 미충족)` : choice.text,
       danger: locked,
-      onSelect: () => {
+      onSelect: async () => {
         if (locked) {
           logEntry("조건이 충족되지 않았다.");
           return;
@@ -315,7 +359,7 @@ function renderNode() {
         if (choice.next_node) {
           state.nodeId = choice.next_node;
         }
-        saveGame();
+        saveGame({ silent: true });
         renderNode();
       }
     });
@@ -438,7 +482,7 @@ function applyItem(item) {
   }
   state.player.inventory = state.player.inventory.filter((id) => id !== item.id);
   updateHud();
-  saveGame();
+  saveGame({ silent: true });
 }
 
 async function combatEscape() {
@@ -452,7 +496,7 @@ async function combatEscape() {
       state.player.inventory = state.player.inventory.filter((id) => id !== "smoke_bomb");
     }
     renderNode();
-    saveGame();
+    saveGame({ silent: true });
     return;
   }
   logEntry("도주에 실패했다.");
@@ -492,7 +536,7 @@ async function enemyTurn(defending = false) {
     return;
   }
   renderCombatChoices();
-  saveGame();
+  saveGame({ silent: true });
 }
 
 function handleVictory() {
@@ -509,7 +553,7 @@ function handleVictory() {
     state.nodeId = enemy.nextNode;
   }
   updateHud();
-  saveGame();
+  saveGame({ silent: true });
   renderNode();
 }
 
@@ -534,14 +578,65 @@ function showEnding(endingId) {
   ]);
 }
 
-function saveGame() {
+function saveGame({ silent = true } = {}) {
   const saveData = {
     version: VERSION,
     nodeId: state.nodeId,
     player: state.player,
     log: state.log
   };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    if (!silent) {
+      setSaveStatus("저장 완료");
+      showToast("저장 완료");
+    }
+    return true;
+  } catch (error) {
+    console.error("Failed to save game", error);
+    if (!silent) {
+      setSaveStatus("저장 실패");
+      showToast("저장 실패(저장공간/권한 확인)", "error");
+    }
+    return false;
+  }
+}
+
+function saveGameWithFeedback() {
+  setSaveStatus("저장 중...");
+  saveGame({ silent: false });
+  if (statusTimerId) {
+    clearTimeout(statusTimerId);
+  }
+  statusTimerId = setTimeout(() => {
+    setSaveStatus("");
+  }, 1800);
+}
+
+function parseSaveData(raw) {
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object") return null;
+    return data;
+  } catch (error) {
+    console.error("Failed to parse save data", error);
+    return null;
+  }
+}
+
+function normalizePlayer(playerData) {
+  const fallback = defaultPlayer();
+  const safe = playerData && typeof playerData === "object" ? playerData : {};
+  return {
+    ...fallback,
+    ...safe,
+    stats: { ...fallback.stats, ...(safe.stats ?? {}) },
+    counters: { ...fallback.counters, ...(safe.counters ?? {}) },
+    inventory: Array.isArray(safe.inventory) ? safe.inventory : fallback.inventory,
+    flags: Array.isArray(safe.flags) ? safe.flags : fallback.flags,
+    status: Array.isArray(safe.status) ? safe.status : fallback.status
+  };
 }
 
 function loadGame() {
@@ -550,7 +645,12 @@ function loadGame() {
     resetGame(false);
     return;
   }
-  const data = JSON.parse(raw);
+  const data = parseSaveData(raw);
+  if (!data) {
+    showToast("세이브를 읽지 못해 새 여정으로 시작합니다.", "error");
+    resetGame(false);
+    return;
+  }
   if (data.version !== VERSION) {
     const reset = window.confirm(
       `세이브 버전(${data.version})과 현재 버전(${VERSION})이 다릅니다. 초기화하시겠습니까?`
@@ -560,20 +660,22 @@ function loadGame() {
       return;
     }
   }
-  state.player = data.player ?? defaultPlayer();
+  state.player = normalizePlayer(data.player);
   state.nodeId = data.nodeId ?? "NODE_PROLOGUE";
-  state.log = data.log ?? [];
+  state.log = Array.isArray(data.log) ? data.log : [];
   updateHud();
   renderLog();
   renderNode();
 }
 
 function resetGame(render = true) {
+  localStorage.removeItem(SAVE_KEY);
   state.player = defaultPlayer();
   state.nodeId = "NODE_PROLOGUE";
   state.log = [];
   logEntry("새로운 여정이 시작되었다.");
-  saveGame();
+  resetTransientUI();
+  saveGame({ silent: true });
   if (render) {
     renderNode();
   }
@@ -590,18 +692,71 @@ async function loadData() {
   state.data = { events, items, enemies, nodes, endings };
 }
 
-function init() {
+function setChoicesDisabled(isDisabled) {
+  elements.choices.querySelectorAll("button").forEach((button) => {
+    button.disabled = isDisabled;
+  });
+}
+
+function resetTransientUI() {
+  state.isBusy = false;
+  if (state.diceTimer) {
+    clearInterval(state.diceTimer);
+    state.diceTimer = null;
+  }
+  elements.diceValue.textContent = "--";
+  elements.diceLabel.textContent = "주사위 대기";
+  setChoicesDisabled(false);
+}
+
+function scheduleSave() {
+  if (saveDebounceId) return;
+  saveDebounceId = setTimeout(() => {
+    saveDebounceId = null;
+    saveGame({ silent: true });
+  }, 120);
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === "hidden") {
+    saveGame({ silent: true });
+  }
+}
+
+function handlePageShow(event) {
+  if (event.persisted) {
+    loadGame();
+    resetTransientUI();
+    showToast("복귀 완료", "success");
+  }
+}
+
+function setupEventListeners() {
   elements.toggleTyping.addEventListener("change", (event) => {
     state.typing = event.target.checked;
   });
   elements.resetButton.addEventListener("click", () => resetGame());
+  elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
+  window.addEventListener("pageshow", handlePageShow);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("pagehide", scheduleSave);
+}
+
+function init() {
+  if (window.__TEXTRPG_INIT_DONE) return;
+  window.__TEXTRPG_INIT_DONE = true;
+  if (elements.versionLabel) {
+    elements.versionLabel.textContent = VERSION;
+  }
+  setupEventListeners();
 
   loadData()
     .then(() => {
       loadGame();
     })
     .catch(() => {
-      setScene("오류", "데이터를 불러오지 못했습니다.");
+      setScene("오류", "데이터를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.");
+      showToast("데이터를 불러오지 못했습니다.", "error");
     });
 }
 
