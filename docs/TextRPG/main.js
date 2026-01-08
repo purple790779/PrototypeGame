@@ -1,7 +1,8 @@
-const VERSION = "v0.1.2";
+const VERSION = "v0.2.0";
 const AUTOSAVE_KEY = "textrpg-omega-save";
 const SLOT_KEYS = ["textrpg_slot_1", "textrpg_slot_2", "textrpg_slot_3"];
 const MAX_LOG_ENTRIES = 60;
+const MAX_COMBAT_LOG = 6;
 
 const state = {
   data: null,
@@ -9,71 +10,108 @@ const state = {
   nodeId: "NODE_PROLOGUE",
   inCombat: false,
   enemy: null,
+  pendingCombat: null,
   typing: false,
   log: [],
+  combatLog: [],
   isBusy: false,
   diceTimer: null,
   lastSavedAt: null,
   autoScroll: true,
   lastSummary: "최근 요약: -",
-  defeatStreak: 0
+  defeatStreak: 0,
+  currentChoices: []
 };
 
 const elements = {
   sceneTitle: document.getElementById("scene-title"),
   sceneText: document.getElementById("scene-text"),
-  choices: document.getElementById("choices"),
-  log: document.getElementById("log"),
   diceValue: document.getElementById("dice-value"),
   diceLabel: document.getElementById("dice-label"),
+  combatDiceValue: document.getElementById("combat-dice-value"),
+  combatDiceLabel: document.getElementById("combat-dice-label"),
+  combatDiceBadge: document.getElementById("combat-dice-badge"),
+  resumeCombat: document.getElementById("resume-combat"),
+  resumeCombatButton: document.getElementById("btn-resume-combat"),
+  log: document.getElementById("log"),
+  logSummary: document.getElementById("log-summary"),
+  logScrollBottom: document.getElementById("log-scroll-bottom"),
   hudHp: document.getElementById("hud-hp"),
+  hudMp: document.getElementById("hud-mp"),
   hudGold: document.getElementById("hud-gold"),
-  hudTrust: document.getElementById("hud-trust"),
-  hudInsight: document.getElementById("hud-insight"),
-  hudStr: document.getElementById("hud-str"),
-  hudDex: document.getElementById("hud-dex"),
-  hudInt: document.getElementById("hud-int"),
-  hudLuk: document.getElementById("hud-luk"),
-  hudStatus: document.getElementById("hud-status"),
-  hudInventory: document.getElementById("hud-inventory"),
   saveButton: document.getElementById("btn-save"),
-  saveStatus: document.getElementById("save-status"),
   autosaveStatus: document.getElementById("autosave-status"),
+  statusButton: document.getElementById("btn-status"),
+  statusSheet: document.getElementById("status-sheet"),
+  closeStatus: document.getElementById("btn-close-status"),
+  sheetBackdrop: document.getElementById("sheet-backdrop"),
+  statsGrid: document.getElementById("stats-grid"),
+  progressTrust: document.getElementById("progress-trust"),
+  progressInsight: document.getElementById("progress-insight"),
+  statusList: document.getElementById("status-list"),
+  inventoryGrid: document.getElementById("inventory-grid"),
+  toggleTyping: document.getElementById("toggle-typing"),
+  toggleAutoscroll: document.getElementById("toggle-autoscroll"),
   slotSelect: document.getElementById("slot-select"),
   slotSaveButton: document.getElementById("btn-slot-save"),
   slotLoadButton: document.getElementById("btn-slot-load"),
-  exportButton: document.getElementById("btn-export"),
-  importButton: document.getElementById("btn-import"),
-  importText: document.getElementById("import-text"),
-  importFile: document.getElementById("import-file"),
-  toggleAutoscroll: document.getElementById("toggle-autoscroll"),
-  logSummary: document.getElementById("log-summary"),
-  logScrollBottom: document.getElementById("log-scroll-bottom"),
-  combatPanel: document.getElementById("combat-panel"),
+  actionDock: document.getElementById("action-dock"),
+  dockMain: document.getElementById("dock-main"),
+  dockMore: document.getElementById("dock-more"),
+  actionSheet: document.getElementById("action-sheet"),
+  actionSheetList: document.getElementById("action-sheet-list"),
+  closeActions: document.getElementById("btn-close-actions"),
+  itemSheet: document.getElementById("item-sheet"),
+  itemSheetTitle: document.getElementById("item-sheet-title"),
+  itemSheetGrid: document.getElementById("item-sheet-grid"),
+  closeItems: document.getElementById("btn-close-items"),
+  tooltip: document.getElementById("tooltip"),
+  tooltipContent: document.getElementById("tooltip-content"),
+  tooltipActions: document.getElementById("tooltip-actions"),
+  combatScene: document.getElementById("combat-scene"),
+  combatPlayerName: document.getElementById("combat-player-name"),
+  combatPlayerHp: document.getElementById("combat-player-hp"),
   combatEnemyName: document.getElementById("combat-enemy-name"),
-  combatEnemyStats: document.getElementById("combat-enemy-stats"),
-  combatEnemyStatus: document.getElementById("combat-enemy-status"),
-  combatPlayerStats: document.getElementById("combat-player-stats"),
+  combatEnemyHp: document.getElementById("combat-enemy-hp"),
   combatPlayerStatus: document.getElementById("combat-player-status"),
+  combatEnemyStatus: document.getElementById("combat-enemy-status"),
+  combatSituation: document.getElementById("combat-situation"),
+  combatAdvantage: document.getElementById("combat-advantage"),
+  combatAdvantageLabel: document.getElementById("combat-advantage-label"),
+  combatLog: document.getElementById("combat-log"),
+  combatDock: document.getElementById("combat-dock"),
   saveToast: document.getElementById("save-toast"),
   versionLabel: document.getElementById("version-label"),
-  toggleTyping: document.getElementById("toggle-typing"),
   resetButton: document.getElementById("btn-reset")
 };
 
 const statusCatalog = {
-  bleed: { label: "출혈", damage: 2 },
-  poison: { label: "중독", damage: 3 }
+  bleed: { label: "출혈", damage: 2, icon: "🩸" },
+  poison: { label: "중독", damage: 3, icon: "☠️" }
+};
+
+const itemIconMap = {
+  potion_small: "🧪",
+  potion_medium: "🧪",
+  antidote: "🧪",
+  bandage: "🩹",
+  smoke_bomb: "💨",
+  rune_shard: "🪨",
+  ether_map: "🗺️",
+  iron_sword: "⚔️",
+  scout_dagger: "🗡️",
+  ward_amulet: "🛡️"
 };
 
 let saveDebounceId = null;
 let toastTimerId = null;
-let statusTimerId = null;
 
 function defaultPlayer() {
   return {
     hp: 42,
     maxHp: 42,
+    mp: null,
+    maxMp: null,
     stats: { STR: 2, DEX: 2, INT: 1, LUK: 1, CHA: 1, CON: 1 },
     gold: 20,
     inventory: ["potion_small", "potion_small", "bandage"],
@@ -83,16 +121,38 @@ function defaultPlayer() {
   };
 }
 
+function normalizePlayer(playerData) {
+  const fallback = defaultPlayer();
+  const safe = playerData && typeof playerData === "object" ? playerData : {};
+  return {
+    ...fallback,
+    ...safe,
+    stats: { ...fallback.stats, ...(safe.stats ?? {}) },
+    counters: { ...fallback.counters, ...(safe.counters ?? {}) },
+    inventory: Array.isArray(safe.inventory) ? safe.inventory : fallback.inventory,
+    flags: Array.isArray(safe.flags) ? safe.flags : fallback.flags,
+    status: Array.isArray(safe.status) ? safe.status : fallback.status
+  };
+}
+
 function logEntry(text, options = {}) {
-  state.log.push({
+  const entry = {
     text,
     time: new Date().toLocaleTimeString("ko-KR"),
     highlight: options.highlight ?? false,
     tone: options.tone ?? null,
     badge: options.badge ?? null
-  });
+  };
+  state.log.push(entry);
   if (state.log.length > MAX_LOG_ENTRIES) {
     state.log = state.log.slice(-MAX_LOG_ENTRIES);
+  }
+  if (state.inCombat) {
+    state.combatLog.push(entry);
+    if (state.combatLog.length > MAX_COMBAT_LOG) {
+      state.combatLog = state.combatLog.slice(-MAX_COMBAT_LOG);
+    }
+    renderCombatLog();
   }
   renderLog();
   if (state.autoScroll) {
@@ -113,63 +173,14 @@ function renderLog() {
   updateLogScrollButton();
 }
 
-function updateHud() {
-  if (!state.player) return;
-  const { player } = state;
-  elements.hudHp.textContent = `HP ${player.hp}/${player.maxHp}`;
-  elements.hudGold.textContent = `골드 ${player.gold}`;
-  elements.hudTrust.textContent = `신뢰 ${player.counters.trust}`;
-  elements.hudInsight.textContent = `단서 ${player.counters.insight}`;
-  elements.hudStr.textContent = `STR ${player.stats.STR}`;
-  elements.hudDex.textContent = `DEX ${player.stats.DEX}`;
-  elements.hudInt.textContent = `INT ${player.stats.INT}`;
-  elements.hudLuk.textContent = `LUK ${player.stats.LUK}`;
-  const statusText = player.status.length
-    ? player.status.map((s) => `${statusCatalog[s.id]?.label ?? s.id}(${s.turns})`).join(", ")
-    : "정상";
-  elements.hudStatus.textContent = `상태: ${statusText}`;
-  const inventoryNames = player.inventory
-    .map((id) => state.data?.items?.find((item) => item.id === id)?.name)
-    .filter(Boolean);
-  elements.hudInventory.textContent = inventoryNames.length ? `보유: ${inventoryNames.join(", ")}` : "보유: -";
-  updateCombatPanel();
-}
-
-function formatStatusList(statusList = []) {
-  if (!statusList.length) return "-";
-  return statusList
-    .map((status) => `${statusCatalog[status.id]?.label ?? status.id}(${status.turns})`)
-    .join(", ");
-}
-
-function updateCombatPanel() {
-  if (!elements.combatPanel) return;
-  elements.combatPanel.hidden = !state.inCombat;
-  if (!state.inCombat || !state.enemy || !state.player) return;
-  const enemy = state.enemy;
-  const playerAc = 10 + state.player.stats.DEX + getAcBonus();
-  elements.combatEnemyName.textContent = enemy.name;
-  elements.combatEnemyStats.textContent = `HP ${enemy.hp}/${enemy.maxHp} · AC ${enemy.ac}`;
-  elements.combatEnemyStatus.textContent = `상태: ${formatStatusList(enemy.status)}`;
-  elements.combatPlayerStats.textContent = `HP ${state.player.hp}/${state.player.maxHp} · AC ${playerAc}`;
-  elements.combatPlayerStatus.textContent = `상태: ${formatStatusList(state.player.status)}`;
-}
-
-function setSaveStatus(message) {
-  elements.saveStatus.textContent = message;
-}
-
-function setAutosaveStatus(timestamp) {
-  if (!elements.autosaveStatus) return;
-  if (!timestamp) {
-    elements.autosaveStatus.textContent = "자동저장: -";
-    return;
-  }
-  const time = new Date(timestamp).toLocaleTimeString("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit"
+function renderCombatLog() {
+  if (!elements.combatLog) return;
+  elements.combatLog.innerHTML = "";
+  state.combatLog.forEach((entry) => {
+    const line = document.createElement("div");
+    line.textContent = `[${entry.time}] ${entry.text}`;
+    elements.combatLog.appendChild(line);
   });
-  elements.autosaveStatus.textContent = `자동저장: ${time}`;
 }
 
 function setLogSummary(summary) {
@@ -179,30 +190,162 @@ function setLogSummary(summary) {
   }
 }
 
-function scrollLogToBottom() {
-  if (!elements.log) return;
-  elements.log.scrollTop = elements.log.scrollHeight;
-  updateLogScrollButton();
+function getItemById(id) {
+  return state.data?.items?.find((item) => item.id === id) ?? null;
 }
 
-function updateLogScrollButton() {
-  if (!elements.log || !elements.logScrollBottom) return;
-  const nearBottom =
-    elements.log.scrollHeight - elements.log.scrollTop - elements.log.clientHeight < 20;
-  elements.logScrollBottom.classList.toggle("is-visible", !nearBottom);
+function getItemIcon(item) {
+  if (!item) return "❓";
+  return item.icon ?? itemIconMap[item.id] ?? iconByType(item.type);
 }
 
-function showToast(message, tone = "success") {
-  if (!elements.saveToast) return;
-  elements.saveToast.textContent = message;
-  elements.saveToast.classList.add("is-visible");
-  elements.saveToast.classList.toggle("is-error", tone === "error");
-  if (toastTimerId) {
-    clearTimeout(toastTimerId);
+function iconByType(type) {
+  if (type === "weapon") return "⚔️";
+  if (type === "artifact") return "📜";
+  if (type === "tool") return "🧰";
+  return "🧪";
+}
+
+function getItemUseKind(item) {
+  if (!item?.effect) return null;
+  if (item.effect.hp) return "heal";
+  if (item.effect.status_remove) return "cure";
+  if (item.effect.buff) return "buff";
+  return null;
+}
+
+function updateHud() {
+  if (!state.player) return;
+  const { player } = state;
+  elements.hudHp.querySelector(".stat-pill__value").textContent = `${player.hp}/${player.maxHp}`;
+  elements.hudGold.querySelector(".stat-pill__value").textContent = `${player.gold}`;
+  if (player.maxMp && player.mp !== null) {
+    elements.hudMp.hidden = false;
+    elements.hudMp.querySelector(".stat-pill__value").textContent = `${player.mp}/${player.maxMp}`;
+  } else {
+    elements.hudMp.hidden = true;
   }
-  toastTimerId = setTimeout(() => {
-    elements.saveToast.classList.remove("is-visible");
-  }, 1600);
+  renderStatusSheet();
+  renderCombatScene();
+}
+
+function renderStatusSheet() {
+  if (!state.player) return;
+  const { player } = state;
+  const stats = ["STR", "DEX", "INT", "LUK", "CHA", "CON"]
+    .filter((stat) => Number.isFinite(player.stats[stat]))
+    .map((stat) => ({ label: stat, value: player.stats[stat] }));
+  elements.statsGrid.innerHTML = "";
+  stats.forEach((stat) => {
+    const card = document.createElement("div");
+    card.className = "stat-card";
+    card.innerHTML = `<span>${stat.label}</span><strong>${stat.value}</strong>`;
+    elements.statsGrid.appendChild(card);
+  });
+  elements.progressTrust.textContent = player.counters.trust;
+  elements.progressInsight.textContent = player.counters.insight;
+  renderStatusList(player.status, elements.statusList);
+  renderInventoryGrid(elements.inventoryGrid, player.inventory, { context: "explore" });
+}
+
+function renderStatusList(statusList, container) {
+  container.innerHTML = "";
+  if (!statusList.length) {
+    const empty = document.createElement("div");
+    empty.className = "status-pill";
+    empty.textContent = "현재 상태 이상이 없습니다.";
+    container.appendChild(empty);
+    return;
+  }
+  statusList.forEach((status) => {
+    const meta = statusCatalog[status.id] ?? { label: status.id, icon: "✨" };
+    const pill = document.createElement("div");
+    pill.className = "status-pill";
+    pill.innerHTML = `<span>${meta.icon}</span><span>${meta.label}</span><strong>${status.turns}턴</strong>`;
+    container.appendChild(pill);
+  });
+}
+
+function renderInventoryGrid(container, inventoryIds, { context } = {}) {
+  container.innerHTML = "";
+  if (!inventoryIds.length) {
+    const empty = document.createElement("div");
+    empty.className = "status-pill";
+    empty.textContent = "비어 있음";
+    container.appendChild(empty);
+    return;
+  }
+  inventoryIds.forEach((id) => {
+    const item = getItemById(id);
+    if (!item) return;
+    const useKind = getItemUseKind(item);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "inventory-item";
+    card.innerHTML = `
+      <span class="inventory-item__icon" aria-hidden="true">${getItemIcon(item)}</span>
+      <span class="inventory-item__name">${item.name}</span>
+      <span class="inventory-item__badge">${useKind ? "사용" : item.type}</span>
+    `;
+    card.setAttribute("aria-label", item.name);
+    card.addEventListener("click", (event) => {
+      const actions = [];
+      if (useKind) {
+        actions.push({
+          label: context === "combat" ? "전투 사용" : "사용",
+          onClick: async () => {
+            hideTooltip();
+            await useItem(item, { context });
+          }
+        });
+      }
+      actions.push({ label: "닫기", onClick: () => hideTooltip() });
+      showTooltip(event.currentTarget, `${item.description ?? "설명 없음"}`, actions);
+    });
+    container.appendChild(card);
+  });
+}
+
+function showTooltip(target, content, actions) {
+  elements.tooltipContent.textContent = content;
+  elements.tooltipActions.innerHTML = "";
+  actions.forEach((action) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = action.label;
+    button.addEventListener("click", () => {
+      void action.onClick();
+    });
+    elements.tooltipActions.appendChild(button);
+  });
+  elements.tooltip.hidden = false;
+  positionTooltip(target);
+  elements.tooltip.focus?.();
+}
+
+function positionTooltip(target) {
+  const rect = target.getBoundingClientRect();
+  const tooltipRect = elements.tooltip.getBoundingClientRect();
+  let top = rect.top - tooltipRect.height - 12;
+  let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+  if (top < 8) {
+    top = rect.bottom + 12;
+  }
+  if (left < 8) {
+    left = 8;
+  }
+  if (left + tooltipRect.width > window.innerWidth - 8) {
+    left = window.innerWidth - tooltipRect.width - 8;
+  }
+  if (top + tooltipRect.height > window.innerHeight - 8) {
+    top = window.innerHeight - tooltipRect.height - 8;
+  }
+  elements.tooltip.style.top = `${top}px`;
+  elements.tooltip.style.left = `${left}px`;
+}
+
+function hideTooltip() {
+  elements.tooltip.hidden = true;
 }
 
 function setScene(title, text) {
@@ -222,13 +365,115 @@ function setScene(title, text) {
   }, 18);
 }
 
-function renderChoices(choiceList) {
-  elements.choices.innerHTML = "";
-  choiceList.forEach((choice) => {
+function getDiceElements() {
+  if (state.inCombat) {
+    return { value: elements.combatDiceValue, label: elements.combatDiceLabel };
+  }
+  return { value: elements.diceValue, label: elements.diceLabel };
+}
+
+function animateDice(finalValue, label = "주사위") {
+  const { value, label: labelEl } = getDiceElements();
+  labelEl.textContent = label;
+  value.classList.remove("dice--crit", "dice--fail", "dice--hit");
+  return new Promise((resolve) => {
+    let count = 0;
+    if (state.diceTimer) {
+      clearInterval(state.diceTimer);
+    }
+    const timer = setInterval(() => {
+      value.textContent = Math.floor(Math.random() * 20) + 1;
+      count += 1;
+      if (count > 8) {
+        clearInterval(timer);
+        state.diceTimer = null;
+        value.textContent = finalValue;
+        resolve();
+      }
+    }, 60);
+    state.diceTimer = timer;
+  });
+}
+
+function setDiceTone(tone, badge = "-") {
+  const { value } = getDiceElements();
+  value.classList.remove("dice--crit", "dice--fail", "dice--hit");
+  if (tone) {
+    value.classList.add(`dice--${tone}`);
+  }
+  if (elements.combatDiceBadge) {
+    elements.combatDiceBadge.textContent = badge;
+  }
+}
+
+async function rollD20(modifier, label) {
+  const roll = Math.floor(Math.random() * 20) + 1;
+  await animateDice(roll, label);
+  const total = roll + modifier;
+  return { roll, total, modifier };
+}
+
+function updateLogScrollButton() {
+  if (!elements.log || !elements.logScrollBottom) return;
+  const nearBottom =
+    elements.log.scrollHeight - elements.log.scrollTop - elements.log.clientHeight < 20;
+  elements.logScrollBottom.classList.toggle("is-visible", !nearBottom);
+}
+
+function scrollLogToBottom() {
+  if (!elements.log) return;
+  elements.log.scrollTop = elements.log.scrollHeight;
+  updateLogScrollButton();
+}
+
+function showToast(message, tone = "success") {
+  if (!elements.saveToast) return;
+  elements.saveToast.textContent = message;
+  elements.saveToast.classList.add("is-visible");
+  elements.saveToast.classList.toggle("is-error", tone === "error");
+  if (toastTimerId) {
+    clearTimeout(toastTimerId);
+  }
+  toastTimerId = setTimeout(() => {
+    elements.saveToast.classList.remove("is-visible");
+  }, 1600);
+}
+
+function setAutosaveStatus(timestamp) {
+  if (!elements.autosaveStatus) return;
+  if (!timestamp) {
+    elements.autosaveStatus.textContent = "자동저장: -";
+    return;
+  }
+  const time = new Date(timestamp).toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  elements.autosaveStatus.textContent = `자동저장: ${time}`;
+}
+
+function setChoicesDisabled(isDisabled) {
+  const buttons = document.querySelectorAll("button");
+  buttons.forEach((button) => {
+    if (button.closest(".dock") || button.closest(".combat-dock")) {
+      button.disabled = isDisabled;
+    }
+  });
+}
+
+function renderActionDock(choiceList) {
+  state.currentChoices = choiceList;
+  elements.dockMain.innerHTML = "";
+  const maxPrimary = 4;
+  const primary = choiceList.slice(0, maxPrimary);
+  const overflow = choiceList.slice(maxPrimary);
+  primary.forEach((choice) => {
     const button = document.createElement("button");
-    button.className = `choice-btn${choice.danger ? " choice-btn--danger" : ""}`;
     button.textContent = choice.text;
     button.disabled = state.isBusy;
+    if (choice.danger) {
+      button.style.color = "var(--danger)";
+    }
     button.addEventListener("click", async () => {
       if (state.isBusy) return;
       state.isBusy = true;
@@ -240,48 +485,93 @@ function renderChoices(choiceList) {
         setChoicesDisabled(false);
       }
     });
-    elements.choices.appendChild(button);
+    elements.dockMain.appendChild(button);
   });
+  if (overflow.length) {
+    elements.dockMore.hidden = false;
+    elements.dockMore.onclick = () => openActionSheet(overflow);
+  } else {
+    elements.dockMore.hidden = true;
+  }
 }
 
-function animateDice(finalValue, label = "주사위") {
-  elements.diceLabel.textContent = label;
-  elements.diceValue.classList.remove("dice--crit", "dice--fail", "dice--hit");
-  return new Promise((resolve) => {
-    let count = 0;
-    if (state.diceTimer) {
-      clearInterval(state.diceTimer);
-    }
-    const timer = setInterval(() => {
-      elements.diceValue.textContent = Math.floor(Math.random() * 20) + 1;
-      count += 1;
-      if (count > 8) {
-        clearInterval(timer);
-        state.diceTimer = null;
-        elements.diceValue.textContent = finalValue;
-        resolve();
+function openActionSheet(choiceList) {
+  elements.actionSheetList.innerHTML = "";
+  choiceList.forEach((choice) => {
+    const button = document.createElement("button");
+    button.textContent = choice.text;
+    button.disabled = state.isBusy;
+    button.addEventListener("click", async () => {
+      closeSheet(elements.actionSheet);
+      if (state.isBusy) return;
+      state.isBusy = true;
+      setChoicesDisabled(true);
+      try {
+        await Promise.resolve(choice.onSelect());
+      } finally {
+        state.isBusy = false;
+        setChoicesDisabled(false);
       }
-    }, 60);
-    state.diceTimer = timer;
+    });
+    elements.actionSheetList.appendChild(button);
+  });
+  openSheet(elements.actionSheet);
+}
+
+function renderCombatDock() {
+  if (!elements.combatDock) return;
+  elements.combatDock.innerHTML = "";
+  const buttons = [
+    { label: "공격", action: () => combatPlayerAttack() },
+    { label: "방어", action: () => combatDefend() },
+    { label: "아이템", action: () => openItemSheet("combat") },
+    { label: "후퇴", action: () => combatEscape() }
+  ];
+  buttons.forEach((btn) => {
+    const button = document.createElement("button");
+    button.textContent = btn.label;
+    button.disabled = state.isBusy;
+    button.addEventListener("click", async () => {
+      if (state.isBusy) return;
+      state.isBusy = true;
+      setChoicesDisabled(true);
+      try {
+        await Promise.resolve(btn.action());
+      } finally {
+        state.isBusy = false;
+        setChoicesDisabled(false);
+      }
+    });
+    elements.combatDock.appendChild(button);
   });
 }
 
-function setDiceTone(tone) {
-  elements.diceValue.classList.remove("dice--crit", "dice--fail", "dice--hit");
-  if (!tone) return;
-  elements.diceValue.classList.add(`dice--${tone}`);
+function openItemSheet(context) {
+  const inventoryIds = state.player.inventory;
+  elements.itemSheetTitle.textContent = context === "combat" ? "전투 아이템" : "아이템";
+  renderInventoryGrid(elements.itemSheetGrid, inventoryIds, { context });
+  openSheet(elements.itemSheet);
 }
 
-async function rollD20(modifier, label) {
-  const roll = Math.floor(Math.random() * 20) + 1;
-  await animateDice(roll, label);
-  const total = roll + modifier;
-  return { roll, total, modifier };
+function openSheet(sheet) {
+  sheet.hidden = false;
+  elements.sheetBackdrop.hidden = false;
+}
+
+function closeSheet(sheet) {
+  sheet.hidden = true;
+  if (
+    elements.statusSheet.hidden &&
+    elements.actionSheet.hidden &&
+    elements.itemSheet.hidden
+  ) {
+    elements.sheetBackdrop.hidden = true;
+  }
 }
 
 function getWeaponBonus() {
   const weaponItems = state.player.inventory
-    .map((id) => state.data.items.find((item) => item.id === id))
+    .map((id) => getItemById(id))
     .filter((item) => item && item.type === "weapon");
   if (!weaponItems.length) {
     return { toHit: 0, damage: 1 };
@@ -292,7 +582,7 @@ function getWeaponBonus() {
 
 function getAcBonus() {
   const amulets = state.player.inventory
-    .map((id) => state.data.items.find((item) => item.id === id))
+    .map((id) => getItemById(id))
     .filter((item) => item && item.effect?.ac_bonus);
   return amulets.reduce((sum, item) => sum + item.effect.ac_bonus, 0);
 }
@@ -307,7 +597,7 @@ function applyEffects(effects = []) {
     }
     if (effect.item) {
       state.player.inventory.push(effect.item);
-      const name = state.data.items.find((item) => item.id === effect.item)?.name ?? effect.item;
+      const name = getItemById(effect.item)?.name ?? effect.item;
       logEntry(`${name}을(를) 획득했다.`, { highlight: true, badge: "획득" });
     }
     if (effect.flag_add) {
@@ -391,7 +681,7 @@ async function runEvent(eventId) {
   logEntry(`이벤트: ${event.title}`);
 
   if (event.check.type === "combat") {
-    await animateDice("⚔️", "전투" );
+    await animateDice("⚔️", "전투");
     startCombat(event.check.enemy);
     return;
   }
@@ -432,7 +722,7 @@ async function runEvent(eventId) {
     badge: outcomeLabel
   });
   setLogSummary(`${event.title} 판정 ${outcomeLabel}: ${result.text}`);
-  setDiceTone(resultKey === "crit_success" ? "crit" : resultKey === "crit_fail" ? "fail" : "hit");
+  setDiceTone(resultKey === "crit_success" ? "crit" : resultKey === "crit_fail" ? "fail" : "hit", outcomeLabel);
   applyEffects(result.effects);
   saveGame();
   renderNode();
@@ -506,8 +796,9 @@ function renderNode() {
     });
   }
 
-  renderChoices(choices);
+  renderActionDock(choices);
   updateHud();
+  renderResumeCombat();
 }
 
 function applyStatus(target, label) {
@@ -537,26 +828,76 @@ function startCombat(enemyId, nextNode = null) {
     status: [],
     nextNode
   };
+  state.pendingCombat = null;
+  state.combatLog = [];
   setScene(`전투 - ${enemyTemplate.name}`, `${enemyTemplate.name}과(와) 마주쳤다.`);
   logEntry(`${enemyTemplate.name} 전투 시작.`, { highlight: true, badge: "전투" });
   setLogSummary(`${enemyTemplate.name}과(와) 전투에 돌입했다.`);
-  renderCombatChoices();
+  renderCombatScene();
+  renderCombatDock();
   updateHud();
 }
 
-function renderCombatChoices() {
-  const choices = [
-    { text: "공격한다", onSelect: () => combatPlayerAttack() },
-    { text: "방어 자세", onSelect: () => combatDefend() }
-  ];
-  if (state.player.inventory.some((id) => state.data.items.find((item) => item.id === id && item.type === "consumable"))) {
-    choices.push({ text: "아이템 사용", onSelect: () => combatUseItem() });
-  }
-  if (isCrisisState()) {
-    choices.push({ text: "긴급 후퇴", onSelect: () => combatEmergencyRetreat() });
-  }
-  choices.push({ text: "도주 시도", onSelect: () => combatEscape() });
-  renderChoices(choices);
+function resumeCombat() {
+  if (!state.pendingCombat) return;
+  state.inCombat = true;
+  state.enemy = state.pendingCombat;
+  state.pendingCombat = null;
+  state.combatLog = [];
+  setScene(`전투 - ${state.enemy.name}`, "전투를 재개한다.");
+  logEntry(`${state.enemy.name} 전투를 재개했다.`, { highlight: true, badge: "전투" });
+  renderCombatScene();
+  renderCombatDock();
+  updateHud();
+  renderResumeCombat();
+}
+
+function renderResumeCombat() {
+  if (!elements.resumeCombat) return;
+  elements.resumeCombat.hidden = !state.pendingCombat;
+}
+
+function calcAdvantage() {
+  if (!state.enemy || !state.player) return 50;
+  const weapon = getWeaponBonus();
+  const playerDpr = (weapon.damage + state.player.stats.STR) * 0.6;
+  const enemyAvg = (state.enemy.damage.min + state.enemy.damage.max) / 2;
+  const enemyDpr = enemyAvg * 0.55;
+  const hpRatio = state.player.hp / state.player.maxHp;
+  const enemyHpRatio = state.enemy.hp / state.enemy.maxHp;
+  const raw = (playerDpr / Math.max(1, enemyDpr)) * 50 + (hpRatio - enemyHpRatio) * 50;
+  return Math.max(0, Math.min(100, Math.round(raw + 50)));
+}
+
+function renderCombatScene() {
+  if (!elements.combatScene) return;
+  elements.combatScene.hidden = !state.inCombat;
+  if (!state.inCombat || !state.enemy || !state.player) return;
+  const enemy = state.enemy;
+  const player = state.player;
+  elements.combatPlayerName.textContent = "모험가";
+  elements.combatEnemyName.textContent = enemy.name;
+  const playerRatio = (player.hp / player.maxHp) * 100;
+  const enemyRatio = (enemy.hp / enemy.maxHp) * 100;
+  elements.combatPlayerHp.style.width = `${playerRatio}%`;
+  elements.combatEnemyHp.style.width = `${enemyRatio}%`;
+  elements.combatPlayerStatus.innerHTML = renderStatusIcons(player.status);
+  elements.combatEnemyStatus.innerHTML = renderStatusIcons(enemy.status);
+  elements.combatSituation.textContent = `${enemy.name}과 치열하게 맞서고 있다.`;
+  const advantage = calcAdvantage();
+  elements.combatAdvantage.style.width = `${advantage}%`;
+  elements.combatAdvantageLabel.textContent = `${advantage}%`;
+  renderCombatLog();
+}
+
+function renderStatusIcons(statuses = []) {
+  if (!statuses.length) return "상태 없음";
+  return statuses
+    .map((status) => {
+      const meta = statusCatalog[status.id] ?? { label: status.id, icon: "✨" };
+      return `<span>${meta.icon}${meta.label}(${status.turns})</span>`;
+    })
+    .join(" ");
 }
 
 async function combatPlayerAttack() {
@@ -574,7 +915,7 @@ async function combatPlayerAttack() {
   if (isCritFail) {
     logEntry("공격이 크게 빗나갔다!", { highlight: true, tone: "fail", badge: "대실패" });
     setLogSummary("당신의 공격이 크게 빗나갔다.");
-    setDiceTone("fail");
+    setDiceTone("fail", "대실패");
   } else if (isCrit || roll.total >= state.enemy.ac) {
     const baseDamage = weapon.damage + state.player.stats.STR;
     const damage = isCrit ? baseDamage * 2 : baseDamage;
@@ -585,11 +926,11 @@ async function combatPlayerAttack() {
       badge: isCrit ? "치명타" : "명중"
     });
     setLogSummary(`당신이 ${state.enemy.name}에게 ${damage}의 피해를 입혔다.`);
-    setDiceTone(isCrit ? "crit" : "hit");
+    setDiceTone(isCrit ? "crit" : "hit", isCrit ? "치명타" : "명중");
   } else {
     logEntry("공격이 빗나갔다.", { badge: "빗나감" });
     setLogSummary("당신의 공격이 빗나갔다.");
-    setDiceTone("fail");
+    setDiceTone("fail", "빗나감");
   }
   if (state.enemy.hp <= 0) {
     handleVictory();
@@ -606,22 +947,7 @@ async function combatDefend() {
   await enemyTurn(true);
 }
 
-function combatUseItem() {
-  const consumables = state.player.inventory
-    .map((id) => state.data.items.find((item) => item.id === id))
-    .filter((item) => item && item.type === "consumable");
-  const choices = consumables.map((item) => ({
-    text: `${item.name} 사용`,
-    onSelect: () => {
-      applyItem(item);
-      renderCombatChoices();
-    }
-  }));
-  choices.push({ text: "취소", onSelect: () => renderCombatChoices() });
-  renderChoices(choices);
-}
-
-function applyItem(item) {
+async function useItem(item, { context }) {
   const effect = item.effect ?? {};
   if (effect.hp) {
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + effect.hp);
@@ -632,6 +958,10 @@ function applyItem(item) {
     state.player.status = state.player.status.filter((status) => !effect.status_remove.includes(status.id));
     logEntry(`${item.name}으로 상태 이상을 해제했다.`, { highlight: true, badge: "정화" });
   }
+  if (effect.buff) {
+    state.player.status.push({ id: effect.buff.id ?? "buff", turns: effect.buff.turns ?? 2 });
+    logEntry(`${item.name}으로 잠시 힘이 솟는다.`, { highlight: true, badge: "강화" });
+  }
   if (effect.insight) {
     state.player.counters.insight += effect.insight;
   }
@@ -641,40 +971,37 @@ function applyItem(item) {
   state.player.inventory = state.player.inventory.filter((id) => id !== item.id);
   updateHud();
   saveGame({ silent: true });
+  if (context === "combat") {
+    state.isBusy = true;
+    setChoicesDisabled(true);
+    await enemyTurn();
+    state.isBusy = false;
+    setChoicesDisabled(false);
+  }
 }
 
 async function combatEscape() {
   const smokeBomb = state.player.inventory.includes("smoke_bomb");
   const bonus = smokeBomb ? 3 : 0;
-  const roll = await rollD20(state.player.stats.DEX + bonus, "도주 판정");
+  const roll = await rollD20(state.player.stats.DEX + bonus, "후퇴 판정");
   if (roll.roll === 20 || roll.total >= 14) {
-    logEntry("도주에 성공했다!", { highlight: true, badge: "성공" });
-    setLogSummary("도주에 성공해 전투를 종료했다.");
-    setDiceTone("hit");
+    logEntry("후퇴에 성공했다!", { highlight: true, badge: "성공" });
+    setLogSummary("후퇴에 성공해 전투를 종료했다.");
+    setDiceTone("hit", "후퇴" );
     state.inCombat = false;
     if (smokeBomb) {
       state.player.inventory = state.player.inventory.filter((id) => id !== "smoke_bomb");
     }
+    state.player.gold = Math.max(0, state.player.gold - 3);
+    renderCombatScene();
     renderNode();
     saveGame({ silent: true });
     return;
   }
-  logEntry("도주에 실패했다.", { badge: "실패" });
-  setLogSummary("도주에 실패해 전투가 이어졌다.");
-  setDiceTone("fail");
+  logEntry("후퇴에 실패했다.", { badge: "실패" });
+  setLogSummary("후퇴에 실패해 전투가 이어졌다.");
+  setDiceTone("fail", "실패");
   await enemyTurn();
-}
-
-function combatEmergencyRetreat() {
-  if (!state.inCombat) return;
-  logEntry("긴급 후퇴를 감행해 전투에서 이탈했다.", { highlight: true, badge: "후퇴" });
-  setLogSummary("위기 상황에서 전투를 중단했다.");
-  state.inCombat = false;
-  state.enemy = null;
-  state.player.gold = Math.max(0, state.player.gold - 5);
-  updateHud();
-  saveGame({ silent: true });
-  renderNode();
 }
 
 async function enemyTurn(defending = false) {
@@ -691,7 +1018,7 @@ async function enemyTurn(defending = false) {
   if (isCritFail) {
     logEntry(`${enemy.name}의 공격이 빗나갔다.`, { badge: "빗나감" });
     setLogSummary(`${enemy.name}의 공격이 빗나갔다.`);
-    setDiceTone("fail");
+    setDiceTone("fail", "빗나감");
   } else if (isCrit || roll.total >= playerAc) {
     const baseDamage =
       Math.floor(Math.random() * (enemy.damage.max - enemy.damage.min + 1)) + enemy.damage.min;
@@ -703,7 +1030,7 @@ async function enemyTurn(defending = false) {
       badge: isCrit ? "치명타" : "명중"
     });
     setLogSummary(`${enemy.name}에게 ${damage}의 피해를 받았다.`);
-    setDiceTone(isCrit ? "crit" : "hit");
+    setDiceTone(isCrit ? "crit" : "hit", isCrit ? "치명타" : "명중");
     if (enemy.status_attack && Math.random() < enemy.status_attack.chance) {
       state.player.status.push({ id: enemy.status_attack.id, turns: enemy.status_attack.turns });
       logEntry(
@@ -714,7 +1041,7 @@ async function enemyTurn(defending = false) {
   } else {
     logEntry(`${enemy.name}의 공격을 피했다.`, { badge: "회피" });
     setLogSummary(`${enemy.name}의 공격을 피했다.`);
-    setDiceTone("fail");
+    setDiceTone("fail", "회피");
   }
 
   updateHud();
@@ -722,7 +1049,7 @@ async function enemyTurn(defending = false) {
     handleDefeat();
     return;
   }
-  renderCombatChoices();
+  renderCombatDock();
   saveGame({ silent: true });
 }
 
@@ -759,7 +1086,7 @@ function showEnding(endingId) {
   if (!ending) return;
   setScene(ending.title, ending.text);
   logEntry(`엔딩: ${ending.summary}`);
-  renderChoices([
+  renderActionDock([
     {
       text: "새 여정 시작",
       onSelect: () => {
@@ -776,6 +1103,8 @@ function createSavePayload() {
     player: state.player,
     log: state.log,
     defeatStreak: state.defeatStreak,
+    inCombat: state.inCombat,
+    enemy: state.enemy,
     savedAt: new Date().toISOString()
   };
 }
@@ -794,14 +1123,12 @@ function saveGame({ silent = true } = {}) {
     state.lastSavedAt = saveData.savedAt;
     setAutosaveStatus(state.lastSavedAt);
     if (!silent) {
-      setSaveStatus("저장 완료");
       showToast("저장 완료");
     }
     return true;
   } catch (error) {
     console.error("Failed to save game", error);
     if (!silent) {
-      setSaveStatus("저장 실패");
       showToast("저장 실패(저장공간/권한 확인)", "error");
     }
     return false;
@@ -809,14 +1136,7 @@ function saveGame({ silent = true } = {}) {
 }
 
 function saveGameWithFeedback() {
-  setSaveStatus("저장 중...");
   saveGame({ silent: false });
-  if (statusTimerId) {
-    clearTimeout(statusTimerId);
-  }
-  statusTimerId = setTimeout(() => {
-    setSaveStatus("");
-  }, 1800);
 }
 
 function getSelectedSlotKey() {
@@ -860,47 +1180,6 @@ function loadSlot() {
   saveGame({ silent: true });
 }
 
-async function exportSave() {
-  const payload = cloneData(createSavePayload());
-  const json = JSON.stringify(payload, null, 2);
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(json);
-      showToast("클립보드에 세이브를 복사했습니다.");
-    } catch (error) {
-      console.warn("Clipboard copy failed", error);
-    }
-  }
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `textrpg_save_${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  showToast("세이브를 내보냈습니다.");
-}
-
-function importSave(rawText) {
-  const data = parseSaveData(rawText);
-  if (!data || !isValidSaveData(data)) {
-    showToast("가져오기 실패: JSON 형식을 확인하세요.", "error");
-    return;
-  }
-  if (data.version !== VERSION) {
-    const proceed = window.confirm(
-      `가져온 버전(${data.version})이 현재 버전(${VERSION})과 다릅니다. 불러오시겠습니까?`
-    );
-    if (!proceed) return;
-  }
-  const ok = window.confirm("가져온 세이브를 적용할까요? 현재 진행이 덮어쓰기 됩니다.");
-  if (!ok) return;
-  applySaveData(data, { announce: true });
-  saveGame({ silent: true });
-}
-
 function parseSaveData(raw) {
   if (!raw) return null;
   try {
@@ -919,20 +1198,6 @@ function isValidSaveData(data) {
   return true;
 }
 
-function normalizePlayer(playerData) {
-  const fallback = defaultPlayer();
-  const safe = playerData && typeof playerData === "object" ? playerData : {};
-  return {
-    ...fallback,
-    ...safe,
-    stats: { ...fallback.stats, ...(safe.stats ?? {}) },
-    counters: { ...fallback.counters, ...(safe.counters ?? {}) },
-    inventory: Array.isArray(safe.inventory) ? safe.inventory : fallback.inventory,
-    flags: Array.isArray(safe.flags) ? safe.flags : fallback.flags,
-    status: Array.isArray(safe.status) ? safe.status : fallback.status
-  };
-}
-
 function applySaveData(data, { announce = false } = {}) {
   state.player = normalizePlayer(data.player);
   state.nodeId = data.nodeId ?? "NODE_PROLOGUE";
@@ -941,6 +1206,7 @@ function applySaveData(data, { announce = false } = {}) {
   state.lastSavedAt = data.savedAt ?? null;
   state.inCombat = false;
   state.enemy = null;
+  state.pendingCombat = data.inCombat && data.enemy ? data.enemy : null;
   if (announce) {
     setLogSummary("불러오기 완료. 최근 기록을 확인하세요.");
   } else {
@@ -986,6 +1252,9 @@ function resetGame(render = true) {
   state.nodeId = "NODE_PROLOGUE";
   state.log = [];
   state.defeatStreak = 0;
+  state.inCombat = false;
+  state.enemy = null;
+  state.pendingCombat = null;
   logEntry("새로운 여정이 시작되었다.");
   setLogSummary("새로운 여정이 시작되었다.");
   resetTransientUI();
@@ -1006,12 +1275,6 @@ async function loadData() {
   state.data = { events, items, enemies, nodes, endings };
 }
 
-function setChoicesDisabled(isDisabled) {
-  elements.choices.querySelectorAll("button").forEach((button) => {
-    button.disabled = isDisabled;
-  });
-}
-
 function resetTransientUI() {
   state.isBusy = false;
   if (state.diceTimer) {
@@ -1020,8 +1283,15 @@ function resetTransientUI() {
   }
   elements.diceValue.textContent = "--";
   elements.diceLabel.textContent = "주사위 대기";
+  elements.combatDiceValue.textContent = "--";
+  elements.combatDiceLabel.textContent = "전투 판정";
+  elements.combatDiceBadge.textContent = "-";
   elements.diceValue.classList.remove("dice--crit", "dice--fail", "dice--hit");
-  setChoicesDisabled(false);
+  elements.combatDiceValue.classList.remove("dice--crit", "dice--fail", "dice--hit");
+  hideTooltip();
+  closeSheet(elements.statusSheet);
+  closeSheet(elements.actionSheet);
+  closeSheet(elements.itemSheet);
 }
 
 function scheduleSave() {
@@ -1046,35 +1316,21 @@ function handlePageShow(event) {
   }
 }
 
+function handleTabSwitch(event) {
+  const tab = event.target.closest(".sheet__tab");
+  if (!tab) return;
+  const key = tab.dataset.tab;
+  document.querySelectorAll(".sheet__tab").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.tab === key);
+  });
+  document.querySelectorAll(".sheet__panel").forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.panel === key);
+  });
+}
+
 function setupEventListeners() {
   elements.toggleTyping.addEventListener("change", (event) => {
     state.typing = event.target.checked;
-  });
-  elements.resetButton.addEventListener("click", () => resetGame());
-  elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
-  elements.slotSaveButton?.addEventListener("click", () => saveSlot());
-  elements.slotLoadButton?.addEventListener("click", () => loadSlot());
-  elements.exportButton?.addEventListener("click", () => exportSave());
-  elements.importButton?.addEventListener("click", () => {
-    if (!elements.importText) return;
-    const raw = elements.importText.value.trim();
-    if (!raw) {
-      showToast("가져올 내용을 입력하세요.", "error");
-      return;
-    }
-    importSave(raw);
-  });
-  elements.importFile?.addEventListener("change", (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (elements.importText) {
-        elements.importText.value = reader.result?.toString() ?? "";
-      }
-      showToast("파일을 불러왔습니다. 가져오기를 눌러 적용하세요.");
-    };
-    reader.readAsText(file);
   });
   elements.toggleAutoscroll?.addEventListener("change", (event) => {
     state.autoScroll = event.target.checked;
@@ -1082,11 +1338,34 @@ function setupEventListeners() {
       scrollLogToBottom();
     }
   });
+  elements.resetButton.addEventListener("click", () => resetGame());
+  elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
+  elements.slotSaveButton?.addEventListener("click", () => saveSlot());
+  elements.slotLoadButton?.addEventListener("click", () => loadSlot());
+  elements.statusButton?.addEventListener("click", () => openSheet(elements.statusSheet));
+  elements.closeStatus?.addEventListener("click", () => closeSheet(elements.statusSheet));
+  elements.closeActions?.addEventListener("click", () => closeSheet(elements.actionSheet));
+  elements.closeItems?.addEventListener("click", () => closeSheet(elements.itemSheet));
+  elements.sheetBackdrop?.addEventListener("click", () => {
+    closeSheet(elements.statusSheet);
+    closeSheet(elements.actionSheet);
+    closeSheet(elements.itemSheet);
+  });
+  elements.statusSheet?.addEventListener("click", handleTabSwitch);
+  elements.itemSheet?.addEventListener("click", handleTabSwitch);
   elements.log?.addEventListener("scroll", () => {
     updateLogScrollButton();
   });
   elements.logScrollBottom?.addEventListener("click", () => {
     scrollLogToBottom();
+  });
+  elements.resumeCombatButton?.addEventListener("click", () => {
+    resumeCombat();
+  });
+  document.addEventListener("click", (event) => {
+    if (elements.tooltip.hidden) return;
+    if (event.target.closest(".tooltip") || event.target.closest(".inventory-item")) return;
+    hideTooltip();
   });
   window.addEventListener("pageshow", handlePageShow);
   document.addEventListener("visibilitychange", handleVisibilityChange);
