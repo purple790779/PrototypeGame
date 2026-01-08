@@ -11,7 +11,7 @@
       <header class="app__header">
         <div>
           <h1>프로젝트 오메가 - 에테르의 눈물</h1>
-          <p class="subtitle">D20 판정 기반 텍스트 RPG 프로토타입</p>
+          <p class="subtitle">D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.1.1</span></p>
         </div>
         <div class="header__controls">
           <label class="toggle">
@@ -23,6 +23,10 @@
       </header>
 
       <section class="hud" aria-label="상태 HUD">
+        <div class="hud__controls">
+          <button id="btn-save" class="btn btn--ghost btn--save">저장</button>
+          <span class="hud__save-status" id="save-status" aria-live="polite"></span>
+        </div>
         <div class="hud__stats">
           <div class="stat" id="hud-hp">HP 0/0</div>
           <div class="stat" id="hud-gold">골드 0</div>
@@ -57,6 +61,8 @@
         <div class="log__entries" id="log"></div>
       </section>
     </div>
+
+    <div class="toast" id="save-toast" role="status" aria-live="polite"></div>
 
     <script src="main.js"></script>
   </body>
