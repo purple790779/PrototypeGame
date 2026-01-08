@@ -11,113 +11,199 @@
       <header class="app__header">
         <div>
           <h1>프로젝트 오메가 - 에테르의 눈물</h1>
-          <p class="subtitle">D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.1.2</span></p>
+          <p class="subtitle">
+            D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.2.0</span>
+          </p>
         </div>
-        <div class="header__controls">
-          <label class="toggle">
-            <input type="checkbox" id="toggle-typing" />
-            <span>타자기 효과</span>
-          </label>
-          <button id="btn-reset" class="btn btn--ghost">새 여정</button>
-        </div>
+        <button id="btn-reset" class="btn btn--ghost btn--small">새 여정</button>
       </header>
 
-      <section class="hud" aria-label="상태 HUD">
-        <div class="hud__controls">
-          <button id="btn-save" class="btn btn--ghost btn--save">저장</button>
-          <span class="hud__save-status" id="save-status" aria-live="polite"></span>
-          <span class="hud__autosave" id="autosave-status" aria-live="polite">자동저장: -</span>
+      <section class="hud-top" aria-label="상태 HUD">
+        <div class="hud-top__stats">
+          <div class="stat-pill" id="hud-hp" aria-label="체력">
+            <span class="stat-pill__icon" aria-hidden="true">❤️</span>
+            <span class="stat-pill__value">0/0</span>
+          </div>
+          <div class="stat-pill" id="hud-mp" aria-label="마나" hidden>
+            <span class="stat-pill__icon" aria-hidden="true">💠</span>
+            <span class="stat-pill__value">0/0</span>
+          </div>
+          <div class="stat-pill" id="hud-gold" aria-label="골드">
+            <span class="stat-pill__icon" aria-hidden="true">🪙</span>
+            <span class="stat-pill__value">0</span>
+          </div>
         </div>
-        <div class="hud__slots" aria-label="세이브 슬롯">
-          <div class="hud__slots-title">저장/불러오기</div>
-          <div class="hud__slots-controls">
+        <div class="hud-top__actions">
+          <button id="btn-status" class="btn btn--ghost">상태</button>
+          <button id="btn-save" class="btn">저장</button>
+        </div>
+      </section>
+
+      <main class="main">
+        <section class="situation-card" aria-live="polite">
+          <div class="situation-card__dice">
+            <div class="dice" id="dice-value">--</div>
+            <div class="dice__label" id="dice-label">주사위 대기</div>
+          </div>
+          <div class="situation-card__content">
+            <h2 id="scene-title">준비 중...</h2>
+            <p id="scene-text">데이터를 불러오는 중입니다.</p>
+            <div class="situation-card__resume" id="resume-combat" hidden>
+              <p>전투 진행 중인 기록이 있습니다.</p>
+              <button class="btn btn--ghost" id="btn-resume-combat">전투 재개</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="log-panel" aria-label="텍스트 로그">
+          <div class="log-panel__header">
+            <h3>로그</h3>
+            <span class="log-panel__summary" id="log-summary">최근 요약: -</span>
+          </div>
+          <div class="log-panel__entries" id="log"></div>
+          <button class="log-panel__scroll-bottom" id="log-scroll-bottom">맨 아래로</button>
+        </section>
+      </main>
+
+      <nav class="dock" id="action-dock" aria-label="탐험 행동">
+        <div class="dock__main" id="dock-main"></div>
+        <button class="dock__more" id="dock-more" aria-label="더보기" hidden>⋯</button>
+      </nav>
+    </div>
+
+    <section class="combat-scene" id="combat-scene" hidden aria-live="polite">
+      <div class="combat-scene__frame">
+        <header class="combat-scene__header">
+          <div class="combat-card">
+            <div class="combat-card__label">모험가</div>
+            <div class="combat-card__name" id="combat-player-name">당신</div>
+            <div class="combat-card__bar" aria-label="플레이어 체력">
+              <span id="combat-player-hp"></span>
+            </div>
+            <div class="combat-card__status" id="combat-player-status"></div>
+          </div>
+          <div class="combat-card">
+            <div class="combat-card__label">적</div>
+            <div class="combat-card__name" id="combat-enemy-name">-</div>
+            <div class="combat-card__bar" aria-label="적 체력">
+              <span id="combat-enemy-hp"></span>
+            </div>
+            <div class="combat-card__status" id="combat-enemy-status"></div>
+          </div>
+        </header>
+
+        <div class="combat-scene__meter">
+          <span>우세도</span>
+          <div class="meter">
+            <span id="combat-advantage"></span>
+          </div>
+          <strong id="combat-advantage-label">-</strong>
+        </div>
+
+        <div class="combat-scene__center">
+          <div class="combat-scene__panel" id="combat-situation">전투가 시작됐다.</div>
+          <div class="combat-scene__dice">
+            <div class="dice dice--large" id="combat-dice-value">--</div>
+            <div class="dice__label" id="combat-dice-label">전투 판정</div>
+            <span class="combat-scene__badge" id="combat-dice-badge">-</span>
+          </div>
+        </div>
+
+        <div class="combat-scene__log" id="combat-log"></div>
+
+        <nav class="combat-dock" aria-label="전투 커맨드" id="combat-dock"></nav>
+      </div>
+    </section>
+
+    <div class="sheet" id="status-sheet" hidden aria-modal="true" role="dialog">
+      <div class="sheet__header">
+        <h3>상태 시트</h3>
+        <button class="sheet__close" id="btn-close-status" aria-label="닫기">✕</button>
+      </div>
+      <div class="sheet__tabs" role="tablist">
+        <button class="sheet__tab is-active" data-tab="stats" role="tab">스탯</button>
+        <button class="sheet__tab" data-tab="progress" role="tab">진행</button>
+        <button class="sheet__tab" data-tab="status" role="tab">상태이상</button>
+        <button class="sheet__tab" data-tab="inventory" role="tab">인벤/장비</button>
+        <button class="sheet__tab" data-tab="settings" role="tab">설정</button>
+      </div>
+      <div class="sheet__body">
+        <section class="sheet__panel is-active" data-panel="stats">
+          <div class="stats-grid" id="stats-grid"></div>
+        </section>
+        <section class="sheet__panel" data-panel="progress">
+          <div class="progress-grid">
+            <div class="progress-card">
+              <span>신뢰</span>
+              <strong id="progress-trust">0</strong>
+            </div>
+            <div class="progress-card">
+              <span>단서</span>
+              <strong id="progress-insight">0</strong>
+            </div>
+          </div>
+        </section>
+        <section class="sheet__panel" data-panel="status">
+          <div class="status-list" id="status-list"></div>
+        </section>
+        <section class="sheet__panel" data-panel="inventory">
+          <div class="inventory-grid" id="inventory-grid"></div>
+        </section>
+        <section class="sheet__panel" data-panel="settings">
+          <div class="settings-group">
+            <label class="toggle">
+              <input type="checkbox" id="toggle-typing" />
+              <span>타자기 효과</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-autoscroll" checked />
+              <span>로그 자동 스크롤</span>
+            </label>
+          </div>
+          <div class="settings-group">
             <label class="select">
-              <span class="sr-only">슬롯 선택</span>
+              <span>슬롯 선택</span>
               <select id="slot-select">
                 <option value="1">Slot 1</option>
                 <option value="2">Slot 2</option>
                 <option value="3">Slot 3</option>
               </select>
             </label>
-            <button id="btn-slot-save" class="btn btn--ghost">슬롯 저장</button>
-            <button id="btn-slot-load" class="btn btn--ghost">불러오기</button>
+            <div class="settings-actions">
+              <button id="btn-slot-save" class="btn btn--ghost">슬롯 저장</button>
+              <button id="btn-slot-load" class="btn btn--ghost">불러오기</button>
+            </div>
+            <div class="settings-autosave" id="autosave-status">자동저장: -</div>
           </div>
-        </div>
-        <div class="hud__stats">
-          <div class="stat" id="hud-hp">HP 0/0</div>
-          <div class="stat" id="hud-gold">골드 0</div>
-          <div class="stat" id="hud-trust">신뢰 0</div>
-          <div class="stat" id="hud-insight">단서 0</div>
-        </div>
-        <div class="hud__stats">
-          <div class="stat" id="hud-str">STR 0</div>
-          <div class="stat" id="hud-dex">DEX 0</div>
-          <div class="stat" id="hud-int">INT 0</div>
-          <div class="stat" id="hud-luk">LUK 0</div>
-        </div>
-        <div class="hud__status" id="hud-status">상태: 정상</div>
-        <div class="hud__inventory" id="hud-inventory">보유: -</div>
-      </section>
+        </section>
+      </div>
+    </div>
 
-      <section class="panel">
-        <div class="panel__dice">
-          <div class="dice" id="dice-value">--</div>
-          <div class="dice__label" id="dice-label">주사위 대기</div>
-        </div>
-        <div class="panel__scene">
-          <h2 id="scene-title">준비 중...</h2>
-          <p id="scene-text">데이터를 불러오는 중입니다.</p>
-        </div>
-      </section>
+    <div class="sheet" id="action-sheet" hidden aria-modal="true" role="dialog">
+      <div class="sheet__header">
+        <h3>다른 행동</h3>
+        <button class="sheet__close" id="btn-close-actions" aria-label="닫기">✕</button>
+      </div>
+      <div class="sheet__body">
+        <div class="sheet__list" id="action-sheet-list"></div>
+      </div>
+    </div>
 
-      <section class="combat" id="combat-panel" hidden aria-live="polite">
-        <div class="combat__header">
-          <div class="combat__block">
-            <div class="combat__label">전투 대상</div>
-            <div class="combat__name" id="combat-enemy-name">-</div>
-            <div class="combat__stats" id="combat-enemy-stats">HP - / AC -</div>
-            <div class="combat__status" id="combat-enemy-status">상태: -</div>
-          </div>
-          <div class="combat__block">
-            <div class="combat__label">당신</div>
-            <div class="combat__stats" id="combat-player-stats">HP - / AC -</div>
-            <div class="combat__status" id="combat-player-status">상태: -</div>
-          </div>
-        </div>
-      </section>
+    <div class="sheet" id="item-sheet" hidden aria-modal="true" role="dialog">
+      <div class="sheet__header">
+        <h3 id="item-sheet-title">아이템</h3>
+        <button class="sheet__close" id="btn-close-items" aria-label="닫기">✕</button>
+      </div>
+      <div class="sheet__body">
+        <div class="inventory-grid" id="item-sheet-grid"></div>
+      </div>
+    </div>
 
-      <section class="choices" id="choices" aria-label="선택지"></section>
+    <div class="backdrop" id="sheet-backdrop" hidden></div>
 
-      <section class="backup" aria-label="백업">
-        <div class="backup__header">
-          <h3>백업</h3>
-          <div class="backup__actions">
-            <button id="btn-export" class="btn btn--ghost">내보내기</button>
-            <button id="btn-import" class="btn btn--ghost">가져오기</button>
-          </div>
-        </div>
-        <p class="backup__desc">현재 자동저장 상태를 JSON으로 내보내거나 가져올 수 있습니다.</p>
-        <div class="backup__fields">
-          <textarea id="import-text" placeholder="가져올 세이브 JSON을 붙여넣거나 파일을 선택하세요."></textarea>
-          <label class="file">
-            <input type="file" id="import-file" accept="application/json" />
-            <span>파일 선택</span>
-          </label>
-        </div>
-      </section>
-
-      <section class="log" aria-label="텍스트 로그">
-        <div class="log__header">
-          <h3>로그</h3>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-autoscroll" checked />
-            <span>자동 스크롤</span>
-          </label>
-        </div>
-        <div class="log__summary" id="log-summary">최근 요약: -</div>
-        <div class="log__entries" id="log"></div>
-        <button class="log__scroll-bottom" id="log-scroll-bottom">맨 아래로</button>
-      </section>
+    <div class="tooltip" id="tooltip" hidden>
+      <div class="tooltip__content" id="tooltip-content"></div>
+      <div class="tooltip__actions" id="tooltip-actions"></div>
     </div>
 
     <div class="toast" id="save-toast" role="status" aria-live="polite"></div>
