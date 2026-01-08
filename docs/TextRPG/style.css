@@ -181,6 +181,37 @@ textarea {
   font-size: 0.85rem;
 }
 
+.data-error {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.12);
+  display: grid;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.data-error__title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.data-error__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  display: grid;
+  gap: 4px;
+}
+
+.data-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .dice {
   width: 68px;
   height: 68px;
@@ -467,6 +498,16 @@ textarea {
   padding: 14px;
   color: var(--text);
   min-height: 80px;
+}
+
+.combat-scene__recover {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 107, 107, 0.45);
+  background: rgba(255, 107, 107, 0.1);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  font-size: 0.9rem;
 }
 
 .combat-scene__dice {

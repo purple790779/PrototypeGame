@@ -64,6 +64,7 @@
     ];
 
     const defaultHubVersion = 'v0.2.0';
+    const HUB_VERSION = defaultHubVersion;
     const warningEl = document.getElementById('hub-warning');
     const gameListEl = document.getElementById('game-list');
     const hubTitleEl = document.getElementById('hub-title');
@@ -107,15 +108,21 @@
 
     async function loadGames() {
       try {
-        const response = await fetch('./GAMES.json', { cache: 'no-store' });
+        const response = await fetch(`./GAMES.json?v=${HUB_VERSION}`, { cache: 'no-store' });
         if (!response.ok) {
-          throw new Error('Failed to load');
+          throw new Error(`HTTP ${response.status}`);
         }
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (error) {
+          throw new Error(`JSON 파싱 오류: ${error.message}`);
+        }
         renderHubVersion(data.hubVersion);
         renderGames(data.games || []);
       } catch (error) {
         warningEl.classList.remove('hidden');
+        warningEl.textContent = `GAMES.json을 불러오지 못했습니다 (${error.message})`;
         renderHubVersion(defaultHubVersion);
         renderGames(fallbackGames);
       }

@@ -12,7 +12,7 @@
         <div>
           <h1>프로젝트 오메가 - 에테르의 눈물</h1>
           <p class="subtitle">
-            D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.2.1</span>
+            D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.2.2</span>
           </p>
         </div>
         <button id="btn-reset" class="btn btn--ghost btn--small">새 여정</button>
@@ -51,6 +51,14 @@
             <div class="situation-card__resume" id="resume-combat" hidden>
               <p>전투 진행 중인 기록이 있습니다.</p>
               <button class="btn btn--ghost" id="btn-resume-combat">전투 재개</button>
+            </div>
+            <div class="data-error" id="data-error" hidden>
+              <p class="data-error__title">데이터 로드 실패</p>
+              <ul class="data-error__list" id="data-error-list"></ul>
+              <div class="data-error__actions">
+                <button class="btn btn--ghost" id="btn-retry-load">다시 시도</button>
+                <button class="btn btn--ghost" id="btn-hard-reset">긴급 초기화</button>
+              </div>
             </div>
           </div>
         </section>
@@ -102,6 +110,10 @@
 
         <div class="combat-scene__center">
           <div class="combat-scene__panel" id="combat-situation">전투가 시작됐다.</div>
+          <div class="combat-scene__recover" id="combat-recover" hidden>
+            <p>전투 데이터를 복원할 수 없습니다.</p>
+            <button class="btn btn--ghost" id="btn-combat-recover">탐험으로 복귀</button>
+          </div>
           <div class="combat-scene__dice" id="combat-dice-panel">
             <div class="dice dice--large" id="combat-dice-value">--</div>
             <div class="dice__label" id="combat-dice-label">전투 판정</div>
