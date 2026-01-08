@@ -1,0 +1,74 @@
+[
+  {
+    "id": "potion_small",
+    "name": "치유 물약(소)",
+    "type": "consumable",
+    "effect": { "hp": 12 },
+    "description": "HP를 12 회복한다."
+  },
+  {
+    "id": "potion_medium",
+    "name": "치유 물약(중)",
+    "type": "consumable",
+    "effect": { "hp": 24 },
+    "description": "HP를 24 회복한다."
+  },
+  {
+    "id": "antidote",
+    "name": "해독제",
+    "type": "consumable",
+    "effect": { "status_remove": ["poison"] },
+    "description": "중독 상태를 해제한다."
+  },
+  {
+    "id": "bandage",
+    "name": "응급 붕대",
+    "type": "consumable",
+    "effect": { "status_remove": ["bleed"], "hp": 6 },
+    "description": "출혈을 멈추고 약간 회복한다."
+  },
+  {
+    "id": "smoke_bomb",
+    "name": "연막탄",
+    "type": "tool",
+    "effect": { "escape_bonus": 3 },
+    "description": "전투에서 도주 판정에 도움을 준다."
+  },
+  {
+    "id": "rune_shard",
+    "name": "룬 파편",
+    "type": "artifact",
+    "effect": { "insight": 1 },
+    "description": "이상한 문양이 새겨진 파편. 단서를 자극한다."
+  },
+  {
+    "id": "ether_map",
+    "name": "에테르 지도",
+    "type": "artifact",
+    "effect": { "trust": 1 },
+    "description": "정화자들의 이동 경로가 기록된 지도."
+  },
+  {
+    "id": "iron_sword",
+    "name": "철제 장검",
+    "type": "weapon",
+    "bonus": { "to_hit": 1, "damage": 2 },
+    "scales_with": "STR",
+    "description": "기본 공격력을 강화한다."
+  },
+  {
+    "id": "scout_dagger",
+    "name": "정찰 단검",
+    "type": "weapon",
+    "bonus": { "to_hit": 2, "damage": 1 },
+    "scales_with": "DEX",
+    "description": "명중률이 높은 단검."
+  },
+  {
+    "id": "ward_amulet",
+    "name": "수호 부적",
+    "type": "artifact",
+    "effect": { "ac_bonus": 1 },
+    "description": "방어를 강화하는 부적."
+  }
+]

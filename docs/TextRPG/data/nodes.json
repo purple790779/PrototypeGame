@@ -1,0 +1,107 @@
+[
+  {
+    "node_id": "NODE_PROLOGUE",
+    "title": "기억의 파편",
+    "situation": "차가운 안개 속에서 정신을 되찾았다. 당신은 정화자의 사명을 부여받았음을 느낀다.",
+    "event_pool": ["E-001", "E-002", "E-008"],
+    "choices": [
+      { "text": "정화자의 길을 따른다", "impact": { "trust": 1 }, "next_node": "NODE_FOREST" },
+      { "text": "주변을 더 조사한다", "impact": { "insight": 1 }, "next_node": "NODE_RUINS" }
+    ]
+  },
+  {
+    "node_id": "NODE_FOREST",
+    "title": "흐릿한 숲길",
+    "situation": "습기가 가득한 숲. 발자국은 많지만 사람의 흔적은 희미하다.",
+    "event_pool": ["E-001", "E-007", "E-009", "E-010", "E-015"],
+    "choices": [
+      { "text": "야영지를 찾아 휴식한다", "impact": { "hp": 6 }, "next_node": "NODE_CAMP" },
+      { "text": "교역로를 향한다", "next_node": "NODE_MARKET" },
+      { "text": "균열 지대를 조사한다", "impact": { "insight": 1 }, "next_node": "NODE_RIFT" }
+    ]
+  },
+  {
+    "node_id": "NODE_RUINS",
+    "title": "무너진 유적",
+    "situation": "돌무더기 속에서 희미한 불빛이 깜빡인다. 오래된 장비들이 흩어져 있다.",
+    "event_pool": ["E-006", "E-010", "E-015"],
+    "choices": [
+      { "text": "유적을 더 파헤친다", "impact": { "insight": 1 }, "next_node": "NODE_FOREST" },
+      { "text": "외곽의 교역로로 이동한다", "next_node": "NODE_MARKET" }
+    ]
+  },
+  {
+    "node_id": "NODE_CAMP",
+    "title": "임시 야영지",
+    "situation": "모닥불이 약하게 타오른다. 숨을 돌릴 수 있는 안전지대다.",
+    "event_pool": ["E-008", "E-003", "E-011"],
+    "choices": [
+      { "text": "정찰 보고를 확인한다", "impact": { "trust": 1 }, "next_node": "NODE_SANCTUM" },
+      { "text": "다시 숲으로 돌아간다", "next_node": "NODE_FOREST" }
+    ]
+  },
+  {
+    "node_id": "NODE_MARKET",
+    "title": "교역로",
+    "situation": "희미한 등불이 비추는 길목. 순례자와 상인의 목소리가 섞인다.",
+    "event_pool": ["E-003", "E-007", "E-010", "E-015"],
+    "choices": [
+      { "text": "성역으로 향하는 길을 묻는다", "impact": { "trust": 1 }, "next_node": "NODE_SANCTUM" },
+      { "text": "정보를 모은 뒤 숲으로 되돌아간다", "next_node": "NODE_FOREST" }
+    ]
+  },
+  {
+    "node_id": "NODE_RIFT",
+    "title": "균열 지대",
+    "situation": "대지에 미세한 균열이 퍼져 있다. 푸른 빛이 흐르며 공기가 차갑다.",
+    "event_pool": ["E-005", "E-012", "E-013"],
+    "choices": [
+      { "text": "균열 중심부로 접근한다", "impact": { "insight": 1 }, "next_node": "NODE_TOWER_GATE" },
+      { "text": "위험을 피해 야영지로 복귀한다", "next_node": "NODE_CAMP" }
+    ]
+  },
+  {
+    "node_id": "NODE_SANCTUM",
+    "title": "성역의 전언",
+    "situation": "정화자들의 집결지. 선발대가 남긴 흔적이 남아 있다.",
+    "event_pool": ["E-011", "E-014"],
+    "choices": [
+      { "text": "탑으로 향할 준비를 한다", "impact": { "trust": 1 }, "next_node": "NODE_TOWER_GATE" },
+      { "text": "잠시 숨을 고르고 돌아간다", "next_node": "NODE_CAMP" }
+    ]
+  },
+  {
+    "node_id": "NODE_TOWER_GATE",
+    "title": "천공의 문",
+    "situation": "거대한 탑의 입구가 모습을 드러낸다. 차가운 기운이 전신을 감싼다.",
+    "event_pool": ["E-009", "E-013"],
+    "choices": [
+      { "text": "문지기를 상대한다", "impact": { "trust": 1 }, "start_combat": "sanctum_guard", "next_node": "NODE_TOWER_TOP" },
+      { "text": "전략을 재정비한다", "next_node": "NODE_CAMP" }
+    ]
+  },
+  {
+    "node_id": "NODE_TOWER_TOP",
+    "title": "탑 정상",
+    "situation": "바람이 끊긴 정상. 의식의 중심이 느껴진다.",
+    "event_pool": [],
+    "choices": [
+      {
+        "text": "의식을 시작한다",
+        "requirements": { "min_trust": 3 },
+        "impact": { "trust": 1 },
+        "ending_id": "ENDING_RITE"
+      },
+      {
+        "text": "단서를 되짚는다",
+        "requirements": { "min_insight": 3 },
+        "impact": { "insight": 1 },
+        "ending_id": "ENDING_INSIGHT"
+      },
+      {
+        "text": "탑을 떠난다",
+        "ending_id": "ENDING_WITHDRAW"
+      }
+    ]
+  }
+]

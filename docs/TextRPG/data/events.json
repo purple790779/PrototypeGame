@@ -1,0 +1,197 @@
+[
+  {
+    "id": "E-001",
+    "title": "무너지는 목재 다리",
+    "rarity": "common",
+    "category": "trap",
+    "condition": { "biome": ["forest", "canyon"] },
+    "check": { "type": "stat", "stat": "DEX", "dc": 14 },
+    "results": {
+      "success": { "text": "당신은 재빨리 균형을 잡았다.", "effects": [] },
+      "fail": { "text": "발을 헛디뎌 부상을 입었다.", "effects": [{ "hp": -8 }] },
+      "crit_success": { "text": "완벽한 도약! 숨겨진 주머니를 발견했다.", "effects": [{ "gold": 18 }] },
+      "crit_fail": { "text": "난간이 부서지며 추락했다!", "effects": [{ "hp": -14 }, { "status_add": "bleed", "turns": 2 }] }
+    }
+  },
+  {
+    "id": "E-002",
+    "title": "미세한 속삭임",
+    "rarity": "common",
+    "category": "glitch",
+    "condition": {},
+    "check": { "type": "stat", "stat": "INT", "dc": 12 },
+    "results": {
+      "success": { "text": "속삭임의 패턴을 읽어내며 정신을 다잡았다.", "effects": [{ "insight": 1 }] },
+      "fail": { "text": "이상한 목소리가 머리를 어지럽힌다.", "effects": [{ "hp": -3 }] },
+      "crit_success": { "text": "반짝이는 룬 파편을 발견했다.", "effects": [{ "item": "rune_shard" }] },
+      "crit_fail": { "text": "현기증이 몰려오며 방향감각을 잃었다.", "effects": [{ "flag_add": "lost_once" }] }
+    }
+  },
+  {
+    "id": "E-003",
+    "title": "떠도는 상인",
+    "rarity": "common",
+    "category": "social",
+    "condition": {},
+    "check": { "type": "stat", "stat": "CHA", "dc": 13 },
+    "results": {
+      "success": { "text": "할인을 받아 물약을 얻었다.", "effects": [{ "item": "potion_small" }, { "gold": -6 }] },
+      "fail": { "text": "상인은 시선을 피하며 떠났다.", "effects": [] },
+      "crit_success": { "text": "상인이 특별한 부적을 건넸다.", "effects": [{ "item": "ward_amulet" }] },
+      "crit_fail": { "text": "불신이 쌓였다. 거래는 실패했다.", "effects": [{ "trust": -1 }] }
+    }
+  },
+  {
+    "id": "E-004",
+    "title": "오염된 조우",
+    "rarity": "common",
+    "category": "combat",
+    "condition": {},
+    "check": { "type": "combat", "enemy": "corrupted_scout" },
+    "results": {
+      "success": { "text": "적이 당신을 발견했다.", "effects": [] }
+    }
+  },
+  {
+    "id": "E-005",
+    "title": "균열의 숨결",
+    "rarity": "common",
+    "category": "combat",
+    "condition": { "min_insight": 1 },
+    "check": { "type": "combat", "enemy": "ether_slime" },
+    "results": {
+      "success": { "text": "점액체가 진로를 막는다.", "effects": [] }
+    }
+  },
+  {
+    "id": "E-006",
+    "title": "잔불의 무덤",
+    "rarity": "common",
+    "category": "environment",
+    "condition": {},
+    "check": { "type": "stat", "stat": "STR", "dc": 13 },
+    "results": {
+      "success": { "text": "무너진 돌더미를 치워 길을 열었다.", "effects": [{ "trust": 1 }] },
+      "fail": { "text": "먼지가 폐를 찔러 고통이 왔다.", "effects": [{ "hp": -5 }] },
+      "crit_success": { "text": "봉인된 상자를 발견했다.", "effects": [{ "item": "potion_medium" }] },
+      "crit_fail": { "text": "돌이 굴러내려와 다리에 상처를 남겼다.", "effects": [{ "status_add": "bleed", "turns": 2 }] }
+    }
+  },
+  {
+    "id": "E-007",
+    "title": "부상당한 순례자",
+    "rarity": "common",
+    "category": "moral",
+    "condition": {},
+    "check": { "type": "stat", "stat": "CHA", "dc": 11 },
+    "results": {
+      "success": { "text": "순례자가 감사의 마음을 전했다.", "effects": [{ "trust": 1 }, { "item": "bandage" }] },
+      "fail": { "text": "그는 경계심을 드러내며 떠났다.", "effects": [] },
+      "crit_success": { "text": "그는 신뢰의 증표로 지도를 맡겼다.", "effects": [{ "item": "ether_map" }, { "trust": 2 }] },
+      "crit_fail": { "text": "그는 당신을 오해하고 험담을 퍼뜨렸다.", "effects": [{ "trust": -1 }] }
+    }
+  },
+  {
+    "id": "E-008",
+    "title": "고요한 야영지",
+    "rarity": "common",
+    "category": "rest",
+    "condition": {},
+    "check": { "type": "none" },
+    "results": {
+      "success": { "text": "잠시 숨을 고르며 체력을 회복했다.", "effects": [{ "hp": 10 }] }
+    }
+  },
+  {
+    "id": "E-009",
+    "title": "안개 속 짐승",
+    "rarity": "common",
+    "category": "combat",
+    "condition": { "min_trust": 1 },
+    "check": { "type": "combat", "enemy": "gloom_wolf" },
+    "results": {
+      "success": { "text": "잿빛 늑대가 이빨을 드러낸다.", "effects": [] }
+    }
+  },
+  {
+    "id": "E-010",
+    "title": "음흉한 지름길",
+    "rarity": "common",
+    "category": "trap",
+    "condition": {},
+    "check": { "type": "stat", "stat": "LUK", "dc": 12 },
+    "results": {
+      "success": { "text": "함정을 피해 시간을 벌었다.", "effects": [{ "insight": 1 }] },
+      "fail": { "text": "독침에 찔렸다.", "effects": [{ "status_add": "poison", "turns": 2 }] },
+      "crit_success": { "text": "숨겨진 보급품을 챙겼다.", "effects": [{ "item": "potion_small" }, { "gold": 8 }] },
+      "crit_fail": { "text": "발이 묶여 크게 다쳤다.", "effects": [{ "hp": -10 }] }
+    }
+  },
+  {
+    "id": "E-011",
+    "title": "전언",
+    "rarity": "common",
+    "category": "story",
+    "condition": { "min_trust": 2 },
+    "check": { "type": "stat", "stat": "INT", "dc": 14 },
+    "results": {
+      "success": { "text": "보급 거점의 위치를 알아냈다.", "effects": [{ "flag_add": "know_supply" }, { "insight": 1 }] },
+      "fail": { "text": "암호를 풀지 못했다.", "effects": [] },
+      "crit_success": { "text": "새로운 길목이 머릿속에 그려졌다.", "effects": [{ "flag_add": "shortcut" }] },
+      "crit_fail": { "text": "암호가 부정확해 오해를 샀다.", "effects": [{ "trust": -1 }] }
+    }
+  },
+  {
+    "id": "E-012",
+    "title": "찢긴 문장",
+    "rarity": "common",
+    "category": "glitch",
+    "condition": { "min_insight": 1 },
+    "check": { "type": "stat", "stat": "INT", "dc": 13 },
+    "results": {
+      "success": { "text": "문장에서 의미를 복원했다.", "effects": [{ "insight": 2 }] },
+      "fail": { "text": "글자가 사라지며 손이 얼어붙었다.", "effects": [{ "hp": -4 }] },
+      "crit_success": { "text": "기묘한 단서가 마음에 남았다.", "effects": [{ "flag_add": "glyph_memory" }, { "insight": 1 }] },
+      "crit_fail": { "text": "기억이 잠시 끊겼다.", "effects": [{ "flag_add": "memory_gap" }] }
+    }
+  },
+  {
+    "id": "E-013",
+    "title": "재의 망령",
+    "rarity": "common",
+    "category": "combat",
+    "condition": { "min_insight": 2 },
+    "check": { "type": "combat", "enemy": "ash_wisp" },
+    "results": {
+      "success": { "text": "흐릿한 형체가 나타난다.", "effects": [] }
+    }
+  },
+  {
+    "id": "E-014",
+    "title": "붉은 금속 상자",
+    "rarity": "rare",
+    "category": "reward",
+    "condition": { "flags_include": ["shortcut"] },
+    "check": { "type": "stat", "stat": "DEX", "dc": 15 },
+    "results": {
+      "success": { "text": "상자를 열어 검을 꺼냈다.", "effects": [{ "item": "iron_sword" }] },
+      "fail": { "text": "자물쇠가 폭발해 상처를 입었다.", "effects": [{ "hp": -7 }] },
+      "crit_success": { "text": "상자에 감춰진 물자를 챙겼다.", "effects": [{ "item": "iron_sword" }, { "gold": 20 }] },
+      "crit_fail": { "text": "폭발이 연쇄되며 출혈이 생겼다.", "effects": [{ "hp": -9 }, { "status_add": "bleed", "turns": 3 }] }
+    }
+  },
+  {
+    "id": "E-015",
+    "title": "숨겨진 잔해",
+    "rarity": "common",
+    "category": "reward",
+    "condition": {},
+    "check": { "type": "stat", "stat": "LUK", "dc": 13 },
+    "results": {
+      "success": { "text": "작은 보급품을 챙겼다.", "effects": [{ "gold": 12 }, { "item": "potion_small" }] },
+      "fail": { "text": "빈 상자뿐이었다.", "effects": [] },
+      "crit_success": { "text": "정찰 단검을 손에 넣었다.", "effects": [{ "item": "scout_dagger" }] },
+      "crit_fail": { "text": "날카로운 파편에 베였다.", "effects": [{ "hp": -6 }] }
+    }
+  }
+]

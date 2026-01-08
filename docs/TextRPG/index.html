@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>프로젝트 오메가 - 에테르의 눈물</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app__header">
+        <div>
+          <h1>프로젝트 오메가 - 에테르의 눈물</h1>
+          <p class="subtitle">D20 판정 기반 텍스트 RPG 프로토타입</p>
+        </div>
+        <div class="header__controls">
+          <label class="toggle">
+            <input type="checkbox" id="toggle-typing" />
+            <span>타자기 효과</span>
+          </label>
+          <button id="btn-reset" class="btn btn--ghost">새 여정</button>
+        </div>
+      </header>
+
+      <section class="hud" aria-label="상태 HUD">
+        <div class="hud__stats">
+          <div class="stat" id="hud-hp">HP 0/0</div>
+          <div class="stat" id="hud-gold">골드 0</div>
+          <div class="stat" id="hud-trust">신뢰 0</div>
+          <div class="stat" id="hud-insight">단서 0</div>
+        </div>
+        <div class="hud__stats">
+          <div class="stat" id="hud-str">STR 0</div>
+          <div class="stat" id="hud-dex">DEX 0</div>
+          <div class="stat" id="hud-int">INT 0</div>
+          <div class="stat" id="hud-luk">LUK 0</div>
+        </div>
+        <div class="hud__status" id="hud-status">상태: 정상</div>
+        <div class="hud__inventory" id="hud-inventory">보유: -</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__dice">
+          <div class="dice" id="dice-value">--</div>
+          <div class="dice__label" id="dice-label">주사위 대기</div>
+        </div>
+        <div class="panel__scene">
+          <h2 id="scene-title">준비 중...</h2>
+          <p id="scene-text">데이터를 불러오는 중입니다.</p>
+        </div>
+      </section>
+
+      <section class="choices" id="choices" aria-label="선택지"></section>
+
+      <section class="log" aria-label="텍스트 로그">
+        <h3>로그</h3>
+        <div class="log__entries" id="log"></div>
+      </section>
+    </div>
+
+    <script src="main.js"></script>
+  </body>
+</html>

@@ -26,6 +26,18 @@
       "summary": "성+마을 경영 시뮬레이션 프로토타입. 자원/인구/시설 운영.",
       "order": 20,
       "tags": ["mobile", "simulation", "management"]
+    },
+    {
+      "id": "textrpg-omega",
+      "title": "프로젝트 오메가 - 에테르의 눈물",
+      "slug": "textrpg-omega",
+      "path": "./TextRPG/",
+      "icon": "🧭",
+      "version": "v0.1.0",
+      "status": "active",
+      "summary": "정화자로서 사건을 겪으며 D20 판정과 선택으로 여정을 이어가는 텍스트 RPG.",
+      "order": 30,
+      "tags": ["mobile", "rpg", "text", "story"]
     }
   ]
 }

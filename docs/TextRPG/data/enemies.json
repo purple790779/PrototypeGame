@@ -1,0 +1,54 @@
+[
+  {
+    "id": "gloom_wolf",
+    "name": "그림자 늑대",
+    "hp": 26,
+    "ac": 12,
+    "attack": 4,
+    "damage": { "min": 4, "max": 8 },
+    "status_attack": { "id": "bleed", "chance": 0.3, "turns": 2 }
+  },
+  {
+    "id": "corrupted_scout",
+    "name": "오염된 정찰병",
+    "hp": 22,
+    "ac": 13,
+    "attack": 5,
+    "damage": { "min": 3, "max": 7 },
+    "status_attack": { "id": "poison", "chance": 0.25, "turns": 2 }
+  },
+  {
+    "id": "ether_slime",
+    "name": "에테르 점액체",
+    "hp": 30,
+    "ac": 10,
+    "attack": 3,
+    "damage": { "min": 2, "max": 6 },
+    "status_attack": { "id": "poison", "chance": 0.4, "turns": 3 }
+  },
+  {
+    "id": "ash_wisp",
+    "name": "재의 망령",
+    "hp": 18,
+    "ac": 14,
+    "attack": 6,
+    "damage": { "min": 4, "max": 9 }
+  },
+  {
+    "id": "rift_knight",
+    "name": "균열 기사",
+    "hp": 34,
+    "ac": 15,
+    "attack": 6,
+    "damage": { "min": 5, "max": 10 },
+    "status_attack": { "id": "bleed", "chance": 0.35, "turns": 3 }
+  },
+  {
+    "id": "sanctum_guard",
+    "name": "성역의 수호자",
+    "hp": 38,
+    "ac": 16,
+    "attack": 7,
+    "damage": { "min": 6, "max": 12 }
+  }
+]
