@@ -1,4 +1,4 @@
-const VERSION = "v0.2.0";
+const VERSION = "v0.2.1";
 const AUTOSAVE_KEY = "textrpg-omega-save";
 const SLOT_KEYS = ["textrpg_slot_1", "textrpg_slot_2", "textrpg_slot_3"];
 const MAX_LOG_ENTRIES = 60;
@@ -78,11 +78,14 @@ const elements = {
   combatSituation: document.getElementById("combat-situation"),
   combatAdvantage: document.getElementById("combat-advantage"),
   combatAdvantageLabel: document.getElementById("combat-advantage-label"),
+  combatMeter: document.getElementById("combat-meter"),
+  combatDicePanel: document.getElementById("combat-dice-panel"),
   combatLog: document.getElementById("combat-log"),
   combatDock: document.getElementById("combat-dock"),
   saveToast: document.getElementById("save-toast"),
   versionLabel: document.getElementById("version-label"),
-  resetButton: document.getElementById("btn-reset")
+  resetButton: document.getElementById("btn-reset"),
+  emergencyResetButton: document.getElementById("btn-emergency-reset")
 };
 
 const statusCatalog = {
@@ -133,6 +136,63 @@ function normalizePlayer(playerData) {
     flags: Array.isArray(safe.flags) ? safe.flags : fallback.flags,
     status: Array.isArray(safe.status) ? safe.status : fallback.status
   };
+}
+
+function clearTextRpgStorage() {
+  const keys = Object.keys(localStorage).filter((key) => key.startsWith("textrpg"));
+  keys.forEach((key) => localStorage.removeItem(key));
+}
+
+function isCombatSnapshotValid(enemyData) {
+  if (!enemyData || typeof enemyData !== "object") return false;
+  const enemyId = enemyData.id ?? enemyData.enemyId;
+  if (!enemyId) return false;
+  const template = state.data?.enemies?.find((item) => item.id === enemyId);
+  if (!template) return false;
+  const hp = Number(enemyData.hp);
+  const maxHp = Number(enemyData.maxHp);
+  const ac = Number(enemyData.ac);
+  const attack = Number(enemyData.attack);
+  const damageMin = Number(enemyData.damage?.min);
+  const damageMax = Number(enemyData.damage?.max);
+  return (
+    Number.isFinite(hp) &&
+    Number.isFinite(maxHp) &&
+    Number.isFinite(ac) &&
+    Number.isFinite(attack) &&
+    Number.isFinite(damageMin) &&
+    Number.isFinite(damageMax)
+  );
+}
+
+function recoverFromInvalidCombat({ announce = true } = {}) {
+  state.inCombat = false;
+  state.enemy = null;
+  state.pendingCombat = null;
+  state.isBusy = false;
+  setChoicesDisabled(false);
+  resetTransientUI();
+  if (announce) {
+    const message = "저장 데이터가 이전 버전과 달라 전투를 종료하고 탐험으로 복귀했습니다.";
+    logEntry(message, { highlight: true, badge: "복구" });
+    setLogSummary(message);
+    showToast("전투 상태를 복구했습니다.", "success");
+  }
+  if (state.player) {
+    saveGame({ silent: true });
+  }
+}
+
+function validateStateAfterLoad() {
+  if (state.inCombat && !isCombatSnapshotValid(state.enemy)) {
+    recoverFromInvalidCombat();
+    return true;
+  }
+  if (state.pendingCombat && !isCombatSnapshotValid(state.pendingCombat)) {
+    recoverFromInvalidCombat();
+    return true;
+  }
+  return false;
 }
 
 function logEntry(text, options = {}) {
@@ -521,6 +581,17 @@ function openActionSheet(choiceList) {
 function renderCombatDock() {
   if (!elements.combatDock) return;
   elements.combatDock.innerHTML = "";
+  if (!state.inCombat || !state.player || !isCombatSnapshotValid(state.enemy)) {
+    const button = document.createElement("button");
+    button.textContent = "탐험으로 복귀";
+    button.addEventListener("click", () => {
+      recoverFromInvalidCombat();
+      renderNode();
+      renderCombatScene();
+    });
+    elements.combatDock.appendChild(button);
+    return;
+  }
   const buttons = [
     { label: "공격", action: () => combatPlayerAttack() },
     { label: "방어", action: () => combatDefend() },
@@ -840,6 +911,12 @@ function startCombat(enemyId, nextNode = null) {
 
 function resumeCombat() {
   if (!state.pendingCombat) return;
+  if (!isCombatSnapshotValid(state.pendingCombat)) {
+    recoverFromInvalidCombat();
+    renderNode();
+    renderResumeCombat();
+    return;
+  }
   state.inCombat = true;
   state.enemy = state.pendingCombat;
   state.pendingCombat = null;
@@ -872,7 +949,30 @@ function calcAdvantage() {
 function renderCombatScene() {
   if (!elements.combatScene) return;
   elements.combatScene.hidden = !state.inCombat;
-  if (!state.inCombat || !state.enemy || !state.player) return;
+  if (!state.inCombat) return;
+  const isValidCombat = Boolean(state.player) && isCombatSnapshotValid(state.enemy);
+  if (elements.combatDicePanel) {
+    elements.combatDicePanel.hidden = !isValidCombat;
+  }
+  if (elements.combatMeter) {
+    elements.combatMeter.hidden = !isValidCombat;
+  }
+  if (!isValidCombat) {
+    elements.combatPlayerName.textContent = "모험가";
+    elements.combatEnemyName.textContent = "-";
+    elements.combatPlayerHp.style.width = "0%";
+    elements.combatEnemyHp.style.width = "0%";
+    elements.combatPlayerStatus.textContent = "상태 없음";
+    elements.combatEnemyStatus.textContent = "상태 없음";
+    elements.combatSituation.textContent = "전투 데이터를 불러올 수 없습니다.";
+    elements.combatAdvantage.style.width = "0%";
+    elements.combatAdvantageLabel.textContent = "-";
+    if (elements.combatLog) {
+      elements.combatLog.innerHTML = "";
+    }
+    renderCombatDock();
+    return;
+  }
   const enemy = state.enemy;
   const player = state.player;
   elements.combatPlayerName.textContent = "모험가";
@@ -1212,6 +1312,7 @@ function applySaveData(data, { announce = false } = {}) {
   } else {
     setLogSummary("최근 기록을 확인하세요.");
   }
+  validateStateAfterLoad();
   resetTransientUI();
   updateHud();
   renderLog();
@@ -1246,8 +1347,12 @@ function loadGame() {
   applySaveData(data);
 }
 
-function resetGame(render = true) {
-  localStorage.removeItem(AUTOSAVE_KEY);
+function resetGame(render = true, { clearStorage = false } = {}) {
+  if (clearStorage) {
+    clearTextRpgStorage();
+  } else {
+    localStorage.removeItem(AUTOSAVE_KEY);
+  }
   state.player = defaultPlayer();
   state.nodeId = "NODE_PROLOGUE";
   state.log = [];
@@ -1262,6 +1367,15 @@ function resetGame(render = true) {
   if (render) {
     renderNode();
   }
+}
+
+function runEmergencyReset({ confirm = true } = {}) {
+  if (confirm) {
+    const ok = window.confirm("모든 저장 데이터를 삭제하고 새 여정을 시작할까요?");
+    if (!ok) return;
+  }
+  resetGame(true, { clearStorage: true });
+  showToast("긴급 초기화 완료", "success");
 }
 
 async function loadData() {
@@ -1339,6 +1453,7 @@ function setupEventListeners() {
     }
   });
   elements.resetButton.addEventListener("click", () => resetGame());
+  elements.emergencyResetButton?.addEventListener("click", () => runEmergencyReset());
   elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
   elements.slotSaveButton?.addEventListener("click", () => saveSlot());
   elements.slotLoadButton?.addEventListener("click", () => loadSlot());
@@ -1375,6 +1490,8 @@ function setupEventListeners() {
 function init() {
   if (window.__TEXTRPG_INIT_DONE) return;
   window.__TEXTRPG_INIT_DONE = true;
+  const resetParam = new URLSearchParams(window.location.search).get("reset");
+  const shouldReset = resetParam === "1" || resetParam === "true";
   if (elements.versionLabel) {
     elements.versionLabel.textContent = VERSION;
   }
@@ -1383,6 +1500,10 @@ function init() {
 
   loadData()
     .then(() => {
+      if (shouldReset) {
+        runEmergencyReset({ confirm: false });
+        return;
+      }
       loadGame();
     })
     .catch(() => {

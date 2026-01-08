@@ -12,7 +12,7 @@
         <div>
           <h1>프로젝트 오메가 - 에테르의 눈물</h1>
           <p class="subtitle">
-            D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.2.0</span>
+            D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.2.1</span>
           </p>
         </div>
         <button id="btn-reset" class="btn btn--ghost btn--small">새 여정</button>
@@ -92,7 +92,7 @@
           </div>
         </header>
 
-        <div class="combat-scene__meter">
+        <div class="combat-scene__meter" id="combat-meter">
           <span>우세도</span>
           <div class="meter">
             <span id="combat-advantage"></span>
@@ -102,7 +102,7 @@
 
         <div class="combat-scene__center">
           <div class="combat-scene__panel" id="combat-situation">전투가 시작됐다.</div>
-          <div class="combat-scene__dice">
+          <div class="combat-scene__dice" id="combat-dice-panel">
             <div class="dice dice--large" id="combat-dice-value">--</div>
             <div class="dice__label" id="combat-dice-label">전투 판정</div>
             <span class="combat-scene__badge" id="combat-dice-badge">-</span>
@@ -174,6 +174,11 @@
               <button id="btn-slot-load" class="btn btn--ghost">불러오기</button>
             </div>
             <div class="settings-autosave" id="autosave-status">자동저장: -</div>
+          </div>
+          <div class="settings-group">
+            <strong>긴급 초기화</strong>
+            <p>저장 데이터가 꼬였을 때 모든 세이브를 삭제합니다.</p>
+            <button id="btn-emergency-reset" class="btn btn--ghost">긴급 초기화</button>
           </div>
         </section>
       </div>
