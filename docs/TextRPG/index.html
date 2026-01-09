@@ -5,83 +5,96 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="./" />
     <title>프로젝트 오메가 - 에테르의 눈물</title>
-    <link rel="stylesheet" href="style.css?v=0.3.0" />
+    <link rel="stylesheet" href="style.css?v=0.3.1" />
   </head>
   <body>
     <div class="app">
-      <header class="app__header">
-        <div>
-          <h1>프로젝트 오메가 - 에테르의 눈물</h1>
-          <p class="subtitle">
-            D20 판정 기반 텍스트 RPG 프로토타입 <span class="version" id="version-label">v0.3.0</span>
-          </p>
+      <header class="top-hud" aria-label="탐험 HUD">
+        <div class="top-hud__left" id="hud-profile">
+          <div class="avatar" aria-hidden="true">Ω</div>
+          <div class="profile-meta">
+            <div class="profile-row">
+              <strong class="profile-name" id="player-name">모험가</strong>
+              <span class="version" id="version-label">v0.3.1</span>
+              <button id="btn-reset" class="btn btn--ghost btn--tiny">새 여정</button>
+            </div>
+            <div class="profile-stats">
+              <div class="hud-pill" id="hud-hp" aria-label="체력">
+                <span class="hud-pill__icon" aria-hidden="true">❤️</span>
+                <span class="hud-pill__value">0/0</span>
+              </div>
+              <div class="hud-pill" id="hud-mp" aria-label="마나">
+                <span class="hud-pill__icon" aria-hidden="true">💠</span>
+                <span class="hud-pill__value">0/0</span>
+              </div>
+              <div class="hud-pill" id="hud-gold" aria-label="골드">
+                <span class="hud-pill__icon" aria-hidden="true">🪙</span>
+                <span class="hud-pill__value">0</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <button id="btn-reset" class="btn btn--ghost btn--small">새 여정</button>
+        <div class="top-hud__right" id="hud-stats">
+          <div class="stat-chip" aria-label="힘" data-tooltip="STR" data-toast="STR">
+            <span class="stat-chip__icon" aria-hidden="true">⚔️</span>
+            <span class="stat-chip__value" id="hud-stat-str">0</span>
+          </div>
+          <div class="stat-chip" aria-label="지혜" data-tooltip="WIS" data-toast="WIS">
+            <span class="stat-chip__icon" aria-hidden="true">🧠</span>
+            <span class="stat-chip__value" id="hud-stat-wis">0</span>
+          </div>
+          <div class="stat-chip" aria-label="지능" data-tooltip="INT" data-toast="INT">
+            <span class="stat-chip__icon" aria-hidden="true">📘</span>
+            <span class="stat-chip__value" id="hud-stat-int">0</span>
+          </div>
+          <div class="stat-chip" aria-label="민첩" data-tooltip="DEX" data-toast="DEX">
+            <span class="stat-chip__icon" aria-hidden="true">🏹</span>
+            <span class="stat-chip__value" id="hud-stat-dex">0</span>
+          </div>
+          <div class="stat-chip" aria-label="행운" data-tooltip="LUK" data-toast="LUK">
+            <span class="stat-chip__icon" aria-hidden="true">🍀</span>
+            <span class="stat-chip__value" id="hud-stat-luk">0</span>
+          </div>
+          <button
+            id="btn-save"
+            class="icon-btn"
+            aria-label="저장"
+            data-tooltip="저장"
+            data-toast="저장"
+            type="button"
+          >
+            💾
+          </button>
+        </div>
       </header>
 
-      <section class="hud-top" aria-label="상태 HUD">
-        <div class="hud-top__stats">
-          <div class="stat-pill" id="hud-hp" aria-label="체력">
-            <span class="stat-pill__icon" aria-hidden="true">❤️</span>
-            <span class="stat-pill__value">0/0</span>
-          </div>
-          <div class="stat-pill" id="hud-mp" aria-label="마나" hidden>
-            <span class="stat-pill__icon" aria-hidden="true">💠</span>
-            <span class="stat-pill__value">0/0</span>
-          </div>
-          <div class="stat-pill" id="hud-gold" aria-label="골드">
-            <span class="stat-pill__icon" aria-hidden="true">🪙</span>
-            <span class="stat-pill__value">0</span>
-          </div>
-        </div>
-        <div class="hud-top__actions">
-          <button id="btn-status" class="btn btn--ghost">상태</button>
-          <button id="btn-save" class="btn">저장</button>
-        </div>
-      </section>
-
-      <main class="main">
-        <section class="situation-card" aria-live="polite">
-          <div class="situation-card__dice">
-            <div class="dice" id="dice-value">--</div>
+      <main class="main-center" id="main-center">
+        <section class="event-card" id="explore-card" aria-live="polite">
+          <div class="event-card__dice">
+            <div class="dice dice--small" id="dice-value">--</div>
             <div class="dice__label" id="dice-label">주사위 대기</div>
           </div>
-          <div class="situation-card__content">
+          <div class="event-card__content">
             <h2 id="scene-title">준비 중...</h2>
             <p id="scene-text">데이터를 불러오는 중입니다.</p>
-            <div class="situation-card__resume" id="resume-combat" hidden>
+            <div class="event-card__resume" id="resume-combat" hidden>
               <p>전투 진행 중인 기록이 있습니다.</p>
-              <button class="btn btn--ghost" id="btn-resume-combat">전투 재개</button>
+              <button class="btn btn--ghost btn--small" id="btn-resume-combat">전투 재개</button>
             </div>
             <div class="data-error" id="data-error" hidden>
               <p class="data-error__title">데이터 로드 실패</p>
               <pre class="data-error__list" id="data-error-list"></pre>
               <div class="data-error__actions">
-                <button class="btn btn--ghost" id="btn-retry-load">다시 시도</button>
-                <button class="btn btn--ghost" id="btn-hard-reset">긴급 초기화</button>
+                <button class="btn btn--ghost btn--small" id="btn-retry-load">다시 시도</button>
+                <button class="btn btn--ghost btn--small" id="btn-hard-reset">긴급 초기화</button>
               </div>
             </div>
+            <div class="event-card__choices" id="choice-list"></div>
           </div>
         </section>
 
-        <section class="log-panel" aria-label="텍스트 로그">
-          <div class="log-panel__header">
-            <h3>로그</h3>
-            <span class="log-panel__summary" id="log-summary">최근 요약: -</span>
-          </div>
-          <div class="log-panel__entries" id="log"></div>
-          <button class="log-panel__scroll-bottom" id="log-scroll-bottom">맨 아래로</button>
-        </section>
-      </main>
-
-      <nav class="dock" id="action-dock" aria-label="탐험 행동">
-        <div class="dock__main" id="dock-main"></div>
-        <button class="dock__more" id="dock-more" aria-label="더보기" hidden>⋯</button>
-      </nav>
-    </div>
-
-    <section class="combat-scene" id="combat-scene" hidden aria-live="polite">
-      <div class="combat-scene__frame">
+        <section class="combat-scene" id="combat-scene" hidden aria-live="polite">
+          <div class="combat-scene__frame">
         <header class="combat-scene__header">
           <div class="combat-card">
             <div class="combat-card__label">모험가</div>
@@ -126,7 +139,82 @@
 
         <nav class="combat-dock" aria-label="전투 커맨드" id="combat-dock"></nav>
       </div>
-    </section>
+        </section>
+      </main>
+
+      <section class="log-panel is-collapsed" id="log-panel" aria-label="텍스트 로그">
+        <div class="log-panel__header">
+          <div>
+            <h3>로그</h3>
+            <span class="log-panel__summary" id="log-summary">최근 요약: -</span>
+          </div>
+          <button class="log-panel__toggle" id="log-toggle" aria-expanded="false" type="button">
+            펼치기
+          </button>
+        </div>
+        <div class="log-panel__entries" id="log"></div>
+        <button class="log-panel__scroll-bottom" id="log-scroll-bottom">맨 아래로</button>
+      </section>
+
+      <nav class="bottom-dock" id="action-dock" aria-label="하단 도크">
+        <button
+          class="dock-btn"
+          data-sheet="inventory-sheet"
+          data-tooltip="장비/인벤토리"
+          data-toast="인벤토리"
+          aria-label="장비/인벤토리"
+          type="button"
+        >
+          <span class="dock-btn__icon" aria-hidden="true">🎒</span>
+          <span class="dock-btn__label">인벤</span>
+        </button>
+        <button
+          class="dock-btn"
+          data-sheet="skills-sheet"
+          data-tooltip="스킬"
+          data-toast="스킬"
+          aria-label="스킬"
+          type="button"
+        >
+          <span class="dock-btn__icon" aria-hidden="true">✨</span>
+          <span class="dock-btn__label">스킬</span>
+        </button>
+        <button
+          class="dock-btn"
+          data-sheet="codex-sheet"
+          data-tooltip="도감"
+          data-toast="도감"
+          aria-label="도감"
+          type="button"
+        >
+          <span class="dock-btn__icon" aria-hidden="true">📖</span>
+          <span class="dock-btn__label">도감</span>
+        </button>
+        <button
+          class="dock-btn"
+          data-sheet="ranking-sheet"
+          data-tooltip="랭킹"
+          data-toast="랭킹"
+          aria-label="랭킹"
+          type="button"
+        >
+          <span class="dock-btn__icon" aria-hidden="true">🏆</span>
+          <span class="dock-btn__label">랭킹</span>
+        </button>
+        <button
+          class="dock-btn"
+          data-open="status"
+          data-tab="settings"
+          data-tooltip="설정/도움말"
+          data-toast="설정"
+          aria-label="설정/도움말"
+          type="button"
+        >
+          <span class="dock-btn__icon" aria-hidden="true">⚙️</span>
+          <span class="dock-btn__label">설정</span>
+        </button>
+      </nav>
+    </div>
 
     <div class="sheet" id="status-sheet" hidden aria-modal="true" role="dialog">
       <div class="sheet__header">
@@ -198,6 +286,63 @@
       </div>
     </div>
 
+    <div class="sheet" id="inventory-sheet" hidden aria-modal="true" role="dialog">
+      <div class="sheet__header">
+        <h3>장비/인벤토리</h3>
+        <button class="sheet__close" data-close-sheet aria-label="닫기">✕</button>
+      </div>
+      <div class="sheet__body">
+        <div class="sheet__notice" id="inventory-empty">보유 아이템이 없습니다.</div>
+        <div class="inventory-grid" id="inventory-sheet-grid"></div>
+      </div>
+    </div>
+
+    <div class="sheet" id="skills-sheet" hidden aria-modal="true" role="dialog">
+      <div class="sheet__header">
+        <h3>스킬</h3>
+        <button class="sheet__close" data-close-sheet aria-label="닫기">✕</button>
+      </div>
+      <div class="sheet__body">
+        <div class="sheet__notice" id="skills-empty">미구현/예정</div>
+        <div class="sheet__list" id="skills-list"></div>
+      </div>
+    </div>
+
+    <div class="sheet" id="codex-sheet" hidden aria-modal="true" role="dialog">
+      <div class="sheet__header">
+        <h3>도감</h3>
+        <button class="sheet__close" data-close-sheet aria-label="닫기">✕</button>
+      </div>
+      <div class="sheet__body">
+        <div class="codex-section">
+          <h4>노드</h4>
+          <div class="sheet__notice" id="codex-node-empty">기록 없음</div>
+          <ul class="codex-list" id="codex-nodes"></ul>
+        </div>
+        <div class="codex-section">
+          <h4>적</h4>
+          <div class="sheet__notice" id="codex-enemy-empty">기록 없음</div>
+          <ul class="codex-list" id="codex-enemies"></ul>
+        </div>
+        <div class="codex-section">
+          <h4>엔딩</h4>
+          <div class="sheet__notice" id="codex-ending-empty">기록 없음</div>
+          <ul class="codex-list" id="codex-endings"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet" id="ranking-sheet" hidden aria-modal="true" role="dialog">
+      <div class="sheet__header">
+        <h3>랭킹</h3>
+        <button class="sheet__close" data-close-sheet aria-label="닫기">✕</button>
+      </div>
+      <div class="sheet__body">
+        <div class="sheet__notice" id="ranking-empty">기록 없음</div>
+        <div class="sheet__list" id="ranking-list"></div>
+      </div>
+    </div>
+
     <div class="sheet" id="action-sheet" hidden aria-modal="true" role="dialog">
       <div class="sheet__header">
         <h3>다른 행동</h3>
@@ -227,6 +372,6 @@
 
     <div class="toast" id="save-toast" role="status" aria-live="polite"></div>
 
-    <script id="appMain" src="main.js?v=0.3.0" defer></script>
+    <script id="appMain" src="main.js?v=0.3.1" defer></script>
   </body>
 </html>
