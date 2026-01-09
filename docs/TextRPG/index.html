@@ -5,9 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="./" />
     <title>프로젝트 오메가 - 에테르의 눈물</title>
-    <link rel="stylesheet" href="style.css?v=0.3.1" />
+    <link rel="stylesheet" href="style.css?v=0.3.2" />
   </head>
   <body>
+    <div id="introOverlay" class="intro-overlay" role="dialog" aria-modal="true" aria-label="인트로" tabindex="0">
+      <svg class="intro__bg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="intro-sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0e1a2b" />
+            <stop offset="55%" stop-color="#1c2b3c" />
+            <stop offset="100%" stop-color="#1f2a26" />
+          </linearGradient>
+          <linearGradient id="intro-glow" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#2a4c6d" stop-opacity="0.8" />
+            <stop offset="100%" stop-color="#14202f" stop-opacity="0" />
+          </linearGradient>
+          <linearGradient id="intro-hill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1b2e1f" />
+            <stop offset="100%" stop-color="#0f1913" />
+          </linearGradient>
+          <linearGradient id="intro-forest" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#17231a" />
+            <stop offset="100%" stop-color="#0a120d" />
+          </linearGradient>
+        </defs>
+        <rect width="1200" height="800" fill="url(#intro-sky)" />
+        <circle cx="840" cy="180" r="220" fill="url(#intro-glow)" />
+        <path
+          d="M0 520 C 160 470 320 520 480 500 C 640 480 800 540 960 510 C 1080 490 1160 520 1200 500 L1200 800 L0 800 Z"
+          fill="url(#intro-hill)"
+        />
+        <path
+          d="M0 600 C 220 560 360 620 540 590 C 720 560 900 630 1080 600 L1200 650 L1200 800 L0 800 Z"
+          fill="#111a12"
+        />
+        <path
+          d="M0 640 C 140 620 220 660 320 650 C 420 640 520 670 640 660 C 760 650 840 680 960 670 C 1080 660 1140 690 1200 680 L1200 800 L0 800 Z"
+          fill="url(#intro-forest)"
+        />
+      </svg>
+      <div class="intro__content">
+        <h1 class="intro__title">루카스 어드벤처</h1>
+        <p class="intro__subtitle">빛바랜 들판 위, 새로운 이야기가 시작됩니다.</p>
+      </div>
+      <div class="intro__footer">
+        <p class="intro__hint">시작하려면 화면을 터치하세요</p>
+      </div>
+    </div>
     <div class="app">
       <header class="top-hud" aria-label="탐험 HUD">
         <div class="top-hud__left" id="hud-profile">
@@ -15,7 +59,7 @@
           <div class="profile-meta">
             <div class="profile-row">
               <strong class="profile-name" id="player-name">모험가</strong>
-              <span class="version" id="version-label">v0.3.1</span>
+              <span class="version" id="version-label">v0.3.2</span>
               <button id="btn-reset" class="btn btn--ghost btn--tiny">새 여정</button>
             </div>
             <div class="profile-stats">
@@ -64,6 +108,17 @@
             type="button"
           >
             💾
+          </button>
+          <button
+            id="btn-audio"
+            class="icon-btn icon-btn--audio"
+            aria-label="배경음악 켜기/끄기"
+            aria-pressed="false"
+            data-tooltip="BGM"
+            data-toast="BGM"
+            type="button"
+          >
+            🔈
           </button>
         </div>
       </header>
@@ -372,6 +427,6 @@
 
     <div class="toast" id="save-toast" role="status" aria-live="polite"></div>
 
-    <script id="appMain" src="main.js?v=0.3.1" defer></script>
+    <script id="appMain" src="main.js?v=0.3.2" defer></script>
   </body>
 </html>
