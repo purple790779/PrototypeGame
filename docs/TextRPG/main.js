@@ -1,13 +1,40 @@
-const VERSION = "v0.2.4";
+const VERSION = "v0.2.5";
 const SAVE_SCHEMA_VERSION = 2;
 const SAVE_KEY = "textrpg-omega-save";
 const SLOT_KEYS = ["textrpg_slot_1", "textrpg_slot_2", "textrpg_slot_3"];
 const MAX_LOG_ENTRIES = 60;
 const MAX_COMBAT_LOG = 6;
 const MAIN_SCRIPT = document.getElementById("appMain");
-const BASE = MAIN_SCRIPT?.src
-  ? new URL("./", MAIN_SCRIPT.src)
-  : new URL("./", document.baseURI || window.location.href);
+const scriptSrc = MAIN_SCRIPT?.src;
+const BASE_URL = scriptSrc ? new URL("./", scriptSrc) : new URL("./", window.location.href);
+
+window.__LAST_BOOT_ERROR = null;
+
+function recordBootError(error) {
+  if (!error) return;
+  if (error instanceof Error) {
+    window.__LAST_BOOT_ERROR = `${error.name}: ${error.message}`;
+    return;
+  }
+  if (typeof error === "string") {
+    window.__LAST_BOOT_ERROR = error;
+    return;
+  }
+  if (typeof error === "object") {
+    const message = error.message ?? JSON.stringify(error);
+    window.__LAST_BOOT_ERROR = String(message);
+    return;
+  }
+  window.__LAST_BOOT_ERROR = String(error);
+}
+
+window.addEventListener("error", (event) => {
+  recordBootError(event?.error ?? event?.message ?? "알 수 없는 오류");
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  recordBootError(event?.reason ?? "처리되지 않은 Promise 거부");
+});
 
 const state = {
   data: null,
@@ -181,7 +208,7 @@ function isCombatSnapshotValid(enemyData) {
   if (!enemyData || typeof enemyData !== "object") return false;
   const enemyId = enemyData.id ?? enemyData.enemyId;
   if (!enemyId) return false;
-  const template = state.data?.enemies?.find((item) => item.id === enemyId);
+  const template = state.dataMaps?.enemiesMap?.get(enemyId);
   if (!template) return false;
   const hp = Number(enemyData.hp);
   const maxHp = Number(enemyData.maxHp);
@@ -218,27 +245,34 @@ function clearCombat(reason, { announce = true } = {}) {
   }
 }
 
+function clearCombatState(reason, { announce = true, render = false } = {}) {
+  clearCombat(reason, { announce });
+  if (render) {
+    renderNode();
+  }
+}
+
 function validateAndMigrateSave() {
   if (!state.dataReady) {
-    clearCombat("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
+    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
     return;
   }
-  const enemyMap = state.dataMaps?.enemyMap ?? {};
+  const enemyMap = state.dataMaps?.enemiesMap ?? new Map();
   if (state.inCombat) {
     const enemyId = state.enemy?.id ?? state.enemy?.enemyId ?? null;
-    if (!enemyId || !enemyMap[enemyId] || !isCombatSnapshotValid(state.enemy)) {
-      clearCombat("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.");
+    if (!enemyId || !enemyMap.has(enemyId) || !isCombatSnapshotValid(state.enemy)) {
+      clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
     }
   }
   if (state.pendingCombat) {
     const pendingId = state.pendingCombat?.id ?? state.pendingCombat?.enemyId ?? null;
-    if (!pendingId || !enemyMap[pendingId] || !isCombatSnapshotValid(state.pendingCombat)) {
-      clearCombat("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.");
+    if (!pendingId || !enemyMap.has(pendingId) || !isCombatSnapshotValid(state.pendingCombat)) {
+      clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
     }
   }
   const nodeIds = state.dataMaps?.nodeIds;
   if (nodeIds && !nodeIds.has(state.nodeId)) {
-    state.nodeId = "NODE_PROLOGUE";
+    state.nodeId = getDefaultNodeId();
     logEntry("저장된 위치를 찾지 못해 프롤로그로 이동했습니다.", {
       highlight: true,
       badge: "복구"
@@ -851,8 +885,12 @@ async function runEvent(eventId) {
 }
 
 function renderNode() {
-  if (state.inCombat || !state.dataReady || !state.data) return;
-  const node = state.data.nodes.find((item) => item.node_id === state.nodeId);
+  if (!state.dataReady || !state.data) return;
+  if (state.inCombat && isCombatSnapshotValid(state.enemy)) return;
+  if (state.inCombat && !isCombatSnapshotValid(state.enemy)) {
+    clearCombatState("전투 데이터를 복원할 수 없어 탐험으로 복귀했습니다.");
+  }
+  const node = state.data.nodes.find((item) => item.id === state.nodeId);
   if (!node) return;
   setScene(node.title, node.situation);
 
@@ -971,15 +1009,14 @@ function startCombat(enemyId, nextNode = null) {
 
 function resumeCombat() {
   if (!state.dataReady) {
-    clearCombat("데이터 로드 실패로 전투 상태를 정리했습니다.");
+    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { render: true });
     renderCombatScene();
     renderResumeCombat();
     return;
   }
   if (!state.pendingCombat) return;
   if (!isCombatSnapshotValid(state.pendingCombat)) {
-    clearCombat("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.");
-    renderNode();
+    clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
     renderResumeCombat();
     return;
   }
@@ -1005,7 +1042,7 @@ function renderResumeCombat() {
     return;
   }
   if (state.pendingCombat && !isCombatSnapshotValid(state.pendingCombat)) {
-    clearCombat("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.");
+    clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
     elements.resumeCombat.hidden = true;
     return;
   }
@@ -1026,9 +1063,15 @@ function calcAdvantage() {
 
 function renderCombatScene() {
   if (!elements.combatScene) return;
-  elements.combatScene.hidden = !state.inCombat || !state.dataReady;
-  if (!state.inCombat || !state.dataReady) return;
   const isValidCombat = Boolean(state.player) && isCombatSnapshotValid(state.enemy);
+  if (!state.dataReady || !state.inCombat || !isValidCombat) {
+    elements.combatScene.hidden = true;
+    if (state.inCombat && !isValidCombat) {
+      clearCombatState("전투 데이터를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
+    }
+    return;
+  }
+  elements.combatScene.hidden = false;
   if (elements.combatRecover) {
     elements.combatRecover.hidden = isValidCombat;
   }
@@ -1390,7 +1433,7 @@ function applySaveData(data, { announce = false, render = true, runValidation = 
     delete normalized.__combatStripped;
   }
   state.player = normalizePlayer(normalized.player);
-  state.nodeId = normalized.nodeId ?? "NODE_PROLOGUE";
+  state.nodeId = normalized.nodeId ?? getDefaultNodeId();
   state.log = Array.isArray(normalized.log) ? normalized.log : [];
   state.defeatStreak = Number.isFinite(normalized.defeatStreak) ? normalized.defeatStreak : 0;
   state.lastSavedAt = normalized.savedAt ?? null;
@@ -1439,6 +1482,13 @@ function loadSaveData() {
   return data;
 }
 
+function getDefaultNodeId() {
+  const nodes = state.data?.nodes ?? [];
+  const prologue = nodes.find((node) => node.id === "NODE_PROLOGUE" || node.node_id === "NODE_PROLOGUE");
+  if (prologue?.id) return prologue.id;
+  return nodes[0]?.id ?? "NODE_PROLOGUE";
+}
+
 function loadGame({ render = true } = {}) {
   if (!state.dataReady) {
     return false;
@@ -1462,7 +1512,7 @@ function resetGame(render = true, { clearStorage = false } = {}) {
     localStorage.removeItem(SAVE_KEY);
   }
   state.player = defaultPlayer();
-  state.nodeId = "NODE_PROLOGUE";
+  state.nodeId = getDefaultNodeId();
   state.log = [];
   state.defeatStreak = 0;
   state.inCombat = false;
@@ -1486,6 +1536,95 @@ function runEmergencyReset({ confirm = true } = {}) {
   showToast("긴급 초기화 완료", "success");
 }
 
+function normalizeChoice(choice) {
+  if (!choice || typeof choice !== "object") {
+    return { text: "알 수 없는 선택지", next_node: null, ending_id: null, start_combat: null };
+  }
+  const nextNode = choice.next_node ?? choice.next ?? choice.nextNode ?? null;
+  const endingId = choice.ending_id ?? choice.endingId ?? null;
+  const startCombat = choice.start_combat ?? choice.startCombat ?? null;
+  return {
+    ...choice,
+    next_node: nextNode,
+    ending_id: endingId,
+    start_combat: startCombat
+  };
+}
+
+function normalizeNodes(nodes, errors) {
+  if (!Array.isArray(nodes)) {
+    errors.push({ key: "nodes", message: "nodes 데이터가 배열이 아닙니다." });
+    return [];
+  }
+  return nodes
+    .map((node, index) => {
+      if (!node || typeof node !== "object") {
+        errors.push({ key: "nodes", message: `nodes[${index}]가 객체가 아닙니다.` });
+        return null;
+      }
+      const id = node.node_id ?? node.id ?? node.nodeId;
+      if (!id) {
+        errors.push({ key: "nodes", message: `nodes[${index}]에 id가 없습니다.` });
+        return null;
+      }
+      const choices = Array.isArray(node.choices) ? node.choices.map(normalizeChoice) : [];
+      const eventPool = Array.isArray(node.event_pool) ? node.event_pool : [];
+      return {
+        ...node,
+        id,
+        node_id: id,
+        choices,
+        event_pool: eventPool
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeEnemies(enemies, errors) {
+  if (!Array.isArray(enemies)) {
+    errors.push({ key: "enemies", message: "enemies 데이터가 배열이 아닙니다." });
+    return [];
+  }
+  return enemies.map((enemy, index) => {
+    if (!enemy || typeof enemy !== "object") {
+      errors.push({ key: "enemies", message: `enemies[${index}]가 객체가 아닙니다.` });
+      return {
+        id: `invalid-${index}`,
+        name: "알 수 없는 적",
+        hp: 1,
+        ac: 10,
+        attack: 0,
+        damage: { min: 0, max: 0 }
+      };
+    }
+    const attack = enemy.attack ?? enemy["공격"];
+    const damageMin = enemy.damage?.min ?? enemy.damageMin ?? enemy["피해량"]?.["최소"];
+    const damageMax = enemy.damage?.max ?? enemy.damageMax ?? enemy["피해량"]?.["최대"];
+    return {
+      ...enemy,
+      id: enemy.id ?? enemy.enemyId ?? `enemy-${index}`,
+      name: enemy.name ?? "알 수 없는 적",
+      hp: Number.isFinite(Number(enemy.hp)) ? Number(enemy.hp) : enemy.hp ?? 1,
+      ac: Number.isFinite(Number(enemy.ac)) ? Number(enemy.ac) : enemy.ac ?? 10,
+      attack: Number.isFinite(Number(attack)) ? Number(attack) : 0,
+      damage: {
+        min: Number.isFinite(Number(damageMin)) ? Number(damageMin) : 0,
+        max: Number.isFinite(Number(damageMax)) ? Number(damageMax) : 0
+      }
+    };
+  });
+}
+
+function normalizeDataPayload(payload, errors) {
+  const normalized = { ...payload };
+  normalized.nodes = normalizeNodes(payload.nodes, errors);
+  normalized.events = Array.isArray(payload.events) ? payload.events : [];
+  normalized.items = Array.isArray(payload.items) ? payload.items : [];
+  normalized.enemies = normalizeEnemies(payload.enemies, errors);
+  normalized.endings = Array.isArray(payload.endings) ? payload.endings : [];
+  return normalized;
+}
+
 async function loadData() {
   const sources = [
     { key: "events", file: "data/events.json" },
@@ -1494,21 +1633,26 @@ async function loadData() {
     { key: "nodes", file: "data/nodes.json" },
     { key: "endings", file: "data/endings.json" }
   ];
-  const fetchJson = async (source) => {
-    const url = new URL(`${source.file}?v=${Date.now()}`, BASE);
+  const fetchJson = async (name, relPath) => {
+    const url = new URL(relPath, BASE_URL);
+    url.searchParams.set("v", Date.now());
     let response;
     try {
       response = await fetch(url, { cache: "no-store" });
     } catch (error) {
       throw {
-        file: source.file,
+        type: "network",
+        name,
+        file: relPath,
         url: url.href,
         message: `네트워크 오류: ${error.message}`
       };
     }
     if (!response.ok) {
       throw {
-        file: source.file,
+        type: "http",
+        name,
+        file: relPath,
         url: url.href,
         status: response.status,
         statusText: response.statusText,
@@ -1520,7 +1664,9 @@ async function loadData() {
       payload = await response.json();
     } catch (error) {
       throw {
-        file: source.file,
+        type: "json",
+        name,
+        file: relPath,
         url: url.href,
         message: `JSON 파싱 오류: ${error.message}`
       };
@@ -1528,7 +1674,9 @@ async function loadData() {
     return payload;
   };
 
-  const results = await Promise.allSettled(sources.map((source) => fetchJson(source)));
+  const results = await Promise.allSettled(
+    sources.map((source) => fetchJson(source.key, source.file))
+  );
   const failures = [];
   const payload = {};
 
@@ -1540,7 +1688,7 @@ async function loadData() {
       const info = result.reason ?? {};
       failures.push({
         file: info.file ?? source.file,
-        url: info.url ?? new URL(source.file, BASE).href,
+        url: info.url ?? new URL(source.file, BASE_URL).href,
         status: info.status ?? null,
         statusText: info.statusText ?? "",
         message: info.message ?? "알 수 없는 오류"
@@ -1553,19 +1701,39 @@ async function loadData() {
     state.dataReady = false;
     state.dataLoadFailures = failures;
     state.dataMaps = null;
-    renderDataLoadError(failures);
+    renderDataLoadError(failures, window.__LAST_BOOT_ERROR);
     logDataLoadFailures(failures);
     return false;
   }
 
-  state.data = payload;
+  const normalizeErrors = [];
+  const normalized = normalizeDataPayload(payload, normalizeErrors);
+  if (normalizeErrors.length) {
+    const validationFailures = normalizeErrors.map((error) => ({
+      file: `data/${error.key}.json`,
+      url: new URL(`data/${error.key}.json`, BASE_URL).href,
+      status: null,
+      statusText: "",
+      message: error.message
+    }));
+    state.data = null;
+    state.dataReady = false;
+    state.dataLoadFailures = validationFailures;
+    state.dataMaps = null;
+    renderDataLoadError(validationFailures, window.__LAST_BOOT_ERROR);
+    logDataLoadFailures(validationFailures);
+    return false;
+  }
+
+  state.data = normalized;
   state.dataReady = true;
   state.dataLoadFailures = [];
   state.dataMaps = {
-    enemyMap: Object.fromEntries(payload.enemies.map((enemy) => [enemy.id, enemy])),
-    nodeIds: new Set(payload.nodes.map((node) => node.node_id))
+    nodesMap: new Map(normalized.nodes.map((node) => [node.id, node])),
+    enemiesMap: new Map(normalized.enemies.map((enemy) => [enemy.id, enemy])),
+    nodeIds: new Set(normalized.nodes.map((node) => node.id))
   };
-  renderDataLoadError([]);
+  renderDataLoadError([], window.__LAST_BOOT_ERROR);
   return true;
 }
 
@@ -1604,7 +1772,7 @@ function logDataLoadFailures(failures) {
   });
 }
 
-function renderDataLoadError(failures) {
+function renderDataLoadError(failures, lastBootError) {
   if (!elements.dataError || !elements.dataErrorList) return;
   if (!failures.length) {
     elements.dataError.hidden = true;
@@ -1612,12 +1780,14 @@ function renderDataLoadError(failures) {
     return;
   }
   elements.dataError.hidden = false;
-  elements.dataErrorList.textContent = failures
-    .map((failure) => {
-      const statusLabel = formatDataLoadFailure(failure);
-      return `${failure.file} | ${failure.url} | ${statusLabel}`;
-    })
-    .join("\n");
+  const lines = failures.map((failure) => {
+    const statusLabel = formatDataLoadFailure(failure);
+    return `${failure.file} | ${failure.url} | ${statusLabel}`;
+  });
+  if (lastBootError) {
+    lines.push(`부팅 오류 | ${lastBootError}`);
+  }
+  elements.dataErrorList.textContent = lines.join("\n");
 }
 
 function wipeSave() {
@@ -1635,6 +1805,7 @@ function removeResetParam() {
 async function boot() {
   if (window.__TEXTRPG_BOOTING) return;
   window.__TEXTRPG_BOOTING = true;
+  window.__LAST_BOOT_ERROR = null;
   const params = new URLSearchParams(window.location.search);
   const shouldReset = params.get("reset") === "1" || params.get("reset") === "true";
   if (shouldReset) {
@@ -1642,7 +1813,7 @@ async function boot() {
     removeResetParam();
   }
   setScene("준비 중...", "데이터를 불러오는 중입니다.");
-  renderDataLoadError([]);
+  renderDataLoadError([], window.__LAST_BOOT_ERROR);
   renderResumeCombat();
   const ok = await loadData();
   if (!ok) {
@@ -1657,15 +1828,11 @@ async function boot() {
     showToast("데이터 로드 실패", "error");
     return;
   }
-  if (shouldReset) {
-    resetGame(false, { clearStorage: true });
+  const saved = loadSaveData();
+  if (saved) {
+    applySaveData(saved, { render: false, runValidation: false });
   } else {
-    const saved = loadSaveData();
-    if (saved) {
-      applySaveData(saved, { render: false, runValidation: false });
-    } else {
-      resetGame(false);
-    }
+    resetGame(false);
   }
   validateAndMigrateSave();
   renderNode();
@@ -1727,8 +1894,7 @@ function setupEventListeners() {
     window.location.reload();
   });
   elements.combatRecoverButton?.addEventListener("click", () => {
-    clearCombat("전투 데이터를 복원할 수 없어 탐험으로 복귀했습니다.");
-    renderNode();
+    clearCombatState("사용자 요청 복귀", { render: true });
     renderCombatScene();
   });
   elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
@@ -1773,7 +1939,9 @@ function init() {
   setLogSummary("준비 중...");
   setupEventListeners();
 
-  boot().catch(() => {
+  boot().catch((error) => {
+    recordBootError(error);
+    renderDataLoadError(state.dataLoadFailures ?? [], window.__LAST_BOOT_ERROR);
     setScene("오류", "데이터를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.");
     showToast("데이터를 불러오지 못했습니다.", "error");
   });
