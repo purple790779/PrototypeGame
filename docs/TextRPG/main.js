@@ -1,2033 +1,689 @@
-const VERSION = "v0.2.6";
-const SAVE_SCHEMA_VERSION = 2;
-const SAVE_KEY = "textrpg-omega-save";
-const SLOT_KEYS = ["textrpg_slot_1", "textrpg_slot_2", "textrpg_slot_3"];
-const TEXT_RPG_STORAGE_KEYS = [SAVE_KEY, ...SLOT_KEYS];
-const MAX_LOG_ENTRIES = 60;
-const MAX_COMBAT_LOG = 6;
-const MAIN_SCRIPT = document.getElementById("appMain");
-const scriptSrc = MAIN_SCRIPT?.src;
-const BASE_URL = scriptSrc ? new URL("./", scriptSrc) : new URL("./", window.location.href);
-
-window.__LAST_BOOT_ERROR = null;
-
-function recordBootError(error) {
-  if (!error) return;
-  if (error instanceof Error) {
-    const stack = error.stack ?? "";
-    window.__LAST_BOOT_ERROR = stack ? `${error.name}: ${error.message}\n${stack}` : `${error.name}: ${error.message}`;
-    return;
-  }
-  if (typeof error === "string") {
-    window.__LAST_BOOT_ERROR = error;
-    return;
-  }
-  if (typeof error === "object") {
-    const message = error.message ?? JSON.stringify(error);
-    window.__LAST_BOOT_ERROR = String(message);
-    return;
-  }
-  window.__LAST_BOOT_ERROR = String(error);
-}
-
-window.addEventListener("error", (event) => {
-  recordBootError(event?.error ?? event?.message ?? "알 수 없는 오류");
-});
-
-window.addEventListener("unhandledrejection", (event) => {
-  recordBootError(event?.reason ?? "처리되지 않은 Promise 거부");
-});
-
-const state = {
-  data: null,
-  dataReady: false,
-  dataLoadFailures: [],
-  dataMaps: null,
-  player: null,
-  nodeId: "NODE_PROLOGUE",
-  inCombat: false,
-  enemy: null,
-  pendingCombat: null,
-  typing: false,
-  log: [],
-  combatLog: [],
-  isBusy: false,
-  diceTimer: null,
-  lastSavedAt: null,
-  autoScroll: true,
-  lastSummary: "최근 요약: -",
-  defeatStreak: 0,
-  currentChoices: []
-};
-
-const elements = {
-  sceneTitle: document.getElementById("scene-title"),
-  sceneText: document.getElementById("scene-text"),
-  diceValue: document.getElementById("dice-value"),
-  diceLabel: document.getElementById("dice-label"),
-  combatDiceValue: document.getElementById("combat-dice-value"),
-  combatDiceLabel: document.getElementById("combat-dice-label"),
-  combatDiceBadge: document.getElementById("combat-dice-badge"),
-  resumeCombat: document.getElementById("resume-combat"),
-  resumeCombatButton: document.getElementById("btn-resume-combat"),
-  log: document.getElementById("log"),
-  logSummary: document.getElementById("log-summary"),
-  logScrollBottom: document.getElementById("log-scroll-bottom"),
-  hudHp: document.getElementById("hud-hp"),
-  hudMp: document.getElementById("hud-mp"),
-  hudGold: document.getElementById("hud-gold"),
-  saveButton: document.getElementById("btn-save"),
-  autosaveStatus: document.getElementById("autosave-status"),
-  statusButton: document.getElementById("btn-status"),
-  statusSheet: document.getElementById("status-sheet"),
-  closeStatus: document.getElementById("btn-close-status"),
-  sheetBackdrop: document.getElementById("sheet-backdrop"),
-  statsGrid: document.getElementById("stats-grid"),
-  progressTrust: document.getElementById("progress-trust"),
-  progressInsight: document.getElementById("progress-insight"),
-  statusList: document.getElementById("status-list"),
-  inventoryGrid: document.getElementById("inventory-grid"),
-  toggleTyping: document.getElementById("toggle-typing"),
-  toggleAutoscroll: document.getElementById("toggle-autoscroll"),
-  slotSelect: document.getElementById("slot-select"),
-  slotSaveButton: document.getElementById("btn-slot-save"),
-  slotLoadButton: document.getElementById("btn-slot-load"),
-  actionDock: document.getElementById("action-dock"),
-  dockMain: document.getElementById("dock-main"),
-  dockMore: document.getElementById("dock-more"),
-  actionSheet: document.getElementById("action-sheet"),
-  actionSheetList: document.getElementById("action-sheet-list"),
-  closeActions: document.getElementById("btn-close-actions"),
-  itemSheet: document.getElementById("item-sheet"),
-  itemSheetTitle: document.getElementById("item-sheet-title"),
-  itemSheetGrid: document.getElementById("item-sheet-grid"),
-  closeItems: document.getElementById("btn-close-items"),
-  tooltip: document.getElementById("tooltip"),
-  tooltipContent: document.getElementById("tooltip-content"),
-  tooltipActions: document.getElementById("tooltip-actions"),
-  combatScene: document.getElementById("combat-scene"),
-  combatPlayerName: document.getElementById("combat-player-name"),
-  combatPlayerHp: document.getElementById("combat-player-hp"),
-  combatEnemyName: document.getElementById("combat-enemy-name"),
-  combatEnemyHp: document.getElementById("combat-enemy-hp"),
-  combatPlayerStatus: document.getElementById("combat-player-status"),
-  combatEnemyStatus: document.getElementById("combat-enemy-status"),
-  combatSituation: document.getElementById("combat-situation"),
-  combatAdvantage: document.getElementById("combat-advantage"),
-  combatAdvantageLabel: document.getElementById("combat-advantage-label"),
-  combatMeter: document.getElementById("combat-meter"),
-  combatDicePanel: document.getElementById("combat-dice-panel"),
-  combatLog: document.getElementById("combat-log"),
-  combatDock: document.getElementById("combat-dock"),
-  saveToast: document.getElementById("save-toast"),
-  versionLabel: document.getElementById("version-label"),
-  resetButton: document.getElementById("btn-reset"),
-  emergencyResetButton: document.getElementById("btn-emergency-reset"),
-  dataError: document.getElementById("data-error"),
-  dataErrorList: document.getElementById("data-error-list"),
-  retryLoadButton: document.getElementById("btn-retry-load"),
-  hardResetButton: document.getElementById("btn-hard-reset"),
-  combatRecover: document.getElementById("combat-recover"),
-  combatRecoverButton: document.getElementById("btn-combat-recover")
-};
-
-const statusCatalog = {
-  bleed: { label: "출혈", damage: 2, icon: "🩸" },
-  poison: { label: "중독", damage: 3, icon: "☠️" }
-};
-
-const itemIconMap = {
-  potion_small: "🧪",
-  potion_medium: "🧪",
-  antidote: "🧪",
-  bandage: "🩹",
-  smoke_bomb: "💨",
-  rune_shard: "🪨",
-  ether_map: "🗺️",
-  iron_sword: "⚔️",
-  scout_dagger: "🗡️",
-  ward_amulet: "🛡️"
-};
-
-let saveDebounceId = null;
-let toastTimerId = null;
-
-function defaultPlayer() {
-  return {
-    hp: 42,
-    maxHp: 42,
-    mp: null,
-    maxMp: null,
-    stats: { STR: 2, DEX: 2, INT: 1, LUK: 1, CHA: 1, CON: 1 },
-    gold: 20,
-    inventory: ["potion_small", "potion_small", "bandage"],
-    flags: [],
-    counters: { trust: 0, insight: 0 },
-    status: []
-  };
-}
-
-function normalizePlayer(playerData) {
-  const fallback = defaultPlayer();
-  const safe = playerData && typeof playerData === "object" ? playerData : {};
-  return {
-    ...fallback,
-    ...safe,
-    stats: { ...fallback.stats, ...(safe.stats ?? {}) },
-    counters: { ...fallback.counters, ...(safe.counters ?? {}) },
-    inventory: Array.isArray(safe.inventory) ? safe.inventory : fallback.inventory,
-    flags: Array.isArray(safe.flags) ? safe.flags : fallback.flags,
-    status: Array.isArray(safe.status) ? safe.status : fallback.status
-  };
-}
-
-function stripCombatFromSave(data) {
-  return {
-    ...data,
-    inCombat: false,
-    enemy: null
-  };
-}
-
-function normalizeSaveSchema(data) {
-  const schema = Number(data.saveSchemaVersion);
-  const normalizedSchema = Number.isFinite(schema) ? schema : 0;
-  if (normalizedSchema !== SAVE_SCHEMA_VERSION) {
-    const sanitized = stripCombatFromSave(data);
-    sanitized.saveSchemaVersion = SAVE_SCHEMA_VERSION;
-    sanitized.__combatStripped = true;
-    return sanitized;
-  }
-  return data;
-}
-
-function clearTextRpgStorage() {
-  TEXT_RPG_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
-}
-
-function isCombatSnapshotValid(enemyData) {
-  if (!enemyData || typeof enemyData !== "object") return false;
-  const enemyId = enemyData.id ?? enemyData.enemyId;
-  if (!enemyId) return false;
-  const template = state.dataMaps?.enemiesMap?.get(enemyId);
-  if (!template) return false;
-  const hp = Number(enemyData.hp);
-  const maxHp = Number(enemyData.maxHp);
-  const ac = Number(enemyData.ac);
-  const attack = Number(enemyData.attack);
-  const damageMin = Number(enemyData.damage?.min);
-  const damageMax = Number(enemyData.damage?.max);
-  return (
-    Number.isFinite(hp) &&
-    Number.isFinite(maxHp) &&
-    Number.isFinite(ac) &&
-    Number.isFinite(attack) &&
-    Number.isFinite(damageMin) &&
-    Number.isFinite(damageMax)
-  );
-}
-
-function clearCombat(reason, { announce = true } = {}) {
-  state.inCombat = false;
-  state.enemy = null;
-  state.pendingCombat = null;
-  state.combatLog = [];
-  state.isBusy = false;
-  setChoicesDisabled(false);
-  resetTransientUI();
-  if (announce) {
-    const message = reason ?? "전투 상태를 정리했습니다.";
-    logEntry(message, { highlight: true, badge: "복귀" });
-    setLogSummary(message);
-    showToast("전투 상태를 정리했습니다.", "success");
-  }
-  if (state.player) {
-    saveGame({ silent: true });
-  }
-}
-
-function clearCombatState(reason, { announce = true, render = false } = {}) {
-  clearCombat(reason, { announce });
-  if (render) {
-    renderNode();
-  }
-}
-
-function validateAndMigrateSave() {
-  if (!state.dataReady) {
-    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
-    return;
-  }
-  const enemyMap = state.dataMaps?.enemiesMap ?? new Map();
-  if (state.inCombat) {
-    const enemyId = state.enemy?.id ?? state.enemy?.enemyId ?? null;
-    if (!enemyId || !enemyMap.has(enemyId) || !isCombatSnapshotValid(state.enemy)) {
-      clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
-    }
-  }
-  if (state.pendingCombat) {
-    const pendingId = state.pendingCombat?.id ?? state.pendingCombat?.enemyId ?? null;
-    if (!pendingId || !enemyMap.has(pendingId) || !isCombatSnapshotValid(state.pendingCombat)) {
-      clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
-    }
-  }
-  const nodeIds = state.dataMaps?.nodeIds;
-  if (nodeIds && !nodeIds.has(state.nodeId)) {
-    state.nodeId = getDefaultNodeId();
-    logEntry("저장된 위치를 찾지 못해 프롤로그로 이동했습니다.", {
-      highlight: true,
-      badge: "복구"
-    });
-  }
-}
-
-function logEntry(text, options = {}) {
-  const entry = {
-    text,
-    time: new Date().toLocaleTimeString("ko-KR"),
-    highlight: options.highlight ?? false,
-    tone: options.tone ?? null,
-    badge: options.badge ?? null
-  };
-  state.log.push(entry);
-  if (state.log.length > MAX_LOG_ENTRIES) {
-    state.log = state.log.slice(-MAX_LOG_ENTRIES);
-  }
-  if (state.inCombat) {
-    state.combatLog.push(entry);
-    if (state.combatLog.length > MAX_COMBAT_LOG) {
-      state.combatLog = state.combatLog.slice(-MAX_COMBAT_LOG);
-    }
-    renderCombatLog();
-  }
-  renderLog();
-  if (state.autoScroll) {
-    scrollLogToBottom();
-  }
-}
-
-function renderLog() {
-  elements.log.innerHTML = "";
-  state.log.forEach((entry) => {
-    const line = document.createElement("div");
-    const toneClass = entry.tone ? ` log__entry--${entry.tone}` : "";
-    line.className = `log__entry${entry.highlight ? " log__entry--highlight" : ""}${toneClass}`;
-    const badge = entry.badge ? `<span class="log__badge">${entry.badge}</span>` : "";
-    line.innerHTML = `<strong>[${entry.time}]</strong> ${entry.text}${badge}`;
-    elements.log.appendChild(line);
-  });
-  updateLogScrollButton();
-}
-
-function renderCombatLog() {
-  if (!elements.combatLog) return;
-  elements.combatLog.innerHTML = "";
-  state.combatLog.forEach((entry) => {
-    const line = document.createElement("div");
-    line.textContent = `[${entry.time}] ${entry.text}`;
-    elements.combatLog.appendChild(line);
-  });
-}
-
-function setLogSummary(summary) {
-  state.lastSummary = summary;
-  if (elements.logSummary) {
-    elements.logSummary.textContent = `최근 요약: ${summary}`;
-  }
-}
-
-function getItemById(id) {
-  return state.data?.items?.find((item) => item.id === id) ?? null;
-}
-
-function getItemIcon(item) {
-  if (!item) return "❓";
-  return item.icon ?? itemIconMap[item.id] ?? iconByType(item.type);
-}
-
-function iconByType(type) {
-  if (type === "weapon") return "⚔️";
-  if (type === "artifact") return "📜";
-  if (type === "tool") return "🧰";
-  return "🧪";
-}
-
-function getItemUseKind(item) {
-  if (!item?.effect) return null;
-  if (item.effect.hp) return "heal";
-  if (item.effect.status_remove) return "cure";
-  if (item.effect.buff) return "buff";
-  return null;
-}
-
-function updateHud() {
-  if (!state.player) return;
-  const { player } = state;
-  elements.hudHp.querySelector(".stat-pill__value").textContent = `${player.hp}/${player.maxHp}`;
-  elements.hudGold.querySelector(".stat-pill__value").textContent = `${player.gold}`;
-  if (player.maxMp && player.mp !== null) {
-    elements.hudMp.hidden = false;
-    elements.hudMp.querySelector(".stat-pill__value").textContent = `${player.mp}/${player.maxMp}`;
-  } else {
-    elements.hudMp.hidden = true;
-  }
-  renderStatusSheet();
-  renderCombatScene();
-}
-
-function renderStatusSheet() {
-  if (!state.player) return;
-  const { player } = state;
-  const stats = ["STR", "DEX", "INT", "LUK", "CHA", "CON"]
-    .filter((stat) => Number.isFinite(player.stats[stat]))
-    .map((stat) => ({ label: stat, value: player.stats[stat] }));
-  elements.statsGrid.innerHTML = "";
-  stats.forEach((stat) => {
-    const card = document.createElement("div");
-    card.className = "stat-card";
-    card.innerHTML = `<span>${stat.label}</span><strong>${stat.value}</strong>`;
-    elements.statsGrid.appendChild(card);
-  });
-  elements.progressTrust.textContent = player.counters.trust;
-  elements.progressInsight.textContent = player.counters.insight;
-  renderStatusList(player.status, elements.statusList);
-  renderInventoryGrid(elements.inventoryGrid, player.inventory, { context: "explore" });
-}
-
-function renderStatusList(statusList, container) {
-  container.innerHTML = "";
-  if (!statusList.length) {
-    const empty = document.createElement("div");
-    empty.className = "status-pill";
-    empty.textContent = "현재 상태 이상이 없습니다.";
-    container.appendChild(empty);
-    return;
-  }
-  statusList.forEach((status) => {
-    const meta = statusCatalog[status.id] ?? { label: status.id, icon: "✨" };
-    const pill = document.createElement("div");
-    pill.className = "status-pill";
-    pill.innerHTML = `<span>${meta.icon}</span><span>${meta.label}</span><strong>${status.turns}턴</strong>`;
-    container.appendChild(pill);
-  });
-}
-
-function renderInventoryGrid(container, inventoryIds, { context } = {}) {
-  container.innerHTML = "";
-  if (!inventoryIds.length) {
-    const empty = document.createElement("div");
-    empty.className = "status-pill";
-    empty.textContent = "비어 있음";
-    container.appendChild(empty);
-    return;
-  }
-  inventoryIds.forEach((id) => {
-    const item = getItemById(id);
-    if (!item) return;
-    const useKind = getItemUseKind(item);
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "inventory-item";
-    card.innerHTML = `
-      <span class="inventory-item__icon" aria-hidden="true">${getItemIcon(item)}</span>
-      <span class="inventory-item__name">${item.name}</span>
-      <span class="inventory-item__badge">${useKind ? "사용" : item.type}</span>
-    `;
-    card.setAttribute("aria-label", item.name);
-    card.addEventListener("click", (event) => {
-      const actions = [];
-      if (useKind) {
-        actions.push({
-          label: context === "combat" ? "전투 사용" : "사용",
-          onClick: async () => {
-            hideTooltip();
-            await useItem(item, { context });
-          }
-        });
-      }
-      actions.push({ label: "닫기", onClick: () => hideTooltip() });
-      showTooltip(event.currentTarget, `${item.description ?? "설명 없음"}`, actions);
-    });
-    container.appendChild(card);
-  });
-}
-
-function showTooltip(target, content, actions) {
-  elements.tooltipContent.textContent = content;
-  elements.tooltipActions.innerHTML = "";
-  actions.forEach((action) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = action.label;
-    button.addEventListener("click", () => {
-      void action.onClick();
-    });
-    elements.tooltipActions.appendChild(button);
-  });
-  elements.tooltip.hidden = false;
-  positionTooltip(target);
-  elements.tooltip.focus?.();
-}
-
-function positionTooltip(target) {
-  const rect = target.getBoundingClientRect();
-  const tooltipRect = elements.tooltip.getBoundingClientRect();
-  let top = rect.top - tooltipRect.height - 12;
-  let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
-  if (top < 8) {
-    top = rect.bottom + 12;
-  }
-  if (left < 8) {
-    left = 8;
-  }
-  if (left + tooltipRect.width > window.innerWidth - 8) {
-    left = window.innerWidth - tooltipRect.width - 8;
-  }
-  if (top + tooltipRect.height > window.innerHeight - 8) {
-    top = window.innerHeight - tooltipRect.height - 8;
-  }
-  elements.tooltip.style.top = `${top}px`;
-  elements.tooltip.style.left = `${left}px`;
-}
-
-function hideTooltip() {
-  elements.tooltip.hidden = true;
-}
-
-function setScene(title, text) {
-  elements.sceneTitle.textContent = title;
-  if (!state.typing) {
-    elements.sceneText.textContent = text;
-    return;
-  }
-  elements.sceneText.textContent = "";
-  let index = 0;
-  const interval = setInterval(() => {
-    elements.sceneText.textContent += text[index];
-    index += 1;
-    if (index >= text.length) {
-      clearInterval(interval);
-    }
-  }, 18);
-}
-
-function getDiceElements() {
-  if (state.inCombat) {
-    return { value: elements.combatDiceValue, label: elements.combatDiceLabel };
-  }
-  return { value: elements.diceValue, label: elements.diceLabel };
-}
-
-function animateDice(finalValue, label = "주사위") {
-  const { value, label: labelEl } = getDiceElements();
-  labelEl.textContent = label;
-  value.classList.remove("dice--crit", "dice--fail", "dice--hit");
-  return new Promise((resolve) => {
-    let count = 0;
-    if (state.diceTimer) {
-      clearInterval(state.diceTimer);
-    }
-    const timer = setInterval(() => {
-      value.textContent = Math.floor(Math.random() * 20) + 1;
-      count += 1;
-      if (count > 8) {
-        clearInterval(timer);
-        state.diceTimer = null;
-        value.textContent = finalValue;
-        resolve();
-      }
-    }, 60);
-    state.diceTimer = timer;
-  });
-}
-
-function setDiceTone(tone, badge = "-") {
-  const { value } = getDiceElements();
-  value.classList.remove("dice--crit", "dice--fail", "dice--hit");
-  if (tone) {
-    value.classList.add(`dice--${tone}`);
-  }
-  if (elements.combatDiceBadge) {
-    elements.combatDiceBadge.textContent = badge;
-  }
-}
-
-async function rollD20(modifier, label) {
-  const roll = Math.floor(Math.random() * 20) + 1;
-  await animateDice(roll, label);
-  const total = roll + modifier;
-  return { roll, total, modifier };
-}
-
-function updateLogScrollButton() {
-  if (!elements.log || !elements.logScrollBottom) return;
-  const nearBottom =
-    elements.log.scrollHeight - elements.log.scrollTop - elements.log.clientHeight < 20;
-  elements.logScrollBottom.classList.toggle("is-visible", !nearBottom);
-}
-
-function scrollLogToBottom() {
-  if (!elements.log) return;
-  elements.log.scrollTop = elements.log.scrollHeight;
-  updateLogScrollButton();
-}
-
-function showToast(message, tone = "success") {
-  if (!elements.saveToast) return;
-  elements.saveToast.textContent = message;
-  elements.saveToast.classList.add("is-visible");
-  elements.saveToast.classList.toggle("is-error", tone === "error");
-  if (toastTimerId) {
-    clearTimeout(toastTimerId);
-  }
-  toastTimerId = setTimeout(() => {
-    elements.saveToast.classList.remove("is-visible");
-  }, 1600);
-}
-
-function setAutosaveStatus(timestamp) {
-  if (!elements.autosaveStatus) return;
-  if (!timestamp) {
-    elements.autosaveStatus.textContent = "자동저장: -";
-    return;
-  }
-  const time = new Date(timestamp).toLocaleTimeString("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-  elements.autosaveStatus.textContent = `자동저장: ${time}`;
-}
-
-function setChoicesDisabled(isDisabled) {
-  const buttons = document.querySelectorAll("button");
-  buttons.forEach((button) => {
-    if (button.closest(".dock") || button.closest(".combat-dock")) {
-      button.disabled = isDisabled;
-    }
-  });
-}
-
-function renderActionDock(choiceList) {
-  state.currentChoices = choiceList;
-  elements.dockMain.innerHTML = "";
-  const maxPrimary = 4;
-  const primary = choiceList.slice(0, maxPrimary);
-  const overflow = choiceList.slice(maxPrimary);
-  primary.forEach((choice) => {
-    const button = document.createElement("button");
-    button.textContent = choice.text;
-    button.disabled = state.isBusy;
-    if (choice.danger) {
-      button.style.color = "var(--danger)";
-    }
-    button.addEventListener("click", async () => {
-      if (state.isBusy) return;
-      state.isBusy = true;
-      setChoicesDisabled(true);
-      try {
-        await Promise.resolve(choice.onSelect());
-      } finally {
-        state.isBusy = false;
-        setChoicesDisabled(false);
-      }
-    });
-    elements.dockMain.appendChild(button);
-  });
-  if (overflow.length) {
-    elements.dockMore.hidden = false;
-    elements.dockMore.onclick = () => openActionSheet(overflow);
-  } else {
-    elements.dockMore.hidden = true;
-  }
-}
-
-function openActionSheet(choiceList) {
-  elements.actionSheetList.innerHTML = "";
-  choiceList.forEach((choice) => {
-    const button = document.createElement("button");
-    button.textContent = choice.text;
-    button.disabled = state.isBusy;
-    button.addEventListener("click", async () => {
-      closeSheet(elements.actionSheet);
-      if (state.isBusy) return;
-      state.isBusy = true;
-      setChoicesDisabled(true);
-      try {
-        await Promise.resolve(choice.onSelect());
-      } finally {
-        state.isBusy = false;
-        setChoicesDisabled(false);
-      }
-    });
-    elements.actionSheetList.appendChild(button);
-  });
-  openSheet(elements.actionSheet);
-}
-
-function renderCombatDock() {
-  if (!elements.combatDock) return;
-  elements.combatDock.innerHTML = "";
-  if (!state.dataReady || !state.inCombat || !state.player || !isCombatSnapshotValid(state.enemy)) {
-    const button = document.createElement("button");
-    button.textContent = "탐험으로 복귀";
-    button.addEventListener("click", () => {
-      clearCombat("전투 데이터를 복원할 수 없어 탐험으로 복귀했습니다.");
-      renderNode();
-      renderCombatScene();
-    });
-    elements.combatDock.appendChild(button);
-    return;
-  }
-  const buttons = [
-    { label: "공격", action: () => combatPlayerAttack() },
-    { label: "방어", action: () => combatDefend() },
-    { label: "아이템", action: () => openItemSheet("combat") },
-    { label: "후퇴", action: () => combatEscape() }
-  ];
-  buttons.forEach((btn) => {
-    const button = document.createElement("button");
-    button.textContent = btn.label;
-    button.disabled = state.isBusy;
-    button.addEventListener("click", async () => {
-      if (state.isBusy) return;
-      state.isBusy = true;
-      setChoicesDisabled(true);
-      try {
-        await Promise.resolve(btn.action());
-      } finally {
-        state.isBusy = false;
-        setChoicesDisabled(false);
-      }
-    });
-    elements.combatDock.appendChild(button);
-  });
-}
-
-function openItemSheet(context) {
-  const inventoryIds = state.player.inventory;
-  elements.itemSheetTitle.textContent = context === "combat" ? "전투 아이템" : "아이템";
-  renderInventoryGrid(elements.itemSheetGrid, inventoryIds, { context });
-  openSheet(elements.itemSheet);
-}
-
-function openSheet(sheet) {
-  sheet.hidden = false;
-  elements.sheetBackdrop.hidden = false;
-}
-
-function closeSheet(sheet) {
-  sheet.hidden = true;
-  if (
-    elements.statusSheet.hidden &&
-    elements.actionSheet.hidden &&
-    elements.itemSheet.hidden
-  ) {
-    elements.sheetBackdrop.hidden = true;
-  }
-}
-
-function getWeaponBonus() {
-  const weaponItems = state.player.inventory
-    .map((id) => getItemById(id))
-    .filter((item) => item && item.type === "weapon");
-  if (!weaponItems.length) {
-    return { toHit: 0, damage: 1 };
-  }
-  const best = weaponItems.sort((a, b) => (b.bonus?.damage ?? 0) - (a.bonus?.damage ?? 0))[0];
-  return { toHit: best.bonus?.to_hit ?? 0, damage: best.bonus?.damage ?? 1 };
-}
-
-function getAcBonus() {
-  const amulets = state.player.inventory
-    .map((id) => getItemById(id))
-    .filter((item) => item && item.effect?.ac_bonus);
-  return amulets.reduce((sum, item) => sum + item.effect.ac_bonus, 0);
-}
-
-function applyEffects(effects = []) {
-  effects.forEach((effect) => {
-    if (effect.hp) {
-      state.player.hp = Math.min(state.player.maxHp, Math.max(0, state.player.hp + effect.hp));
-    }
-    if (effect.gold) {
-      state.player.gold = Math.max(0, state.player.gold + effect.gold);
-    }
-    if (effect.item) {
-      state.player.inventory.push(effect.item);
-      const name = getItemById(effect.item)?.name ?? effect.item;
-      logEntry(`${name}을(를) 획득했다.`, { highlight: true, badge: "획득" });
-    }
-    if (effect.flag_add) {
-      if (!state.player.flags.includes(effect.flag_add)) {
-        state.player.flags.push(effect.flag_add);
-        logEntry("중요한 변화가 감지되었다.", { highlight: true });
-      }
-    }
-    if (effect.trust) {
-      state.player.counters.trust += effect.trust;
-    }
-    if (effect.insight) {
-      state.player.counters.insight += effect.insight;
-    }
-    if (effect.status_add) {
-      state.player.status.push({ id: effect.status_add, turns: effect.turns ?? 2 });
-      logEntry(
-        `${statusCatalog[effect.status_add]?.label ?? "상태 이상"}이(가) 부여되었다.`,
-        { highlight: true, badge: "상태" }
-      );
-    }
-    if (effect.status_remove) {
-      state.player.status = state.player.status.filter((s) => !effect.status_remove.includes(s.id));
-    }
-    if (effect.next_node) {
-      state.nodeId = effect.next_node;
-    }
-    if (effect.start_combat) {
-      startCombat(effect.start_combat);
-    }
-  });
-  updateHud();
-}
-
-function requirementsMet(requirements = {}) {
-  if (requirements.min_trust && state.player.counters.trust < requirements.min_trust) {
-    return false;
-  }
-  if (requirements.min_insight && state.player.counters.insight < requirements.min_insight) {
-    return false;
-  }
-  if (requirements.items) {
-    const hasAll = requirements.items.every((id) => state.player.inventory.includes(id));
-    if (!hasAll) return false;
-  }
-  return true;
-}
-
-function eventConditionMet(condition = {}) {
-  if (condition.min_trust && state.player.counters.trust < condition.min_trust) {
-    return false;
-  }
-  if (condition.min_insight && state.player.counters.insight < condition.min_insight) {
-    return false;
-  }
-  if (condition.flags_include) {
-    const hasFlags = condition.flags_include.every((flag) => state.player.flags.includes(flag));
-    if (!hasFlags) return false;
-  }
-  if (condition.flags_exclude) {
-    const blocked = condition.flags_exclude.some((flag) => state.player.flags.includes(flag));
-    if (blocked) return false;
-  }
-  if (condition.items_include) {
-    const hasItems = condition.items_include.every((id) => state.player.inventory.includes(id));
-    if (!hasItems) return false;
-  }
-  return true;
-}
-
-function isCrisisState() {
-  if (!state.player) return false;
-  const hpRatio = state.player.maxHp ? state.player.hp / state.player.maxHp : 1;
-  return hpRatio <= 0.25 || state.defeatStreak >= 2;
-}
-
-async function runEvent(eventId) {
-  const event = state.data.events.find((item) => item.id === eventId);
-  if (!event) return;
-  setScene(event.title, "잠시 긴장이 감돈다...");
-  logEntry(`이벤트: ${event.title}`);
-
-  if (event.check.type === "combat") {
-    await animateDice("⚔️", "전투");
-    startCombat(event.check.enemy);
-    return;
-  }
-
-  if (event.check.type === "none") {
-    const result = event.results.success;
-    setScene(event.title, result.text);
-    logEntry(result.text);
-    setLogSummary(`이벤트: ${event.title} - ${result.text}`);
-    applyEffects(result.effects);
-    saveGame();
-    renderNode();
-    return;
-  }
-
-  const stat = event.check.stat;
-  const modifier = state.player.stats[stat] ?? 0;
-  const roll = await rollD20(modifier, `${stat} 판정`);
-  const isCritSuccess = roll.roll === 20;
-  const isCritFail = roll.roll === 1;
-  let resultKey = roll.total >= event.check.dc ? "success" : "fail";
-  if (isCritSuccess && event.results.crit_success) resultKey = "crit_success";
-  if (isCritFail && event.results.crit_fail) resultKey = "crit_fail";
-
-  const result = event.results[resultKey];
-  const outcomeLabel =
-    resultKey === "crit_success"
-      ? "대성공"
-      : resultKey === "crit_fail"
-        ? "대실패"
-        : resultKey === "success"
-          ? "성공"
-          : "실패";
-  setScene(event.title, `${result.text} (굴림 ${roll.roll} + ${roll.modifier} = ${roll.total})`);
-  logEntry(result.text, {
-    highlight: resultKey === "crit_success" || resultKey === "crit_fail",
-    tone: resultKey === "crit_fail" ? "fail" : resultKey === "crit_success" ? "crit" : null,
-    badge: outcomeLabel
-  });
-  setLogSummary(`${event.title} 판정 ${outcomeLabel}: ${result.text}`);
-  setDiceTone(resultKey === "crit_success" ? "crit" : resultKey === "crit_fail" ? "fail" : "hit", outcomeLabel);
-  applyEffects(result.effects);
-  saveGame();
-  renderNode();
-}
-
-function renderNode() {
-  if (!state.dataReady || !state.data) return;
-  if (state.inCombat && isCombatSnapshotValid(state.enemy)) return;
-  if (state.inCombat && !isCombatSnapshotValid(state.enemy)) {
-    clearCombatState("전투 데이터를 복원할 수 없어 탐험으로 복귀했습니다.");
-  }
-  const node = state.data.nodes.find((item) => item.id === state.nodeId);
-  if (!node) return;
-  setScene(node.title, node.situation);
-
-  const choices = [];
-  if (node.event_pool && node.event_pool.length) {
-    choices.push({
-      text: "주변을 탐색한다",
-      onSelect: async () => {
-        const pool = node.event_pool.filter((eventId) => {
-          const event = state.data.events.find((item) => item.id === eventId);
-          return event && eventConditionMet(event.condition);
-        });
-        const eventId = pool.length ? pool[Math.floor(Math.random() * pool.length)] : node.event_pool[0];
-        await runEvent(eventId);
-      }
-    });
-  }
-
-  node.choices.forEach((choice) => {
-    const locked = choice.requirements && !requirementsMet(choice.requirements);
-    choices.push({
-      text: locked ? `${choice.text} (조건 미충족)` : choice.text,
-      danger: locked,
-      onSelect: async () => {
-        if (locked) {
-          logEntry("조건이 충족되지 않았다.");
-          return;
-        }
-        if (choice.impact) {
-          applyEffects([choice.impact]);
-        }
-        if (choice.start_combat) {
-          startCombat(choice.start_combat, choice.next_node);
-          return;
-        }
-        if (choice.ending_id) {
-          showEnding(choice.ending_id);
-          return;
-        }
-        if (choice.next_node) {
-          state.nodeId = choice.next_node;
-        }
-        saveGame({ silent: true });
-        renderNode();
-      }
-    });
-  });
-
-  if (isCrisisState()) {
-    choices.push({
-      text: "휴식하며 정비한다",
-      danger: false,
-      onSelect: () => {
-        const heal = Math.ceil(state.player.maxHp * 0.3);
-        state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
-        state.player.status = [];
-        state.defeatStreak = 0;
-        logEntry("위기에서 벗어나기 위해 잠시 숨을 고르며 정비했다.", { highlight: true });
-        setLogSummary("위기 회복: 휴식으로 체력을 보강했다.");
-        saveGame({ silent: true });
-        renderNode();
-      }
-    });
-  }
-
-  renderActionDock(choices);
-  updateHud();
-  renderResumeCombat();
-}
-
-function applyStatus(target, label) {
-  if (!target.status.length) return 0;
-  let total = 0;
-  target.status = target.status
-    .map((status) => {
-      const damage = statusCatalog[status.id]?.damage ?? 0;
-      total += damage;
-      return { ...status, turns: status.turns - 1 };
-    })
-    .filter((status) => status.turns > 0);
-  if (total > 0) {
-    target.hp = Math.max(0, target.hp - total);
-    logEntry(`${label}이(가) 상태 이상 피해 ${total}을(를) 받았다.`);
-  }
-  return total;
-}
-
-function startCombat(enemyId, nextNode = null) {
-  if (!state.dataReady) {
-    logEntry("전투 데이터를 불러오지 못해 전투를 시작할 수 없습니다.", { tone: "fail" });
-    renderNode();
-    return;
-  }
-  const enemyTemplate = state.data.enemies.find((item) => item.id === enemyId);
-  if (!enemyTemplate) {
-    logEntry("전투 데이터를 찾지 못해 전투를 시작하지 않았습니다.", { tone: "fail" });
-    renderNode();
-    return;
-  }
-  state.inCombat = true;
-  state.enemy = {
-    ...enemyTemplate,
-    maxHp: enemyTemplate.hp,
-    status: [],
-    nextNode
-  };
-  state.pendingCombat = null;
-  state.combatLog = [];
-  setScene(`전투 - ${enemyTemplate.name}`, `${enemyTemplate.name}과(와) 마주쳤다.`);
-  logEntry(`${enemyTemplate.name} 전투 시작.`, { highlight: true, badge: "전투" });
-  setLogSummary(`${enemyTemplate.name}과(와) 전투에 돌입했다.`);
-  renderCombatScene();
-  renderCombatDock();
-  updateHud();
-}
-
-function resumeCombat() {
-  if (!state.dataReady) {
-    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { render: true });
-    renderCombatScene();
-    renderResumeCombat();
-    return;
-  }
-  if (!state.pendingCombat) return;
-  if (!isCombatSnapshotValid(state.pendingCombat)) {
-    clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
-    renderResumeCombat();
-    return;
-  }
-  state.inCombat = true;
-  state.enemy = state.pendingCombat;
-  state.pendingCombat = null;
-  state.combatLog = [];
-  setScene(`전투 - ${state.enemy.name}`, "전투를 재개한다.");
-  logEntry(`${state.enemy.name} 전투를 재개했다.`, { highlight: true, badge: "전투" });
-  renderCombatScene();
-  renderCombatDock();
-  updateHud();
-  renderResumeCombat();
-}
-
-function renderResumeCombat() {
-  if (!elements.resumeCombat) return;
-  if (elements.resumeCombatButton) {
-    elements.resumeCombatButton.disabled = !state.dataReady || !state.pendingCombat;
-  }
-  if (!state.dataReady) {
-    elements.resumeCombat.hidden = true;
-    return;
-  }
-  if (state.pendingCombat && !isCombatSnapshotValid(state.pendingCombat)) {
-    clearCombatState("저장된 전투를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
-    elements.resumeCombat.hidden = true;
-    return;
-  }
-  elements.resumeCombat.hidden = !state.pendingCombat;
-}
-
-function calcAdvantage() {
-  if (!state.enemy || !state.player) return 50;
-  const weapon = getWeaponBonus();
-  const playerDpr = (weapon.damage + state.player.stats.STR) * 0.6;
-  const enemyAvg = (state.enemy.damage.min + state.enemy.damage.max) / 2;
-  const enemyDpr = enemyAvg * 0.55;
-  const hpRatio = state.player.hp / state.player.maxHp;
-  const enemyHpRatio = state.enemy.hp / state.enemy.maxHp;
-  const raw = (playerDpr / Math.max(1, enemyDpr)) * 50 + (hpRatio - enemyHpRatio) * 50;
-  return Math.max(0, Math.min(100, Math.round(raw + 50)));
-}
-
-function renderCombatScene() {
-  if (!elements.combatScene) return;
-  const isValidCombat = Boolean(state.player) && isCombatSnapshotValid(state.enemy);
-  if (!state.dataReady || !state.inCombat || !isValidCombat) {
-    elements.combatScene.hidden = true;
-    if (state.inCombat && !isValidCombat) {
-      clearCombatState("전투 데이터를 복원할 수 없어 탐험으로 복귀했습니다.", { render: true });
-    }
-    return;
-  }
-  elements.combatScene.hidden = false;
-  if (elements.combatRecover) {
-    elements.combatRecover.hidden = isValidCombat;
-  }
-  if (elements.combatDicePanel) {
-    elements.combatDicePanel.hidden = !isValidCombat;
-  }
-  if (elements.combatMeter) {
-    elements.combatMeter.hidden = !isValidCombat;
-  }
-  if (!isValidCombat) {
-    elements.combatPlayerName.textContent = "모험가";
-    elements.combatEnemyName.textContent = "-";
-    elements.combatPlayerHp.style.width = "0%";
-    elements.combatEnemyHp.style.width = "0%";
-    elements.combatPlayerStatus.textContent = "상태 없음";
-    elements.combatEnemyStatus.textContent = "상태 없음";
-    elements.combatSituation.textContent = "전투 데이터를 복원할 수 없습니다.";
-    elements.combatAdvantage.style.width = "0%";
-    elements.combatAdvantageLabel.textContent = "-";
-    if (elements.combatLog) {
-      elements.combatLog.innerHTML = "";
-    }
-    renderCombatDock();
-    return;
-  }
-  const enemy = state.enemy;
-  const player = state.player;
-  elements.combatPlayerName.textContent = "모험가";
-  elements.combatEnemyName.textContent = enemy.name;
-  const playerRatio = (player.hp / player.maxHp) * 100;
-  const enemyRatio = (enemy.hp / enemy.maxHp) * 100;
-  elements.combatPlayerHp.style.width = `${playerRatio}%`;
-  elements.combatEnemyHp.style.width = `${enemyRatio}%`;
-  elements.combatPlayerStatus.innerHTML = renderStatusIcons(player.status);
-  elements.combatEnemyStatus.innerHTML = renderStatusIcons(enemy.status);
-  elements.combatSituation.textContent = `${enemy.name}과 치열하게 맞서고 있다.`;
-  const advantage = calcAdvantage();
-  elements.combatAdvantage.style.width = `${advantage}%`;
-  elements.combatAdvantageLabel.textContent = `${advantage}%`;
-  renderCombatLog();
-}
-
-function renderStatusIcons(statuses = []) {
-  if (!statuses.length) return "상태 없음";
-  return statuses
-    .map((status) => {
-      const meta = statusCatalog[status.id] ?? { label: status.id, icon: "✨" };
-      return `<span>${meta.icon}${meta.label}(${status.turns})</span>`;
-    })
-    .join(" ");
-}
-
-async function combatPlayerAttack() {
-  if (!state.inCombat) return;
-  applyStatus(state.player, "당신");
-  if (state.player.hp <= 0) {
-    handleDefeat();
-    return;
-  }
-  const weapon = getWeaponBonus();
-  const attackBonus = state.player.stats.STR + weapon.toHit;
-  const roll = await rollD20(attackBonus, "명중 판정");
-  const isCrit = roll.roll === 20;
-  const isCritFail = roll.roll === 1;
-  if (isCritFail) {
-    logEntry("공격이 크게 빗나갔다!", { highlight: true, tone: "fail", badge: "대실패" });
-    setLogSummary("당신의 공격이 크게 빗나갔다.");
-    setDiceTone("fail", "대실패");
-  } else if (isCrit || roll.total >= state.enemy.ac) {
-    const baseDamage = weapon.damage + state.player.stats.STR;
-    const damage = isCrit ? baseDamage * 2 : baseDamage;
-    state.enemy.hp = Math.max(0, state.enemy.hp - damage);
-    logEntry(`공격 성공! ${damage}의 피해를 주었다.`, {
-      highlight: isCrit,
-      tone: isCrit ? "crit" : null,
-      badge: isCrit ? "치명타" : "명중"
-    });
-    setLogSummary(`당신이 ${state.enemy.name}에게 ${damage}의 피해를 입혔다.`);
-    setDiceTone(isCrit ? "crit" : "hit", isCrit ? "치명타" : "명중");
-  } else {
-    logEntry("공격이 빗나갔다.", { badge: "빗나감" });
-    setLogSummary("당신의 공격이 빗나갔다.");
-    setDiceTone("fail", "빗나감");
-  }
-  if (state.enemy.hp <= 0) {
-    handleVictory();
-    return;
-  }
-  await enemyTurn();
-}
-
-async function combatDefend() {
-  if (!state.inCombat) return;
-  logEntry("방어 자세를 취했다. 다음 공격에 대비한다.");
-  setLogSummary("방어 자세로 전환했다.");
-  applyStatus(state.player, "당신");
-  await enemyTurn(true);
-}
-
-async function useItem(item, { context }) {
-  const effect = item.effect ?? {};
-  if (effect.hp) {
-    state.player.hp = Math.min(state.player.maxHp, state.player.hp + effect.hp);
-    logEntry(`${item.name}을 사용해 HP를 회복했다.`, { highlight: true, badge: "회복" });
-    setLogSummary(`${item.name}으로 체력을 회복했다.`);
-  }
-  if (effect.status_remove) {
-    state.player.status = state.player.status.filter((status) => !effect.status_remove.includes(status.id));
-    logEntry(`${item.name}으로 상태 이상을 해제했다.`, { highlight: true, badge: "정화" });
-  }
-  if (effect.buff) {
-    state.player.status.push({ id: effect.buff.id ?? "buff", turns: effect.buff.turns ?? 2 });
-    logEntry(`${item.name}으로 잠시 힘이 솟는다.`, { highlight: true, badge: "강화" });
-  }
-  if (effect.insight) {
-    state.player.counters.insight += effect.insight;
-  }
-  if (effect.trust) {
-    state.player.counters.trust += effect.trust;
-  }
-  state.player.inventory = state.player.inventory.filter((id) => id !== item.id);
-  updateHud();
-  saveGame({ silent: true });
-  if (context === "combat") {
-    state.isBusy = true;
-    setChoicesDisabled(true);
-    try {
-      await enemyTurn();
-    } finally {
-      state.isBusy = false;
-      setChoicesDisabled(false);
-    }
-  }
-}
-
-async function combatEscape() {
-  const smokeBomb = state.player.inventory.includes("smoke_bomb");
-  const bonus = smokeBomb ? 3 : 0;
-  const roll = await rollD20(state.player.stats.DEX + bonus, "후퇴 판정");
-  if (roll.roll === 20 || roll.total >= 14) {
-    logEntry("후퇴에 성공했다!", { highlight: true, badge: "성공" });
-    setLogSummary("후퇴에 성공해 전투를 종료했다.");
-    setDiceTone("hit", "후퇴" );
-    state.inCombat = false;
-    if (smokeBomb) {
-      state.player.inventory = state.player.inventory.filter((id) => id !== "smoke_bomb");
-    }
-    state.player.gold = Math.max(0, state.player.gold - 3);
-    renderCombatScene();
-    renderNode();
-    saveGame({ silent: true });
-    return;
-  }
-  logEntry("후퇴에 실패했다.", { badge: "실패" });
-  setLogSummary("후퇴에 실패해 전투가 이어졌다.");
-  setDiceTone("fail", "실패");
-  await enemyTurn();
-}
-
-async function enemyTurn(defending = false) {
-  const enemy = state.enemy;
-  applyStatus(enemy, enemy.name);
-  if (enemy.hp <= 0) {
-    handleVictory();
-    return;
-  }
-  const playerAc = 10 + state.player.stats.DEX + getAcBonus() + (defending ? 2 : 0);
-  const roll = await rollD20(enemy.attack, "적 명중 판정");
-  const isCrit = roll.roll === 20;
-  const isCritFail = roll.roll === 1;
-  if (isCritFail) {
-    logEntry(`${enemy.name}의 공격이 빗나갔다.`, { badge: "빗나감" });
-    setLogSummary(`${enemy.name}의 공격이 빗나갔다.`);
-    setDiceTone("fail", "빗나감");
-  } else if (isCrit || roll.total >= playerAc) {
-    const baseDamage =
-      Math.floor(Math.random() * (enemy.damage.max - enemy.damage.min + 1)) + enemy.damage.min;
-    const damage = isCrit ? baseDamage + 4 : baseDamage;
-    state.player.hp = Math.max(0, state.player.hp - damage);
-    logEntry(`${enemy.name}의 공격! ${damage}의 피해를 입었다.`, {
-      highlight: isCrit,
-      tone: isCrit ? "fail" : null,
-      badge: isCrit ? "치명타" : "명중"
-    });
-    setLogSummary(`${enemy.name}에게 ${damage}의 피해를 받았다.`);
-    setDiceTone(isCrit ? "crit" : "hit", isCrit ? "치명타" : "명중");
-    if (enemy.status_attack && Math.random() < enemy.status_attack.chance) {
-      state.player.status.push({ id: enemy.status_attack.id, turns: enemy.status_attack.turns });
-      logEntry(
-        `${enemy.name}의 공격으로 ${statusCatalog[enemy.status_attack.id]?.label ?? "상태 이상"} 발생!`,
-        { highlight: true, badge: "상태" }
-      );
-    }
-  } else {
-    logEntry(`${enemy.name}의 공격을 피했다.`, { badge: "회피" });
-    setLogSummary(`${enemy.name}의 공격을 피했다.`);
-    setDiceTone("fail", "회피");
-  }
-
-  updateHud();
-  if (state.player.hp <= 0) {
-    handleDefeat();
-    return;
-  }
-  renderCombatDock();
-  saveGame({ silent: true });
-}
-
-function handleVictory() {
-  const enemy = state.enemy;
-  logEntry(`${enemy.name}을(를) 쓰러뜨렸다.`, { highlight: true, badge: "승리" });
-  setLogSummary(`${enemy.name}을(를) 쓰러뜨리고 전투를 마쳤다.`);
-  state.player.gold += 10;
-  state.player.counters.trust += 1;
-  if (Math.random() < 0.4) {
-    state.player.inventory.push("potion_small");
-    logEntry("전리품으로 물약을 얻었다.", { highlight: true, badge: "획득" });
-  }
-  state.defeatStreak = 0;
-  state.inCombat = false;
-  if (enemy.nextNode) {
-    state.nodeId = enemy.nextNode;
-  }
-  updateHud();
-  saveGame({ silent: true });
-  renderNode();
-}
-
-function handleDefeat() {
-  state.inCombat = false;
-  state.defeatStreak += 1;
-  setLogSummary("전투에서 패배했다. 새 여정을 선택할 수 있다.");
-  const ending = state.data.endings.find((item) => item.id === "ENDING_DEFEAT");
-  showEnding(ending?.id ?? "ENDING_DEFEAT");
-}
-
-function showEnding(endingId) {
-  const ending = state.data.endings.find((item) => item.id === endingId);
-  if (!ending) return;
-  setScene(ending.title, ending.text);
-  logEntry(`엔딩: ${ending.summary}`);
-  renderActionDock([
-    {
-      text: "새 여정 시작",
-      onSelect: () => {
-        resetGame();
-      }
-    }
-  ]);
-}
-
-function createSavePayload() {
-  return {
-    version: VERSION,
-    saveSchemaVersion: SAVE_SCHEMA_VERSION,
-    nodeId: state.nodeId,
-    player: state.player,
-    log: state.log,
-    defeatStreak: state.defeatStreak,
-    inCombat: state.inCombat,
-    enemy: state.enemy,
-    savedAt: new Date().toISOString()
-  };
-}
-
-function cloneData(data) {
-  if (typeof structuredClone === "function") {
-    return structuredClone(data);
-  }
-  return JSON.parse(JSON.stringify(data));
-}
-
-function saveGame({ silent = true } = {}) {
-  const saveData = createSavePayload();
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
-    state.lastSavedAt = saveData.savedAt;
-    setAutosaveStatus(state.lastSavedAt);
-    if (!silent) {
-      showToast("저장 완료");
-    }
-    return true;
-  } catch (error) {
-    console.error("Failed to save game", error);
-    if (!silent) {
-      showToast("저장 실패(저장공간/권한 확인)", "error");
-    }
-    return false;
-  }
-}
-
-function saveGameWithFeedback() {
-  saveGame({ silent: false });
-}
-
-function getSelectedSlotKey() {
-  const slot = elements.slotSelect?.value ?? "1";
-  return SLOT_KEYS[Number(slot) - 1] ?? SLOT_KEYS[0];
-}
-
-function saveSlot() {
-  const key = getSelectedSlotKey();
-  const payload = cloneData(createSavePayload());
-  try {
-    localStorage.setItem(key, JSON.stringify(payload));
-    showToast(`슬롯 저장 완료 (${key.replace("textrpg_slot_", "Slot ")})`);
-  } catch (error) {
-    console.error("Failed to save slot", error);
-    showToast("슬롯 저장 실패", "error");
-  }
-}
-
-function loadSlot() {
-  const key = getSelectedSlotKey();
-  const raw = localStorage.getItem(key);
-  if (!raw) {
-    showToast("슬롯에 저장된 데이터가 없습니다.", "error");
-    return;
-  }
-  const data = parseSaveData(raw);
-  if (!data || !isValidSaveData(data)) {
-    showToast("슬롯 데이터를 읽지 못했습니다.", "error");
-    return;
-  }
-  const ok = window.confirm("현재 진행이 덮어쓰기 됩니다. 불러오시겠습니까?");
-  if (!ok) return;
-  if (data.version !== VERSION) {
-    const proceed = window.confirm(
-      `슬롯 버전(${data.version})이 현재 버전(${VERSION})과 다릅니다. 불러오시겠습니까?`
-    );
-    if (!proceed) return;
-  }
-  applySaveData(data, { announce: true });
-  saveGame({ silent: true });
-}
-
-function parseSaveData(raw) {
-  if (!raw) return null;
-  try {
-    const data = JSON.parse(raw);
-    if (!data || typeof data !== "object") return null;
-    return data;
-  } catch (error) {
-    console.error("Failed to parse save data", error);
-    return null;
-  }
-}
-
-function isValidSaveData(data) {
-  if (!data || typeof data !== "object") return false;
-  if (!data.player || !data.nodeId) return false;
-  return true;
-}
-
-function applySaveData(data, { announce = false, render = true, runValidation = true } = {}) {
-  const normalized = normalizeSaveSchema(data);
-  const combatStripped = Boolean(normalized.__combatStripped);
-  if (combatStripped) {
-    delete normalized.__combatStripped;
-  }
-  state.player = normalizePlayer(normalized.player);
-  state.nodeId = normalized.nodeId ?? getDefaultNodeId();
-  state.log = Array.isArray(normalized.log) ? normalized.log : [];
-  state.defeatStreak = Number.isFinite(normalized.defeatStreak) ? normalized.defeatStreak : 0;
-  state.lastSavedAt = normalized.savedAt ?? null;
-  state.inCombat = false;
-  state.enemy = null;
-  state.pendingCombat = normalized.inCombat && normalized.enemy ? normalized.enemy : null;
-  if (announce) {
-    setLogSummary("불러오기 완료. 최근 기록을 확인하세요.");
-  } else {
-    setLogSummary("최근 기록을 확인하세요.");
-  }
-  if (combatStripped) {
-    logEntry("저장 스키마가 달라 전투 상태만 초기화했습니다.", { highlight: true, badge: "복구" });
-  }
-  if (runValidation) {
-    validateAndMigrateSave();
-  }
-  resetTransientUI();
-  updateHud();
-  renderLog();
-  if (render) {
-    renderNode();
-  }
-  setAutosaveStatus(state.lastSavedAt);
-  if (announce) {
-    showToast("불러오기 완료");
-  }
-}
-
-function loadSaveData() {
-  const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return null;
-  const data = parseSaveData(raw);
-  if (!data || !isValidSaveData(data)) {
-    showToast("세이브를 읽지 못해 새 여정으로 시작합니다.", "error");
-    return null;
-  }
-  if (data.version !== VERSION) {
-    const reset = window.confirm(
-      `세이브 버전(${data.version})과 현재 버전(${VERSION})이 다릅니다. 초기화하시겠습니까?`
-    );
-    if (reset) {
-      return null;
-    }
-  }
-  return data;
-}
-
-function getDefaultNodeId() {
-  const nodes = state.data?.nodes ?? [];
-  const prologue = nodes.find((node) => node.id === "NODE_PROLOGUE" || node.node_id === "NODE_PROLOGUE");
-  if (prologue?.id) return prologue.id;
-  return nodes[0]?.id ?? "NODE_PROLOGUE";
-}
-
-function loadGame({ render = true } = {}) {
-  if (!state.dataReady) {
-    return false;
-  }
-  const data = loadSaveData();
-  if (!data) {
-    resetGame(false);
-    if (render) {
-      renderNode();
-    }
-    return false;
-  }
-  applySaveData(data, { render });
-  return true;
-}
-
-function resetGame(render = true, { clearStorage = false } = {}) {
-  if (clearStorage) {
-    clearTextRpgStorage();
-  } else {
-    localStorage.removeItem(SAVE_KEY);
-  }
-  state.player = defaultPlayer();
-  state.nodeId = getDefaultNodeId();
-  state.log = [];
-  state.defeatStreak = 0;
-  state.inCombat = false;
-  state.enemy = null;
-  state.pendingCombat = null;
-  logEntry("새로운 여정이 시작되었다.");
-  setLogSummary("새로운 여정이 시작되었다.");
-  resetTransientUI();
-  saveGame({ silent: true });
-  if (render) {
-    renderNode();
-  }
-}
-
-function runEmergencyReset({ confirm = true } = {}) {
-  if (confirm) {
-    const ok = window.confirm("모든 저장 데이터를 삭제하고 새 여정을 시작할까요?");
-    if (!ok) return;
-  }
-  resetGame(true, { clearStorage: true });
-  showToast("긴급 초기화 완료", "success");
-}
-
-function normalizeChoice(choice) {
-  if (!choice || typeof choice !== "object") {
-    return { text: "알 수 없는 선택지", next_node: null, ending_id: null, start_combat: null };
-  }
-  const nextNode = choice.next_node ?? choice.next_node_id ?? choice.next ?? choice.nextNode ?? null;
-  const endingId = choice.ending_id ?? choice.endingId ?? null;
-  const startCombat = choice.start_combat ?? choice.startCombat ?? null;
-  return {
-    ...choice,
-    next_node: nextNode,
-    next_node_id: nextNode,
-    nextId: nextNode,
-    ending_id: endingId,
-    endingId,
-    start_combat: startCombat,
-    startCombat
-  };
-}
-
-function normalizeNodes(nodes, errors) {
-  if (!Array.isArray(nodes)) {
-    errors.push({ key: "nodes", message: "nodes 데이터가 배열이 아닙니다." });
-    return [];
-  }
-  return nodes
-    .map((node, index) => {
-      if (!node || typeof node !== "object") {
-        errors.push({ key: "nodes", message: `nodes[${index}]가 객체가 아닙니다.` });
-        return null;
-      }
-      const id = node.node_id ?? node.id ?? node.nodeId;
-      if (!id) {
-        errors.push({ key: "nodes", message: `nodes[${index}]에 id가 없습니다.` });
-        return null;
-      }
-      const choices = Array.isArray(node.choices) ? node.choices.map(normalizeChoice) : [];
-      const eventPool = Array.isArray(node.event_pool) ? node.event_pool : [];
-      return {
-        ...node,
-        id,
-        node_id: id,
-        choices,
-        event_pool: eventPool
-      };
-    })
-    .filter(Boolean);
-}
-
-function normalizeEnemies(enemies, errors) {
-  if (!Array.isArray(enemies)) {
-    errors.push({ key: "enemies", message: "enemies 데이터가 배열이 아닙니다." });
-    return [];
-  }
-  return enemies.map((enemy, index) => {
-    if (!enemy || typeof enemy !== "object") {
-      errors.push({ key: "enemies", message: `enemies[${index}]가 객체가 아닙니다.` });
-      return {
-        id: `invalid-${index}`,
-        name: "알 수 없는 적",
-        hp: 1,
-        ac: 10,
-        attack: 0,
-        damage: { min: 0, max: 0 }
-      };
-    }
-    const attack = enemy.attack ?? enemy["공격"] ?? 0;
-    const damageMin = enemy.damageMin ?? enemy.damage?.min ?? enemy["피해량"]?.["최소"] ?? 1;
-    const damageMax = enemy.damageMax ?? enemy.damage?.max ?? enemy["피해량"]?.["최대"] ?? 2;
-    const statusAttack = enemy.status_attack ?? enemy.statusAttack ?? null;
-    return {
-      ...enemy,
-      id: enemy.id ?? enemy.enemyId ?? `enemy-${index}`,
-      name: enemy.name ?? "알 수 없는 적",
-      hp: Number.isFinite(Number(enemy.hp)) ? Number(enemy.hp) : enemy.hp ?? 1,
-      ac: Number.isFinite(Number(enemy.ac)) ? Number(enemy.ac) : enemy.ac ?? 10,
-      attack: Number.isFinite(Number(attack)) ? Number(attack) : 0,
-      damage: {
-        min: Number.isFinite(Number(damageMin)) ? Number(damageMin) : 1,
-        max: Number.isFinite(Number(damageMax)) ? Number(damageMax) : 2
-      },
-      status_attack: statusAttack,
-      statusAttack
-    };
-  });
-}
-
-function normalizeDataPayload(payload, errors) {
-  const normalized = { ...payload };
-  normalized.nodes = normalizeNodes(payload.nodes, errors);
-  normalized.events = normalizeEntityCollection(payload.events, "events", ["id", "event_id", "eventId"]);
-  normalized.items = normalizeEntityCollection(payload.items, "items", ["id", "item_id", "itemId"]);
-  normalized.enemies = normalizeEnemies(payload.enemies, errors);
-  normalized.endings = normalizeEntityCollection(payload.endings, "endings", ["id", "ending_id", "endingId"]);
-  return normalized;
-}
-
-function normalizeEntityCollection(raw, key, idKeys) {
-  if (!Array.isArray(raw)) {
-    console.warn(`[TextRPG] ${key} 데이터가 배열이 아닙니다.`);
-    return [];
-  }
-  return raw
-    .map((entry, index) => {
-      if (!entry || typeof entry !== "object") {
-        console.warn(`[TextRPG] ${key}[${index}]가 객체가 아닙니다.`);
-        return null;
-      }
-      const id = idKeys.map((field) => entry[field]).find((value) => Boolean(value));
-      if (!id) {
-        console.warn(`[TextRPG] ${key}[${index}]에 id가 없습니다.`);
-        return null;
-      }
-      return { ...entry, id };
-    })
-    .filter(Boolean);
-}
-
-async function loadData() {
-  const sources = [
-    { key: "events", file: "data/events.json" },
-    { key: "items", file: "data/items.json" },
-    { key: "enemies", file: "data/enemies.json" },
-    { key: "nodes", file: "data/nodes.json" },
-    { key: "endings", file: "data/endings.json" }
-  ];
-  const fetchJson = async (name, relPath) => {
-    const url = new URL(relPath, BASE_URL);
-    url.searchParams.set("v", Date.now());
-    let response;
-    try {
-      response = await fetch(url, { cache: "no-store" });
-    } catch (error) {
-      throw {
-        type: "network",
-        name,
-        file: relPath,
-        url: url.href,
-        message: `네트워크 오류: ${error.message}`
-      };
-    }
-    if (!response.ok) {
-      throw {
-        type: "http",
-        name,
-        file: relPath,
-        url: url.href,
-        status: response.status,
-        statusText: response.statusText,
-        message: `HTTP ${response.status}`
-      };
-    }
-    let payload;
-    try {
-      payload = await response.json();
-    } catch (error) {
-      throw {
-        type: "json",
-        name,
-        file: relPath,
-        url: url.href,
-        message: `JSON 파싱 오류: ${error.message}`
-      };
-    }
-    return payload;
-  };
-
-  const results = await Promise.allSettled(
-    sources.map((source) => fetchJson(source.key, source.file))
-  );
-  const failures = [];
-  const payload = {};
-
-  results.forEach((result, index) => {
-    const source = sources[index];
-    if (result.status === "fulfilled") {
-      payload[source.key] = result.value;
-    } else {
-      const info = result.reason ?? {};
-      failures.push({
-        file: info.file ?? source.file,
-        url: info.url ?? new URL(source.file, BASE_URL).href,
-        status: info.status ?? null,
-        statusText: info.statusText ?? "",
-        message: info.message ?? "알 수 없는 오류"
-      });
-    }
-  });
-
-  if (failures.length) {
-    state.data = null;
-    state.dataReady = false;
-    state.dataLoadFailures = failures;
-    state.dataMaps = null;
-    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
-    renderDataFail(failures, window.__LAST_BOOT_ERROR);
-    logDataLoadFailures(failures);
-    return { ok: false, failures };
-  }
-
-  const normalizeErrors = [];
-  const normalized = normalizeDataPayload(payload, normalizeErrors);
-  if (normalizeErrors.length) {
-    const validationFailures = normalizeErrors.map((error) => ({
-      file: `data/${error.key}.json`,
-      url: new URL(`data/${error.key}.json`, BASE_URL).href,
-      status: null,
-      statusText: "",
-      message: error.message
-    }));
-    state.data = null;
-    state.dataReady = false;
-    state.dataLoadFailures = validationFailures;
-    state.dataMaps = null;
-    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
-    renderDataFail(validationFailures, window.__LAST_BOOT_ERROR);
-    logDataLoadFailures(validationFailures);
-    return { ok: false, failures: validationFailures };
-  }
-
-  state.data = normalized;
-  state.dataReady = true;
-  state.dataLoadFailures = [];
-  state.dataMaps = {
-    nodesMap: new Map(normalized.nodes.map((node) => [node.id, node])),
-    enemiesMap: new Map(normalized.enemies.map((enemy) => [enemy.id, enemy])),
-    nodeIds: new Set(normalized.nodes.map((node) => node.id))
-  };
-  renderDataLoadError([], window.__LAST_BOOT_ERROR);
-  return { ok: true, data: normalized, maps: state.dataMaps };
-}
-
-function resetTransientUI() {
-  state.isBusy = false;
-  if (state.diceTimer) {
-    clearInterval(state.diceTimer);
-    state.diceTimer = null;
-  }
-  elements.diceValue.textContent = "--";
-  elements.diceLabel.textContent = "주사위 대기";
-  elements.combatDiceValue.textContent = "--";
-  elements.combatDiceLabel.textContent = "전투 판정";
-  elements.combatDiceBadge.textContent = "-";
-  elements.diceValue.classList.remove("dice--crit", "dice--fail", "dice--hit");
-  elements.combatDiceValue.classList.remove("dice--crit", "dice--fail", "dice--hit");
-  hideTooltip();
-  closeSheet(elements.statusSheet);
-  closeSheet(elements.actionSheet);
-  closeSheet(elements.itemSheet);
-}
-
-function formatDataLoadFailure(failure) {
-  const parts = [];
-  if (failure.status) {
-    parts.push(`HTTP ${failure.status}${failure.statusText ? ` ${failure.statusText}` : ""}`);
-  }
-  if (failure.message) {
-    parts.push(failure.message);
-  }
-  return parts.join(" | ") || "알 수 없는 오류";
-}
-
-function logDataLoadFailures(failures) {
-  failures.forEach((failure) => {
-    const statusLabel = formatDataLoadFailure(failure);
-    const message = `데이터 로드 실패: ${failure.file} | ${failure.url} | ${statusLabel}`;
-    logEntry(message, { highlight: true, tone: "fail", badge: "로드" });
-    console.error(message);
-  });
-}
-
-function renderDataLoadError(failures, lastBootError) {
-  if (!elements.dataError || !elements.dataErrorList) return;
-  if (!failures.length) {
-    elements.dataError.hidden = true;
-    elements.dataErrorList.textContent = "";
-    return;
-  }
-  elements.dataError.hidden = false;
-  const lines = failures.map((failure) => {
-    const statusLabel = formatDataLoadFailure(failure);
-    return `${failure.file} | ${failure.url} | ${statusLabel}`;
-  });
-  if (lastBootError) {
-    lines.push(`부팅 오류 | ${lastBootError}`);
-  }
-  elements.dataErrorList.textContent = lines.join("\n");
-}
-
-function renderDataFail(failures, lastBootError) {
-  renderDataLoadError(failures, lastBootError);
-  if (elements.resumeCombat) {
-    elements.resumeCombat.hidden = true;
-  }
-  if (elements.combatScene) {
-    elements.combatScene.hidden = true;
-  }
-  if (elements.combatRecover) {
-    elements.combatRecover.hidden = true;
-  }
-  if (elements.combatDicePanel) {
-    elements.combatDicePanel.hidden = true;
-  }
-  if (elements.combatMeter) {
-    elements.combatMeter.hidden = true;
-  }
-}
-
-function wipeSave() {
-  clearTextRpgStorage();
-}
-
-function removeResetParam() {
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has("reset")) return;
-  url.searchParams.delete("reset");
-  const next = `${url.pathname}${url.search}${url.hash}`;
-  window.history.replaceState({}, "", next);
-}
-
-async function boot() {
-  if (window.__TEXTRPG_BOOTING) return;
-  window.__TEXTRPG_BOOTING = true;
+(() => {
+  const VERSION = "v0.2.7";
+  const SAVE_KEY = "textrpg-omega-save";
+  const STORAGE_PREFIX = "textrpg";
+  const MAIN_SCRIPT = document.getElementById("appMain");
+  const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
+  const BASE_URL = new URL("./", scriptSrc);
+
+  window.__ENGINE = VERSION;
   window.__LAST_BOOT_ERROR = null;
-  const params = new URLSearchParams(window.location.search);
-  const shouldReset = params.get("reset") === "1" || params.get("reset") === "true";
-  if (shouldReset) {
-    wipeSave();
-    removeResetParam();
-  }
-  setScene("준비 중...", "데이터를 불러오는 중입니다.");
-  renderDataLoadError([], window.__LAST_BOOT_ERROR);
-  renderResumeCombat();
-  const loadResult = await loadData();
-  if (!loadResult.ok) {
-    const saved = loadSaveData();
-    if (saved) {
-      applySaveData(saved, { render: false, runValidation: false });
-      clearCombat("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
+
+  function recordBootError(error) {
+    if (!error) return;
+    if (error instanceof Error) {
+      const stack = error.stack ?? "";
+      window.__LAST_BOOT_ERROR = stack
+        ? `${error.name}: ${error.message}\n${stack}`
+        : `${error.name}: ${error.message}`;
+      return;
     }
-    renderDataFail(loadResult.failures ?? state.dataLoadFailures, window.__LAST_BOOT_ERROR);
-    renderCombatScene();
-    renderResumeCombat();
-    setScene("데이터 로드 실패", "데이터 로드에 실패했습니다. 아래 오류를 확인해주세요.");
-    showToast("데이터 로드 실패", "error");
-    return;
-  }
-  const saved = loadSaveData();
-  if (saved) {
-    applySaveData(saved, { render: false, runValidation: false });
-  } else {
-    resetGame(false);
-  }
-  validateAndMigrateSave();
-  renderNode();
-  renderCombatScene();
-  renderResumeCombat();
-}
-
-function renderFatal(error, failures, lastBootError) {
-  recordBootError(error);
-  const details = lastBootError ?? window.__LAST_BOOT_ERROR;
-  renderDataFail(failures ?? [], details);
-  setScene("치명적 오류", "부팅 중 치명적 오류가 발생했습니다. 아래 정보를 확인해주세요.");
-  showToast("부팅 오류", "error");
-}
-
-function finalizeBootUI() {
-  state.isBusy = false;
-  if (
-    elements.sceneTitle?.textContent === "준비 중..." ||
-    elements.sceneText?.textContent === "데이터를 불러오는 중입니다."
-  ) {
-    setScene("오류", "부팅이 완료되지 않았습니다. 새로고침 후 다시 시도해주세요.");
-  }
-}
-
-function scheduleSave() {
-  if (saveDebounceId) return;
-  saveDebounceId = setTimeout(() => {
-    saveDebounceId = null;
-    saveGame({ silent: true });
-  }, 120);
-}
-
-function handleVisibilityChange() {
-  if (document.visibilityState === "hidden") {
-    saveGame({ silent: true });
-  }
-}
-
-function handlePageShow(event) {
-  if (event.persisted) {
-    loadGame();
-    resetTransientUI();
-    showToast("복귀 완료", "success");
-  }
-}
-
-function handleTabSwitch(event) {
-  const tab = event.target.closest(".sheet__tab");
-  if (!tab) return;
-  const key = tab.dataset.tab;
-  document.querySelectorAll(".sheet__tab").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.tab === key);
-  });
-  document.querySelectorAll(".sheet__panel").forEach((panel) => {
-    panel.classList.toggle("is-active", panel.dataset.panel === key);
-  });
-}
-
-function setupEventListeners() {
-  elements.toggleTyping.addEventListener("change", (event) => {
-    state.typing = event.target.checked;
-  });
-  elements.toggleAutoscroll?.addEventListener("change", (event) => {
-    state.autoScroll = event.target.checked;
-    if (state.autoScroll) {
-      scrollLogToBottom();
+    if (typeof error === "string") {
+      window.__LAST_BOOT_ERROR = error;
+      return;
     }
-  });
-  elements.resetButton.addEventListener("click", () => resetGame());
-  elements.emergencyResetButton?.addEventListener("click", () => runEmergencyReset());
-  elements.retryLoadButton?.addEventListener("click", () => {
-    window.location.reload();
-  });
-  elements.hardResetButton?.addEventListener("click", () => {
-    wipeSave();
-    window.location.reload();
-  });
-  elements.combatRecoverButton?.addEventListener("click", () => {
-    clearCombatState("사용자 요청: 탐험으로 복귀", { render: true });
-    renderNode();
-    renderCombatScene();
-  });
-  elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
-  elements.slotSaveButton?.addEventListener("click", () => saveSlot());
-  elements.slotLoadButton?.addEventListener("click", () => loadSlot());
-  elements.statusButton?.addEventListener("click", () => openSheet(elements.statusSheet));
-  elements.closeStatus?.addEventListener("click", () => closeSheet(elements.statusSheet));
-  elements.closeActions?.addEventListener("click", () => closeSheet(elements.actionSheet));
-  elements.closeItems?.addEventListener("click", () => closeSheet(elements.itemSheet));
-  elements.sheetBackdrop?.addEventListener("click", () => {
-    closeSheet(elements.statusSheet);
-    closeSheet(elements.actionSheet);
-    closeSheet(elements.itemSheet);
-  });
-  elements.statusSheet?.addEventListener("click", handleTabSwitch);
-  elements.itemSheet?.addEventListener("click", handleTabSwitch);
-  elements.log?.addEventListener("scroll", () => {
-    updateLogScrollButton();
-  });
-  elements.logScrollBottom?.addEventListener("click", () => {
-    scrollLogToBottom();
-  });
-  elements.resumeCombatButton?.addEventListener("click", () => {
-    resumeCombat();
-  });
-  document.addEventListener("click", (event) => {
-    if (elements.tooltip.hidden) return;
-    if (event.target.closest(".tooltip") || event.target.closest(".inventory-item")) return;
-    hideTooltip();
-  });
-  window.addEventListener("pageshow", handlePageShow);
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-  window.addEventListener("pagehide", scheduleSave);
-}
+    if (typeof error === "object") {
+      const message = error.message ?? JSON.stringify(error);
+      window.__LAST_BOOT_ERROR = String(message);
+      return;
+    }
+    window.__LAST_BOOT_ERROR = String(error);
+  }
 
-function init() {
-  if (window.__TEXTRPG_INIT_DONE) return;
-  window.__TEXTRPG_INIT_DONE = true;
+  window.addEventListener("error", (event) => {
+    recordBootError(event?.error ?? event?.message ?? "알 수 없는 오류");
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    recordBootError(event?.reason ?? "처리되지 않은 Promise 거부");
+  });
+
+  const elements = {
+    main: document.querySelector("main.main"),
+    sceneTitle: document.getElementById("scene-title"),
+    sceneText: document.getElementById("scene-text"),
+    diceValue: document.getElementById("dice-value"),
+    diceLabel: document.getElementById("dice-label"),
+    resumeCombat: document.getElementById("resume-combat"),
+    log: document.getElementById("log"),
+    logSummary: document.getElementById("log-summary"),
+    hudHp: document.getElementById("hud-hp"),
+    hudGold: document.getElementById("hud-gold"),
+    saveButton: document.getElementById("btn-save"),
+    actionDock: document.getElementById("action-dock"),
+    dockMain: document.getElementById("dock-main"),
+    versionLabel: document.getElementById("version-label"),
+    resetButton: document.getElementById("btn-reset"),
+    emergencyResetButton: document.getElementById("btn-emergency-reset"),
+    dataError: document.getElementById("data-error"),
+    dataErrorList: document.getElementById("data-error-list"),
+    retryLoadButton: document.getElementById("btn-retry-load"),
+    hardResetButton: document.getElementById("btn-hard-reset"),
+    combatScene: document.getElementById("combat-scene"),
+    combatPlayerHp: document.getElementById("combat-player-hp"),
+    combatEnemyName: document.getElementById("combat-enemy-name"),
+    combatEnemyHp: document.getElementById("combat-enemy-hp"),
+    combatSituation: document.getElementById("combat-situation"),
+    combatDiceValue: document.getElementById("combat-dice-value"),
+    combatDiceLabel: document.getElementById("combat-dice-label"),
+    combatDiceBadge: document.getElementById("combat-dice-badge"),
+    combatDock: document.getElementById("combat-dock")
+  };
+
   if (elements.versionLabel) {
     elements.versionLabel.textContent = VERSION;
   }
-  if (elements.versionLabel?.parentElement) {
-    const badge = document.createElement("span");
-    badge.className = "version";
-    badge.textContent = `ENGINE ${VERSION}`;
-    elements.versionLabel.parentElement.appendChild(document.createTextNode(" "));
-    elements.versionLabel.parentElement.appendChild(badge);
-  }
-  setLogSummary("준비 중...");
-  setupEventListeners();
-}
 
-(async () => {
-  try {
-    init();
-    await boot();
-  } catch (error) {
-    renderFatal(error, state.dataLoadFailures, window.__LAST_BOOT_ERROR);
-  } finally {
-    finalizeBootUI();
+  const headerTitle = document.querySelector(".app__header h1");
+  if (headerTitle) {
+    const badge = document.createElement("span");
+    badge.className = "engine-badge";
+    badge.textContent = `[ENGINE ${VERSION}]`;
+    badge.style.marginLeft = "8px";
+    badge.style.fontSize = "0.7em";
+    badge.style.fontWeight = "700";
+    badge.style.color = "#ffd36a";
+    headerTitle.appendChild(badge);
   }
+
+  const state = {
+    data: null,
+    maps: null,
+    player: null,
+    nodeId: "NODE_PROLOGUE",
+    inCombat: false,
+    combat: null,
+    log: [],
+    lastSummary: "최근 요약: -"
+  };
+
+  function defaultPlayer() {
+    return {
+      hp: 42,
+      maxHp: 42,
+      gold: 20,
+      stats: { STR: 2, DEX: 2, INT: 1, LUK: 1, CHA: 1, CON: 1 },
+      counters: { trust: 0, insight: 0 }
+    };
+  }
+
+  function normalizePlayer(playerData) {
+    const fallback = defaultPlayer();
+    const safe = playerData && typeof playerData === "object" ? playerData : {};
+    return {
+      ...fallback,
+      ...safe,
+      stats: { ...fallback.stats, ...(safe.stats ?? {}) },
+      counters: { ...fallback.counters, ...(safe.counters ?? {}) }
+    };
+  }
+
+  function serializeState() {
+    return {
+      version: VERSION,
+      nodeId: state.nodeId,
+      player: state.player,
+      inCombat: state.inCombat,
+      combat: state.combat,
+      log: state.log,
+      lastSummary: state.lastSummary
+    };
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(serializeState()));
+      setToast("저장 완료");
+    } catch (error) {
+      recordBootError(error);
+    }
+  }
+
+  function loadState() {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      recordBootError(error);
+      return null;
+    }
+  }
+
+  function clearTextRpgStorage() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(STORAGE_PREFIX)) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  }
+
+  function handleResetParam() {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("reset") === "1") {
+      clearTextRpgStorage();
+      url.searchParams.delete("reset");
+      window.history.replaceState(null, "", url.toString());
+    }
+  }
+
+  function setToast(message) {
+    const toast = document.getElementById("save-toast");
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    setTimeout(() => toast.classList.remove("is-visible"), 1400);
+  }
+
+  function setView(mode) {
+    const isCombat = mode === "combat";
+    if (elements.main) elements.main.hidden = isCombat;
+    if (elements.combatScene) elements.combatScene.hidden = !isCombat;
+    if (elements.actionDock) elements.actionDock.hidden = mode !== "explore";
+    if (elements.dataError) elements.dataError.hidden = mode !== "fatal";
+    if (elements.resumeCombat) elements.resumeCombat.hidden = true;
+  }
+
+  function renderLoading() {
+    setView("loading");
+    if (elements.sceneTitle) elements.sceneTitle.textContent = "준비 중...";
+    if (elements.sceneText) elements.sceneText.textContent = "데이터를 불러오는 중입니다.";
+    clearChoices();
+  }
+
+  function renderFatal(failures, error) {
+    setView("fatal");
+    if (elements.sceneTitle) elements.sceneTitle.textContent = "데이터 로드 실패";
+    if (elements.sceneText) elements.sceneText.textContent = "데이터를 불러올 수 없습니다.";
+    const details = [];
+    failures.forEach((failure) => {
+      details.push(
+        `- ${failure.name}: ${failure.url}\n  status=${failure.status ?? "-"}\n  message=${failure.message}`
+      );
+    });
+    if (error || window.__LAST_BOOT_ERROR) {
+      details.push(`\n[오류]\n${error ?? window.__LAST_BOOT_ERROR}`);
+    }
+    if (elements.dataErrorList) {
+      elements.dataErrorList.textContent = details.join("\n");
+    }
+    clearCombatState();
+  }
+
+  function renderLog() {
+    if (!elements.log) return;
+    elements.log.innerHTML = "";
+    state.log.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "log-entry";
+      row.textContent = entry;
+      elements.log.appendChild(row);
+    });
+    if (elements.logSummary) {
+      elements.logSummary.textContent = state.lastSummary;
+    }
+  }
+
+  function addLog(entry) {
+    state.log.push(entry);
+    if (state.log.length > 40) {
+      state.log.shift();
+    }
+    state.lastSummary = `최근 요약: ${entry}`;
+    renderLog();
+  }
+
+  function updateHud() {
+    if (elements.hudHp) {
+      const hpValue = elements.hudHp.querySelector(".stat-pill__value");
+      if (hpValue) {
+        hpValue.textContent = `${state.player.hp}/${state.player.maxHp}`;
+      }
+    }
+    if (elements.hudGold) {
+      const goldValue = elements.hudGold.querySelector(".stat-pill__value");
+      if (goldValue) {
+        goldValue.textContent = String(state.player.gold ?? 0);
+      }
+    }
+  }
+
+  function clearChoices() {
+    if (elements.dockMain) elements.dockMain.innerHTML = "";
+  }
+
+  function addChoiceButton(label, onClick) {
+    if (!elements.dockMain) return;
+    const button = document.createElement("button");
+    button.className = "btn";
+    button.textContent = label;
+    button.addEventListener("click", onClick);
+    elements.dockMain.appendChild(button);
+  }
+
+  function normalizeNodes(raw) {
+    const list = Array.isArray(raw) ? raw : raw?.nodes ?? [];
+    return list
+      .map((node) => {
+        const id = node.node_id ?? node.id ?? node.nodeId;
+        if (!id) return null;
+        const choices = Array.isArray(node.choices) ? node.choices : [];
+        return {
+          ...node,
+          id,
+          title: node.title ?? node.name ?? id,
+          situation: node.situation ?? node.text ?? "",
+          choices: choices.map((choice) => ({
+            ...choice,
+            next: choice.next_node ?? choice.next ?? null,
+            ending: choice.ending_id ?? choice.endingId ?? null,
+            startCombat: choice.start_combat ?? choice.startCombat ?? null,
+            impact: choice.impact ?? choice.effects ?? choice.delta ?? null
+          }))
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function normalizeEnemies(raw) {
+    const list = Array.isArray(raw) ? raw : raw?.enemies ?? [];
+    return list
+      .map((enemy) => {
+        const id = enemy.enemy_id ?? enemy.enemyId ?? enemy.id;
+        if (!id) return null;
+        const dmgSource = enemy["피해량"] ?? {};
+        return {
+          ...enemy,
+          id,
+          name: enemy.name ?? enemy["이름"] ?? "적",
+          hp: Number(enemy.hp ?? enemy["체력"] ?? 10),
+          ac: Number(enemy.ac ?? enemy.armorClass ?? enemy["AC"] ?? 10),
+          attack: Number(enemy.attack ?? enemy["공격"] ?? 0),
+          dmgMin: Number(enemy.damageMin ?? dmgSource["최소"] ?? 1),
+          dmgMax: Number(enemy.damageMax ?? dmgSource["최대"] ?? 2),
+          statusAttack: enemy.status_attack ?? enemy.statusAttack ?? null
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function normalizeEndings(raw) {
+    const list = Array.isArray(raw) ? raw : raw?.endings ?? [];
+    return list
+      .map((ending) => {
+        const id = ending.ending_id ?? ending.endingId ?? ending.id;
+        if (!id) return null;
+        return {
+          ...ending,
+          id,
+          text: ending.text ?? ending.description ?? ""
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function createMaps(data) {
+    const nodesMap = new Map();
+    data.nodes.forEach((node) => nodesMap.set(node.id, node));
+    const enemiesMap = new Map();
+    data.enemies.forEach((enemy) => enemiesMap.set(enemy.id, enemy));
+    const endingsMap = new Map();
+    data.endings.forEach((ending) => endingsMap.set(ending.id, ending));
+    return { nodesMap, enemiesMap, endingsMap };
+  }
+
+  function newGameState() {
+    state.player = normalizePlayer(null);
+    state.nodeId = "NODE_PROLOGUE";
+    state.inCombat = false;
+    state.combat = null;
+    state.log = [];
+    state.lastSummary = "최근 요약: -";
+  }
+
+  function applyImpact(impact) {
+    if (!impact || typeof impact !== "object") return;
+    const hpDelta = Number(impact.hp ?? 0);
+    const goldDelta = Number(impact.gold ?? 0);
+    const trustDelta = Number(impact.trust ?? 0);
+    const insightDelta = Number(impact.insight ?? 0);
+    if (Number.isFinite(hpDelta)) {
+      state.player.hp = Math.max(0, Math.min(state.player.maxHp, state.player.hp + hpDelta));
+    }
+    if (Number.isFinite(goldDelta)) {
+      state.player.gold = Number(state.player.gold ?? 0) + goldDelta;
+    }
+    if (Number.isFinite(trustDelta)) {
+      state.player.counters.trust = Number(state.player.counters.trust ?? 0) + trustDelta;
+    }
+    if (Number.isFinite(insightDelta)) {
+      state.player.counters.insight = Number(state.player.counters.insight ?? 0) + insightDelta;
+    }
+    updateHud();
+  }
+
+  function renderEnding(endingId) {
+    const ending = state.maps.endingsMap.get(endingId);
+    setView("explore");
+    if (elements.sceneTitle) elements.sceneTitle.textContent = "엔딩";
+    if (elements.sceneText) {
+      elements.sceneText.textContent = ending?.text || "엔딩을 찾을 수 없습니다.";
+    }
+    clearChoices();
+    addChoiceButton("새 여정", () => {
+      newGameState();
+      saveState();
+      renderNode(state.nodeId);
+    });
+  }
+
+  function renderNode(nodeId) {
+    const node = state.maps.nodesMap.get(nodeId);
+    if (!node) {
+      renderFatal(
+        [{ name: "nodes", url: "-", status: "-", message: `NODE '${nodeId}' 없음` }],
+        "노드 데이터를 찾을 수 없습니다."
+      );
+      return;
+    }
+    state.nodeId = node.id;
+    setView("explore");
+    if (elements.sceneTitle) elements.sceneTitle.textContent = node.title ?? "";
+    if (elements.sceneText) elements.sceneText.textContent = node.situation ?? "";
+    if (elements.diceValue) elements.diceValue.textContent = "--";
+    if (elements.diceLabel) elements.diceLabel.textContent = "주사위 대기";
+    clearChoices();
+    node.choices.forEach((choice) => {
+      const label = choice.text ?? choice.label ?? "선택";
+      addChoiceButton(label, () => {
+        applyImpact(choice.impact);
+        if (choice.startCombat) {
+          startCombat(choice.startCombat);
+          return;
+        }
+        if (choice.ending) {
+          renderEnding(choice.ending);
+          return;
+        }
+        if (choice.next) {
+          renderNode(choice.next);
+          saveState();
+          return;
+        }
+        renderNode(state.nodeId);
+      });
+    });
+    if (!node.choices.length) {
+      addChoiceButton("새 여정", () => {
+        newGameState();
+        saveState();
+        renderNode(state.nodeId);
+      });
+    }
+    addLog(node.title ?? "탐험 진행");
+    updateHud();
+    saveState();
+  }
+
+  function getPlayerAttackBonus() {
+    return Number(state.player.stats?.STR ?? 0);
+  }
+
+  function clearCombatState() {
+    state.inCombat = false;
+    state.combat = null;
+  }
+
+  function startCombat(enemyId) {
+    const enemy = state.maps.enemiesMap.get(enemyId);
+    if (!enemy) {
+      clearCombatState();
+      addLog("전투 데이터를 복원할 수 없어 탐험으로 복귀합니다.");
+      renderNode(state.nodeId);
+      return;
+    }
+    state.inCombat = true;
+    state.combat = {
+      enemyId: enemy.id,
+      enemyHp: enemy.hp,
+      enemyMaxHp: enemy.hp
+    };
+    renderCombat();
+    saveState();
+  }
+
+  function renderCombat() {
+    const enemy = state.maps.enemiesMap.get(state.combat?.enemyId);
+    if (!enemy) {
+      clearCombatState();
+      renderNode(state.nodeId);
+      return;
+    }
+    setView("combat");
+    if (elements.combatEnemyName) elements.combatEnemyName.textContent = enemy.name;
+    if (elements.combatEnemyHp) {
+      elements.combatEnemyHp.textContent = `${state.combat.enemyHp}/${state.combat.enemyMaxHp}`;
+    }
+    if (elements.combatPlayerHp) {
+      elements.combatPlayerHp.textContent = `${state.player.hp}/${state.player.maxHp}`;
+    }
+    if (elements.combatSituation) {
+      elements.combatSituation.textContent = "전투가 시작됐다.";
+    }
+    if (elements.combatDiceValue) elements.combatDiceValue.textContent = "--";
+    if (elements.combatDiceLabel) elements.combatDiceLabel.textContent = "전투 판정";
+    if (elements.combatDiceBadge) elements.combatDiceBadge.textContent = "-";
+    if (elements.combatDock) {
+      elements.combatDock.innerHTML = "";
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = "전투 판정";
+      btn.addEventListener("click", resolveCombatTurn);
+      elements.combatDock.appendChild(btn);
+    }
+  }
+
+  function resolveCombatTurn() {
+    const enemy = state.maps.enemiesMap.get(state.combat?.enemyId);
+    if (!enemy) {
+      clearCombatState();
+      renderNode(state.nodeId);
+      return;
+    }
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const attackBonus = getPlayerAttackBonus();
+    const total = roll + attackBonus;
+    if (elements.combatDiceValue) elements.combatDiceValue.textContent = String(roll);
+    if (elements.combatDiceLabel) {
+      elements.combatDiceLabel.textContent = `판정: ${total} (보너스 ${attackBonus})`;
+    }
+    if (total >= enemy.ac) {
+      const damage = Math.max(1, Math.floor(Math.random() * 4) + 1 + attackBonus);
+      state.combat.enemyHp = Math.max(0, state.combat.enemyHp - damage);
+      addLog(`${enemy.name}에게 ${damage} 피해!`);
+    } else {
+      addLog("공격이 빗나갔다.");
+    }
+
+    if (state.combat.enemyHp <= 0) {
+      addLog(`${enemy.name} 처치! 탐험으로 복귀합니다.`);
+      clearCombatState();
+      renderNode(state.nodeId);
+      return;
+    }
+
+    const enemyDamage = enemy.attack + randomBetween(enemy.dmgMin, enemy.dmgMax);
+    state.player.hp = Math.max(0, state.player.hp - enemyDamage);
+    addLog(`${enemy.name}의 반격! ${enemyDamage} 피해.`);
+
+    if (state.player.hp <= 0) {
+      addLog("당신은 쓰러졌다...");
+      clearCombatState();
+      setView("explore");
+      if (elements.sceneTitle) elements.sceneTitle.textContent = "전투 패배";
+      if (elements.sceneText) {
+        elements.sceneText.textContent = "전투에서 패배했습니다. 새 여정을 시작하거나 탐험으로 복귀하세요.";
+      }
+      clearChoices();
+      addChoiceButton("새 여정", () => {
+        newGameState();
+        saveState();
+        renderNode(state.nodeId);
+      });
+      addChoiceButton("탐험으로 복귀", () => {
+        state.player.hp = Math.max(1, state.player.hp);
+        renderNode(state.nodeId);
+      });
+      updateHud();
+      saveState();
+      return;
+    }
+
+    if (elements.combatEnemyHp) {
+      elements.combatEnemyHp.textContent = `${state.combat.enemyHp}/${state.combat.enemyMaxHp}`;
+    }
+    if (elements.combatPlayerHp) {
+      elements.combatPlayerHp.textContent = `${state.player.hp}/${state.player.maxHp}`;
+    }
+    saveState();
+  }
+
+  function randomBetween(min, max) {
+    const low = Number.isFinite(min) ? min : 1;
+    const high = Number.isFinite(max) ? max : low;
+    return Math.floor(Math.random() * (high - low + 1)) + low;
+  }
+
+  function restoreState() {
+    const saved = loadState();
+    if (!saved) {
+      newGameState();
+      return;
+    }
+    state.player = normalizePlayer(saved.player);
+    state.nodeId = saved.nodeId ?? "NODE_PROLOGUE";
+    state.log = Array.isArray(saved.log) ? saved.log : [];
+    state.lastSummary = saved.lastSummary ?? "최근 요약: -";
+    state.inCombat = Boolean(saved.inCombat);
+    state.combat = saved.combat ?? null;
+  }
+
+  function ensureCombatRestored() {
+    if (!state.inCombat) return;
+    const enemyId = state.combat?.enemyId;
+    if (!enemyId || !state.maps.enemiesMap.has(enemyId)) {
+      clearCombatState();
+    }
+  }
+
+  function wireEvents() {
+    if (elements.saveButton) {
+      elements.saveButton.addEventListener("click", () => saveState());
+    }
+    if (elements.resetButton) {
+      elements.resetButton.addEventListener("click", () => {
+        newGameState();
+        saveState();
+        renderNode(state.nodeId);
+      });
+    }
+    if (elements.emergencyResetButton) {
+      elements.emergencyResetButton.addEventListener("click", () => {
+        clearTextRpgStorage();
+        window.location.reload();
+      });
+    }
+    if (elements.retryLoadButton) {
+      elements.retryLoadButton.addEventListener("click", () => window.location.reload());
+    }
+    if (elements.hardResetButton) {
+      elements.hardResetButton.addEventListener("click", () => {
+        clearTextRpgStorage();
+        window.location.reload();
+      });
+    }
+  }
+
+  function loadJson(name) {
+    const url = new URL(`data/${name}.json`, BASE_URL);
+    url.searchParams.set("v", String(Date.now()));
+    return fetch(url.toString(), { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return { name, url: url.toString(), data };
+      })
+      .catch((error) => {
+        throw {
+          name,
+          url: url.toString(),
+          status: error?.message?.startsWith("HTTP") ? error.message : "-",
+          message: error?.message ?? String(error)
+        };
+      });
+  }
+
+  function boot() {
+    handleResetParam();
+    renderLoading();
+    wireEvents();
+
+    Promise.allSettled([
+      loadJson("nodes"),
+      loadJson("events"),
+      loadJson("items"),
+      loadJson("enemies"),
+      loadJson("endings")
+    ])
+      .then((results) => {
+        const failures = [];
+        const data = {};
+        results.forEach((result) => {
+          if (result.status === "fulfilled") {
+            data[result.value.name] = result.value.data;
+          } else {
+            failures.push(result.reason);
+          }
+        });
+
+        if (failures.length) {
+          renderFatal(failures, "데이터 로드 실패");
+          return;
+        }
+
+        state.data = {
+          nodes: normalizeNodes(data.nodes),
+          enemies: normalizeEnemies(data.enemies),
+          endings: normalizeEndings(data.endings),
+          events: data.events ?? [],
+          items: data.items ?? []
+        };
+        state.maps = createMaps(state.data);
+
+        restoreState();
+        ensureCombatRestored();
+        updateHud();
+        renderLog();
+
+        if (state.inCombat) {
+          renderCombat();
+        } else {
+          renderNode(state.nodeId || "NODE_PROLOGUE");
+        }
+      })
+      .catch((error) => {
+        recordBootError(error);
+        renderFatal(
+          [{ name: "boot", url: window.location.href, status: "-", message: String(error) }],
+          String(error)
+        );
+      });
+  }
+
+  boot();
 })();
