@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "hubVersion": "v0.2.0",
-  "updatedAt": "2026-01-07",
+  "updatedAt": "2026-01-08",
   "games": [
     {
       "id": "gdc",
@@ -33,7 +33,7 @@
       "slug": "textrpg-omega",
       "path": "./TextRPG/",
       "icon": "🧭",
-      "version": "v0.3.0",
+      "version": "v0.3.1",
       "status": "active",
       "summary": "정화자로서 사건을 겪으며 D20 판정과 선택으로 여정을 이어가는 텍스트 RPG.",
       "order": 30,

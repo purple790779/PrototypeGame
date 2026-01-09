@@ -1,11 +1,22 @@
 (() => {
-  const VERSION = "v0.3.0";
+  const VERSION = "v0.3.1";
   const SAVE_KEY = "textrpg-omega-save";
+  const RUNS_KEY = "textrpg-omega-runs";
+  const CODEX_KEY = "textrpg-omega-codex";
   const STORAGE_PREFIX = "textrpg";
   const DEFAULT_NODE_ID = "HUB_GUILD";
   const MAIN_SCRIPT = document.getElementById("appMain");
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
+  const STAT_KEYS = ["STR", "WIS", "INT", "DEX", "LUK"];
+
+  const ITEM_ICONS = {
+    consumable: "🧪",
+    tool: "🧰",
+    artifact: "🔮",
+    weapon: "⚔️",
+    armor: "🛡️"
+  };
 
   window.__ENGINE = VERSION;
   window.__LAST_BOOT_ERROR = null;
@@ -40,19 +51,31 @@
   });
 
   const elements = {
-    main: document.querySelector("main.main"),
+    mainCenter: document.getElementById("main-center"),
+    exploreCard: document.getElementById("explore-card"),
     sceneTitle: document.getElementById("scene-title"),
     sceneText: document.getElementById("scene-text"),
     diceValue: document.getElementById("dice-value"),
     diceLabel: document.getElementById("dice-label"),
     resumeCombat: document.getElementById("resume-combat"),
+    choiceList: document.getElementById("choice-list"),
+    logPanel: document.getElementById("log-panel"),
+    logToggle: document.getElementById("log-toggle"),
     log: document.getElementById("log"),
     logSummary: document.getElementById("log-summary"),
     hudHp: document.getElementById("hud-hp"),
+    hudMp: document.getElementById("hud-mp"),
     hudGold: document.getElementById("hud-gold"),
+    playerName: document.getElementById("player-name"),
+    hudProfile: document.getElementById("hud-profile"),
+    hudStats: document.getElementById("hud-stats"),
+    statStr: document.getElementById("hud-stat-str"),
+    statWis: document.getElementById("hud-stat-wis"),
+    statInt: document.getElementById("hud-stat-int"),
+    statDex: document.getElementById("hud-stat-dex"),
+    statLuk: document.getElementById("hud-stat-luk"),
     saveButton: document.getElementById("btn-save"),
     actionDock: document.getElementById("action-dock"),
-    dockMain: document.getElementById("dock-main"),
     versionLabel: document.getElementById("version-label"),
     resetButton: document.getElementById("btn-reset"),
     emergencyResetButton: document.getElementById("btn-emergency-reset"),
@@ -72,23 +95,34 @@
     combatDiceLabel: document.getElementById("combat-dice-label"),
     combatDiceBadge: document.getElementById("combat-dice-badge"),
     combatDock: document.getElementById("combat-dock"),
-    combatLog: document.getElementById("combat-log")
+    combatLog: document.getElementById("combat-log"),
+    statusSheet: document.getElementById("status-sheet"),
+    statusClose: document.getElementById("btn-close-status"),
+    statsGrid: document.getElementById("stats-grid"),
+    progressTrust: document.getElementById("progress-trust"),
+    progressInsight: document.getElementById("progress-insight"),
+    statusList: document.getElementById("status-list"),
+    inventoryGrid: document.getElementById("inventory-grid"),
+    inventorySheetGrid: document.getElementById("inventory-sheet-grid"),
+    inventoryEmpty: document.getElementById("inventory-empty"),
+    skillsList: document.getElementById("skills-list"),
+    skillsEmpty: document.getElementById("skills-empty"),
+    codexNodes: document.getElementById("codex-nodes"),
+    codexEnemies: document.getElementById("codex-enemies"),
+    codexEndings: document.getElementById("codex-endings"),
+    codexNodeEmpty: document.getElementById("codex-node-empty"),
+    codexEnemyEmpty: document.getElementById("codex-enemy-empty"),
+    codexEndingEmpty: document.getElementById("codex-ending-empty"),
+    rankingList: document.getElementById("ranking-list"),
+    rankingEmpty: document.getElementById("ranking-empty"),
+    sheetBackdrop: document.getElementById("sheet-backdrop"),
+    tooltip: document.getElementById("tooltip"),
+    tooltipContent: document.getElementById("tooltip-content"),
+    toast: document.getElementById("save-toast")
   };
 
   if (elements.versionLabel) {
     elements.versionLabel.textContent = VERSION;
-  }
-
-  const headerTitle = document.querySelector(".app__header h1");
-  if (headerTitle) {
-    const badge = document.createElement("span");
-    badge.className = "engine-badge";
-    badge.textContent = `[ENGINE ${VERSION}]`;
-    badge.style.marginLeft = "8px";
-    badge.style.fontSize = "0.7em";
-    badge.style.fontWeight = "700";
-    badge.style.color = "#ffd36a";
-    headerTitle.appendChild(badge);
   }
 
   const state = {
@@ -99,15 +133,21 @@
     inCombat: false,
     combat: null,
     log: [],
-    lastSummary: "최근 요약: -"
+    lastSummary: "최근 요약: -",
+    runs: [],
+    codex: { nodes: [], enemies: [], endings: [] },
+    runRecorded: false
   };
 
   function defaultPlayer() {
     return {
+      name: "모험가",
       hp: 42,
       maxHp: 42,
+      mp: 8,
+      maxMp: 8,
       gold: 20,
-      stats: { STR: 2, DEX: 2, INT: 1, LUK: 1, CHA: 1, CON: 1 },
+      stats: { STR: 2, DEX: 2, INT: 1, WIS: 1, LUK: 1, CHA: 1, CON: 1 },
       counters: { trust: 0, insight: 0 }
     };
   }
@@ -118,9 +158,55 @@
     return {
       ...fallback,
       ...safe,
+      mp: Number.isFinite(Number(safe.mp)) ? Number(safe.mp) : fallback.mp,
+      maxMp: Number.isFinite(Number(safe.maxMp)) ? Number(safe.maxMp) : fallback.maxMp,
       stats: { ...fallback.stats, ...(safe.stats ?? {}) },
       counters: { ...fallback.counters, ...(safe.counters ?? {}) }
     };
+  }
+
+  function loadRuns() {
+    const raw = localStorage.getItem(RUNS_KEY);
+    if (!raw) return [];
+    try {
+      const data = JSON.parse(raw);
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      recordBootError(error);
+      return [];
+    }
+  }
+
+  function saveRuns() {
+    try {
+      localStorage.setItem(RUNS_KEY, JSON.stringify(state.runs));
+    } catch (error) {
+      recordBootError(error);
+    }
+  }
+
+  function loadCodex() {
+    const raw = localStorage.getItem(CODEX_KEY);
+    if (!raw) return { nodes: [], enemies: [], endings: [] };
+    try {
+      const data = JSON.parse(raw);
+      return {
+        nodes: Array.isArray(data.nodes) ? data.nodes : [],
+        enemies: Array.isArray(data.enemies) ? data.enemies : [],
+        endings: Array.isArray(data.endings) ? data.endings : []
+      };
+    } catch (error) {
+      recordBootError(error);
+      return { nodes: [], enemies: [], endings: [] };
+    }
+  }
+
+  function saveCodex() {
+    try {
+      localStorage.setItem(CODEX_KEY, JSON.stringify(state.codex));
+    } catch (error) {
+      recordBootError(error);
+    }
   }
 
   function serializeState() {
@@ -176,20 +262,25 @@
   }
 
   function setToast(message) {
-    const toast = document.getElementById("save-toast");
-    if (!toast) return;
-    toast.textContent = message;
-    toast.classList.add("is-visible");
-    setTimeout(() => toast.classList.remove("is-visible"), 1400);
+    if (!elements.toast) return;
+    elements.toast.textContent = message;
+    elements.toast.classList.add("is-visible");
+    setTimeout(() => elements.toast?.classList.remove("is-visible"), 1400);
   }
 
   function setView(mode) {
     const isCombat = mode === "combat";
-    if (elements.main) elements.main.hidden = isCombat;
+    if (elements.exploreCard) elements.exploreCard.hidden = isCombat;
     if (elements.combatScene) elements.combatScene.hidden = !isCombat;
-    if (elements.actionDock) elements.actionDock.hidden = mode !== "explore";
     if (elements.dataError) elements.dataError.hidden = mode !== "fatal";
     if (elements.resumeCombat) elements.resumeCombat.hidden = true;
+  }
+
+  function setLogExpanded(expanded) {
+    if (!elements.logPanel || !elements.logToggle) return;
+    elements.logPanel.classList.toggle("is-expanded", expanded);
+    elements.logToggle.textContent = expanded ? "접기" : "펼치기";
+    elements.logToggle.setAttribute("aria-expanded", String(expanded));
   }
 
   function renderLoading() {
@@ -223,7 +314,7 @@
     elements.log.innerHTML = "";
     state.log.forEach((entry) => {
       const row = document.createElement("div");
-      row.className = "log-entry";
+      row.className = "log__entry";
       row.textContent = entry;
       elements.log.appendChild(row);
     });
@@ -248,7 +339,7 @@
     const tail = state.log.slice(-10);
     tail.forEach((entry) => {
       const row = document.createElement("div");
-      row.className = "log-entry";
+      row.className = "log__entry";
       row.textContent = entry;
       elements.combatLog.appendChild(row);
     });
@@ -267,30 +358,45 @@
 
   function updateHud() {
     if (elements.hudHp) {
-      const hpValue = elements.hudHp.querySelector(".stat-pill__value");
+      const hpValue = elements.hudHp.querySelector(".hud-pill__value");
       if (hpValue) {
         hpValue.textContent = `${state.player.hp}/${state.player.maxHp}`;
       }
     }
+    if (elements.hudMp) {
+      const mpValue = elements.hudMp.querySelector(".hud-pill__value");
+      if (mpValue) {
+        mpValue.textContent = `${state.player.mp}/${state.player.maxMp}`;
+      }
+    }
     if (elements.hudGold) {
-      const goldValue = elements.hudGold.querySelector(".stat-pill__value");
+      const goldValue = elements.hudGold.querySelector(".hud-pill__value");
       if (goldValue) {
         goldValue.textContent = String(state.player.gold ?? 0);
       }
     }
+    if (elements.playerName) {
+      elements.playerName.textContent = state.player.name ?? "모험가";
+    }
+    if (elements.statStr) elements.statStr.textContent = String(state.player.stats?.STR ?? 0);
+    if (elements.statWis) elements.statWis.textContent = String(state.player.stats?.WIS ?? 0);
+    if (elements.statInt) elements.statInt.textContent = String(state.player.stats?.INT ?? 0);
+    if (elements.statDex) elements.statDex.textContent = String(state.player.stats?.DEX ?? 0);
+    if (elements.statLuk) elements.statLuk.textContent = String(state.player.stats?.LUK ?? 0);
+    renderStatusSheet();
   }
 
   function clearChoices() {
-    if (elements.dockMain) elements.dockMain.innerHTML = "";
+    if (elements.choiceList) elements.choiceList.innerHTML = "";
   }
 
   function addChoiceButton(label, onClick) {
-    if (!elements.dockMain) return;
+    if (!elements.choiceList) return;
     const button = document.createElement("button");
-    button.className = "btn";
+    button.className = "btn btn--choice";
     button.textContent = label;
     button.addEventListener("click", onClick);
-    elements.dockMain.appendChild(button);
+    elements.choiceList.appendChild(button);
   }
 
   function normalizeNodes(raw) {
@@ -371,16 +477,21 @@
     state.combat = null;
     state.log = [];
     state.lastSummary = "최근 요약: -";
+    state.runRecorded = false;
   }
 
   function applyImpact(impact) {
     if (!impact || typeof impact !== "object") return;
     const hpDelta = Number(impact.hp ?? 0);
+    const mpDelta = Number(impact.mp ?? 0);
     const goldDelta = Number(impact.gold ?? 0);
     const trustDelta = Number(impact.trust ?? 0);
     const insightDelta = Number(impact.insight ?? 0);
     if (Number.isFinite(hpDelta)) {
       state.player.hp = Math.max(0, Math.min(state.player.maxHp, state.player.hp + hpDelta));
+    }
+    if (Number.isFinite(mpDelta)) {
+      state.player.mp = Math.max(0, Math.min(state.player.maxMp, state.player.mp + mpDelta));
     }
     if (Number.isFinite(goldDelta)) {
       state.player.gold = Number(state.player.gold ?? 0) + goldDelta;
@@ -415,6 +526,155 @@
     return true;
   }
 
+  function addCodexEntry(type, id) {
+    if (!id || !state.codex[type]) return;
+    if (!state.codex[type].includes(id)) {
+      state.codex[type].push(id);
+      saveCodex();
+      renderCodexSheet();
+    }
+  }
+
+  function renderInventoryGrid(target, items) {
+    if (!target) return;
+    target.innerHTML = "";
+    items.forEach((item) => {
+      const card = document.createElement("div");
+      card.className = "inventory-item";
+      const typeIcon = ITEM_ICONS[item.type] ?? "🎲";
+      card.innerHTML = `
+        <span class="inventory-item__icon" aria-hidden="true">${typeIcon}</span>
+        <span class="inventory-item__name">${item.name ?? "이름 없음"}</span>
+        <span class="inventory-item__badge">${item.type ?? "item"}</span>
+      `;
+      card.title = item.description ?? "";
+      target.appendChild(card);
+    });
+  }
+
+  function renderStatusSheet() {
+    if (elements.statsGrid) {
+      elements.statsGrid.innerHTML = "";
+      STAT_KEYS.forEach((key) => {
+        const value = state.player.stats?.[key] ?? 0;
+        const row = document.createElement("div");
+        row.className = "stat-card";
+        row.innerHTML = `<span>${key}</span><strong>${value}</strong>`;
+        elements.statsGrid.appendChild(row);
+      });
+    }
+    if (elements.progressTrust) {
+      elements.progressTrust.textContent = String(state.player.counters?.trust ?? 0);
+    }
+    if (elements.progressInsight) {
+      elements.progressInsight.textContent = String(state.player.counters?.insight ?? 0);
+    }
+    if (elements.statusList) {
+      elements.statusList.innerHTML = "";
+      const empty = document.createElement("div");
+      empty.className = "status-pill";
+      empty.textContent = "이상 없음";
+      elements.statusList.appendChild(empty);
+    }
+    const items = Array.isArray(state.data?.items) ? state.data.items : [];
+    renderInventoryGrid(elements.inventoryGrid, items);
+  }
+
+  function renderInventorySheet() {
+    const items = Array.isArray(state.data?.items) ? state.data.items : [];
+    if (elements.inventoryEmpty) {
+      elements.inventoryEmpty.hidden = items.length > 0;
+    }
+    renderInventoryGrid(elements.inventorySheetGrid, items);
+  }
+
+  function renderSkillsSheet() {
+    if (elements.skillsList) {
+      elements.skillsList.innerHTML = "";
+    }
+    if (elements.skillsEmpty) {
+      elements.skillsEmpty.hidden = false;
+    }
+  }
+
+  function renderCodexSection(listEl, emptyEl, ids, labelGetter) {
+    if (!listEl || !emptyEl) return;
+    listEl.innerHTML = "";
+    ids.forEach((id) => {
+      const item = document.createElement("li");
+      item.textContent = labelGetter(id);
+      listEl.appendChild(item);
+    });
+    emptyEl.hidden = ids.length > 0;
+  }
+
+  function renderCodexSheet() {
+    const nodes = state.codex.nodes ?? [];
+    const enemies = state.codex.enemies ?? [];
+    const endings = state.codex.endings ?? [];
+    renderCodexSection(elements.codexNodes, elements.codexNodeEmpty, nodes, (id) => {
+      return state.maps?.nodesMap?.get(id)?.title ?? id;
+    });
+    renderCodexSection(elements.codexEnemies, elements.codexEnemyEmpty, enemies, (id) => {
+      return state.maps?.enemiesMap?.get(id)?.name ?? id;
+    });
+    renderCodexSection(elements.codexEndings, elements.codexEndingEmpty, endings, (id) => {
+      return state.maps?.endingsMap?.get(id)?.id ?? id;
+    });
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "-";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
+    return `${date.toLocaleDateString("ko-KR")} ${date.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit"
+    })}`;
+  }
+
+  function renderRankingSheet() {
+    if (!elements.rankingList || !elements.rankingEmpty) return;
+    elements.rankingList.innerHTML = "";
+    if (!state.runs.length) {
+      elements.rankingEmpty.hidden = false;
+      return;
+    }
+    elements.rankingEmpty.hidden = true;
+    state.runs.forEach((run, index) => {
+      const row = document.createElement("div");
+      row.className = "sheet__list-item";
+      const clearedLabel = run.cleared ? "클리어" : "중도 종료";
+      row.innerHTML = `
+        <strong>#${index + 1} ${run.name ?? "모험가"}</strong>
+        <div>엔딩: ${run.endingId ?? "-"}</div>
+        <div>${clearedLabel} · 골드 ${run.maxGold ?? 0} · 평판 ${run.reputation ?? 0} · 부상 ${
+        run.injury ?? 0
+      }</div>
+        <div>${formatDate(run.endedAt)}</div>
+      `;
+      elements.rankingList.appendChild(row);
+    });
+  }
+
+  function recordRun(endingId, cleared) {
+    if (state.runRecorded) return;
+    const entry = {
+      name: state.player.name ?? "모험가",
+      cleared: Boolean(cleared),
+      maxGold: state.player.gold ?? 0,
+      reputation: state.player.counters?.trust ?? 0,
+      injury: Math.max(0, (state.player.maxHp ?? 0) - (state.player.hp ?? 0)),
+      endedAt: new Date().toISOString(),
+      endingId: endingId ?? "-"
+    };
+    state.runs.unshift(entry);
+    state.runs = state.runs.slice(0, 50);
+    state.runRecorded = true;
+    saveRuns();
+    renderRankingSheet();
+  }
+
   function renderEnding(endingId) {
     const ending = state.maps.endingsMap.get(endingId);
     setView("explore");
@@ -423,6 +683,8 @@
       elements.sceneText.textContent = ending?.text || "엔딩을 찾을 수 없습니다.";
     }
     clearChoices();
+    addCodexEntry("endings", endingId);
+    recordRun(endingId, true);
     addChoiceButton("새 여정", () => {
       newGameState();
       saveState();
@@ -482,6 +744,7 @@
       });
     }
     addLog(node.title ?? "탐험 진행");
+    addCodexEntry("nodes", node.id);
     updateHud();
     saveState();
   }
@@ -509,6 +772,7 @@
       enemyHp: enemy.hp,
       enemyMaxHp: enemy.hp
     };
+    addCodexEntry("enemies", enemy.id);
     renderCombat();
     saveState();
   }
@@ -552,6 +816,7 @@
     if (elements.combatRecover) elements.combatRecover.hidden = true;
     if (elements.combatDicePanel) elements.combatDicePanel.hidden = false;
     renderCombatLog();
+    updateHud();
     if (elements.combatDock) {
       elements.combatDock.innerHTML = "";
       const btn = document.createElement("button");
@@ -598,6 +863,7 @@
     if (state.player.hp <= 0) {
       addLog("당신은 쓰러졌다...");
       clearCombatState();
+      recordRun("DEFEAT", false);
       setView("explore");
       if (elements.sceneTitle) elements.sceneTitle.textContent = "전투 패배";
       if (elements.sceneText) {
@@ -630,6 +896,7 @@
       state.combat.enemyMaxHp,
       "rgba(255, 104, 143, 0.85)"
     );
+    updateHud();
     saveState();
   }
 
@@ -654,6 +921,7 @@
     state.lastSummary = saved.lastSummary ?? "최근 요약: -";
     state.inCombat = Boolean(saved.inCombat);
     state.combat = saved.combat ?? null;
+    state.runRecorded = false;
   }
 
   function ensureCombatRestored() {
@@ -665,6 +933,58 @@
       state.nodeId = DEFAULT_NODE_ID;
       saveState();
     }
+  }
+
+  function openSheet(target) {
+    if (!target) return;
+    target.hidden = false;
+    if (elements.sheetBackdrop) elements.sheetBackdrop.hidden = false;
+  }
+
+  function closeSheets() {
+    document.querySelectorAll(".sheet").forEach((sheet) => {
+      sheet.hidden = true;
+    });
+    if (elements.sheetBackdrop) elements.sheetBackdrop.hidden = true;
+  }
+
+  function setActiveTab(tabName) {
+    const tabs = elements.statusSheet?.querySelectorAll(".sheet__tab") ?? [];
+    const panels = elements.statusSheet?.querySelectorAll(".sheet__panel") ?? [];
+    tabs.forEach((tab) => {
+      tab.classList.toggle("is-active", tab.dataset.tab === tabName);
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("is-active", panel.dataset.panel === tabName);
+    });
+  }
+
+  function openStatusSheet(tabName = "stats") {
+    if (!elements.statusSheet) return;
+    setActiveTab(tabName);
+    openSheet(elements.statusSheet);
+  }
+
+  function showTooltip(target) {
+    if (!elements.tooltip || !elements.tooltipContent || !target) return;
+    const text = target.dataset.tooltip;
+    if (!text) return;
+    elements.tooltipContent.textContent = text;
+    elements.tooltip.hidden = false;
+    requestAnimationFrame(() => {
+      if (!elements.tooltip) return;
+      const rect = target.getBoundingClientRect();
+      const tooltipRect = elements.tooltip.getBoundingClientRect();
+      const top = Math.max(8, rect.top - tooltipRect.height - 8);
+      const left = Math.min(window.innerWidth - tooltipRect.width - 8, rect.left);
+      elements.tooltip.style.top = `${top}px`;
+      elements.tooltip.style.left = `${left}px`;
+    });
+  }
+
+  function hideTooltip() {
+    if (!elements.tooltip) return;
+    elements.tooltip.hidden = true;
   }
 
   function wireEvents() {
@@ -693,6 +1013,55 @@
         window.location.reload();
       });
     }
+    if (elements.logToggle) {
+      elements.logToggle.addEventListener("click", () => {
+        const expanded = elements.logPanel?.classList.contains("is-expanded");
+        setLogExpanded(!expanded);
+      });
+    }
+    if (elements.hudProfile) {
+      elements.hudProfile.addEventListener("click", (event) => {
+        if (event.target.closest("button")) return;
+        openStatusSheet("stats");
+      });
+    }
+    if (elements.hudStats) {
+      elements.hudStats.addEventListener("click", (event) => {
+        if (event.target.closest("button")) return;
+        openStatusSheet("stats");
+      });
+    }
+    document.querySelectorAll(".dock-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sheetId = button.dataset.sheet;
+        const openType = button.dataset.open;
+        if (openType === "status") {
+          openStatusSheet(button.dataset.tab || "stats");
+        } else if (sheetId) {
+          openSheet(document.getElementById(sheetId));
+        }
+        const toastMessage = button.dataset.toast || button.dataset.tooltip;
+        if (toastMessage) setToast(toastMessage);
+        renderInventorySheet();
+        renderSkillsSheet();
+        renderCodexSheet();
+        renderRankingSheet();
+      });
+    });
+    if (elements.statusClose) {
+      elements.statusClose.addEventListener("click", () => closeSheets());
+    }
+    document.querySelectorAll("[data-close-sheet]").forEach((button) => {
+      button.addEventListener("click", () => closeSheets());
+    });
+    if (elements.sheetBackdrop) {
+      elements.sheetBackdrop.addEventListener("click", () => closeSheets());
+    }
+    document.querySelectorAll(".sheet__tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        setActiveTab(tab.dataset.tab);
+      });
+    });
     if (elements.combatRecoverButton) {
       elements.combatRecoverButton.addEventListener("click", () => {
         clearCombatState();
@@ -707,6 +1076,14 @@
         }
       });
     }
+    document.querySelectorAll("[data-tooltip]").forEach((target) => {
+      target.addEventListener("mouseenter", () => showTooltip(target));
+      target.addEventListener("mouseleave", hideTooltip);
+      target.addEventListener("focus", () => showTooltip(target));
+      target.addEventListener("blur", hideTooltip);
+    });
+    window.addEventListener("scroll", hideTooltip, { passive: true });
+    window.addEventListener("resize", hideTooltip);
   }
 
   function loadJson(name) {
@@ -732,6 +1109,8 @@
 
   function boot() {
     handleResetParam();
+    state.runs = loadRuns();
+    state.codex = loadCodex();
     renderLoading();
     wireEvents();
 
@@ -771,6 +1150,10 @@
         ensureCombatRestored();
         updateHud();
         renderLog();
+        renderInventorySheet();
+        renderSkillsSheet();
+        renderCodexSheet();
+        renderRankingSheet();
 
         if (state.inCombat) {
           renderCombat();
