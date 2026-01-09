@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.3.1";
+  const VERSION = "v0.3.2";
   const SAVE_KEY = "textrpg-omega-save";
   const RUNS_KEY = "textrpg-omega-runs";
   const CODEX_KEY = "textrpg-omega-codex";
@@ -9,6 +9,8 @@
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
   const STAT_KEYS = ["STR", "WIS", "INT", "DEX", "LUK"];
+  const INTRO_STORAGE_KEY = "textrpg-intro-seen";
+  const INTRO_SKIP_ENABLED = false;
 
   const ITEM_ICONS = {
     consumable: "🧪",
@@ -50,7 +52,19 @@
     recordBootError(event?.reason ?? "처리되지 않은 Promise 거부");
   });
 
+  const audioState = {
+    context: null,
+    master: null,
+    padOscillators: [],
+    noiseSource: null,
+    chordTimer: null,
+    baseGain: 0.045,
+    muted: false,
+    started: false
+  };
+
   const elements = {
+    introOverlay: document.getElementById("introOverlay"),
     mainCenter: document.getElementById("main-center"),
     exploreCard: document.getElementById("explore-card"),
     sceneTitle: document.getElementById("scene-title"),
@@ -116,6 +130,7 @@
     rankingList: document.getElementById("ranking-list"),
     rankingEmpty: document.getElementById("ranking-empty"),
     sheetBackdrop: document.getElementById("sheet-backdrop"),
+    audioButton: document.getElementById("btn-audio"),
     tooltip: document.getElementById("tooltip"),
     tooltipContent: document.getElementById("tooltip-content"),
     toast: document.getElementById("save-toast")
@@ -138,6 +153,162 @@
     codex: { nodes: [], enemies: [], endings: [] },
     runRecorded: false
   };
+
+  function updateAudioButton() {
+    if (!elements.audioButton) return;
+    const isActive = audioState.started && !audioState.muted;
+    elements.audioButton.textContent = isActive ? "🔈" : "🔇";
+    elements.audioButton.setAttribute("aria-pressed", String(isActive));
+    elements.audioButton.setAttribute(
+      "aria-label",
+      isActive ? "배경음악 끄기" : "배경음악 켜기"
+    );
+  }
+
+  function setAudioMuted(muted) {
+    audioState.muted = muted;
+    if (audioState.master && audioState.context) {
+      const target = muted ? 0 : audioState.baseGain;
+      audioState.master.gain.setTargetAtTime(target, audioState.context.currentTime, 0.6);
+    }
+    updateAudioButton();
+  }
+
+  function createNoiseBuffer(context) {
+    const buffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] = (Math.random() * 2 - 1) * 0.5;
+    }
+    return buffer;
+  }
+
+  function startAmbientBGM() {
+    if (audioState.started) {
+      if (audioState.context?.state === "suspended") {
+        audioState.context.resume();
+      }
+      setAudioMuted(false);
+      return;
+    }
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const context = new AudioContextClass();
+    const master = context.createGain();
+    master.gain.value = audioState.baseGain;
+    master.connect(context.destination);
+
+    const padFilter = context.createBiquadFilter();
+    padFilter.type = "lowpass";
+    padFilter.frequency.value = 520;
+    padFilter.Q.value = 0.7;
+
+    const padGain = context.createGain();
+    padGain.gain.value = 0.8;
+    padGain.connect(padFilter);
+    padFilter.connect(master);
+
+    const chords = [
+      [110, 165, 220],
+      [98, 147, 196],
+      [123.47, 185, 246.94],
+      [130.81, 196, 261.63]
+    ];
+    const oscTypes = ["sine", "triangle", "sine"];
+    const detunes = [-7, 4, 8];
+
+    chords[0].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = oscTypes[index % oscTypes.length];
+      oscillator.frequency.value = frequency;
+      oscillator.detune.value = detunes[index % detunes.length];
+      oscillator.connect(padGain);
+      oscillator.start();
+      audioState.padOscillators.push(oscillator);
+    });
+
+    const noise = context.createBufferSource();
+    noise.buffer = createNoiseBuffer(context);
+    noise.loop = true;
+    const noiseBand = context.createBiquadFilter();
+    noiseBand.type = "bandpass";
+    noiseBand.frequency.value = 580;
+    noiseBand.Q.value = 0.65;
+    const noiseLow = context.createBiquadFilter();
+    noiseLow.type = "lowpass";
+    noiseLow.frequency.value = 1400;
+    const noiseGain = context.createGain();
+    noiseGain.gain.value = 0.015;
+    noise.connect(noiseBand);
+    noiseBand.connect(noiseLow);
+    noiseLow.connect(noiseGain);
+    noiseGain.connect(master);
+    noise.start();
+
+    let chordIndex = 0;
+    const applyChord = (index) => {
+      const chord = chords[index];
+      audioState.padOscillators.forEach((oscillator, oscIndex) => {
+        const base = chord[oscIndex % chord.length];
+        oscillator.frequency.setTargetAtTime(base, context.currentTime, 3.4);
+      });
+    };
+    applyChord(chordIndex);
+    audioState.chordTimer = window.setInterval(() => {
+      chordIndex = (chordIndex + 1) % chords.length;
+      applyChord(chordIndex);
+    }, 12000);
+
+    audioState.context = context;
+    audioState.master = master;
+    audioState.noiseSource = noise;
+    audioState.started = true;
+    audioState.muted = false;
+    updateAudioButton();
+
+    if (context.state === "suspended") {
+      context.resume();
+    }
+  }
+
+  function setupIntroOverlay() {
+    const intro = elements.introOverlay;
+    if (!intro) return;
+    if (INTRO_SKIP_ENABLED) {
+      const seen = localStorage.getItem(INTRO_STORAGE_KEY) === "1";
+      if (seen) {
+        intro.remove();
+        return;
+      }
+    }
+
+    let dismissed = false;
+    const dismissIntro = () => {
+      if (dismissed) return;
+      dismissed = true;
+      startAmbientBGM();
+      if (INTRO_SKIP_ENABLED) {
+        try {
+          localStorage.setItem(INTRO_STORAGE_KEY, "1");
+        } catch (error) {
+          recordBootError(error);
+        }
+      }
+      intro.classList.add("intro--hide");
+      const removeIntro = () => intro.remove();
+      intro.addEventListener("transitionend", removeIntro, { once: true });
+      window.setTimeout(removeIntro, 900);
+    };
+
+    intro.addEventListener("pointerdown", dismissIntro, { passive: true });
+    intro.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        dismissIntro();
+      }
+    });
+  }
 
   function defaultPlayer() {
     return {
@@ -1082,6 +1253,16 @@
       target.addEventListener("focus", () => showTooltip(target));
       target.addEventListener("blur", hideTooltip);
     });
+    if (elements.audioButton) {
+      elements.audioButton.addEventListener("click", () => {
+        if (!audioState.started) {
+          startAmbientBGM();
+          return;
+        }
+        setAudioMuted(!audioState.muted);
+      });
+      updateAudioButton();
+    }
     window.addEventListener("scroll", hideTooltip, { passive: true });
     window.addEventListener("resize", hideTooltip);
   }
@@ -1113,6 +1294,7 @@
     state.codex = loadCodex();
     renderLoading();
     wireEvents();
+    setupIntroOverlay();
 
     Promise.allSettled([
       loadJson("nodes"),
