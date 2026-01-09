@@ -1,7 +1,8 @@
 (() => {
-  const VERSION = "v0.2.8";
+  const VERSION = "v0.3.0";
   const SAVE_KEY = "textrpg-omega-save";
   const STORAGE_PREFIX = "textrpg";
+  const DEFAULT_NODE_ID = "HUB_GUILD";
   const MAIN_SCRIPT = document.getElementById("appMain");
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
@@ -70,7 +71,8 @@
     combatDiceValue: document.getElementById("combat-dice-value"),
     combatDiceLabel: document.getElementById("combat-dice-label"),
     combatDiceBadge: document.getElementById("combat-dice-badge"),
-    combatDock: document.getElementById("combat-dock")
+    combatDock: document.getElementById("combat-dock"),
+    combatLog: document.getElementById("combat-log")
   };
 
   if (elements.versionLabel) {
@@ -93,7 +95,7 @@
     data: null,
     maps: null,
     player: null,
-    nodeId: "NODE_PROLOGUE",
+    nodeId: DEFAULT_NODE_ID,
     inCombat: false,
     combat: null,
     log: [],
@@ -230,6 +232,29 @@
     }
   }
 
+  function setCombatBar(el, cur, max, color) {
+    if (!el) return;
+    const safeMax = Math.max(1, Number(max) || 1);
+    const safeCur = Math.max(0, Math.min(safeMax, Number(cur) || 0));
+    const pct = Math.round((safeCur / safeMax) * 100);
+    el.textContent = `${safeCur}/${safeMax}`;
+    el.style.setProperty("--fill", `${pct}%`);
+    if (color) el.style.setProperty("--bar-color", color);
+  }
+
+  function renderCombatLog() {
+    if (!elements.combatLog) return;
+    elements.combatLog.innerHTML = "";
+    const tail = state.log.slice(-10);
+    tail.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "log-entry";
+      row.textContent = entry;
+      elements.combatLog.appendChild(row);
+    });
+    elements.combatLog.scrollTop = elements.combatLog.scrollHeight;
+  }
+
   function addLog(entry) {
     state.log.push(entry);
     if (state.log.length > 40) {
@@ -237,6 +262,7 @@
     }
     state.lastSummary = `최근 요약: ${entry}`;
     renderLog();
+    if (state.inCombat) renderCombatLog();
   }
 
   function updateHud() {
@@ -340,7 +366,7 @@
 
   function newGameState() {
     state.player = normalizePlayer(null);
-    state.nodeId = "NODE_PROLOGUE";
+    state.nodeId = DEFAULT_NODE_ID;
     state.inCombat = false;
     state.combat = null;
     state.log = [];
@@ -368,6 +394,27 @@
     updateHud();
   }
 
+  function meetsRequirements(requirements) {
+    if (!requirements || typeof requirements !== "object") return true;
+    const minHp = Number(requirements.min_hp);
+    const maxHp = Number(requirements.max_hp);
+    const minGold = Number(requirements.min_gold);
+    const maxGold = Number(requirements.max_gold);
+    const minTrust = Number(requirements.min_trust);
+    const maxTrust = Number(requirements.max_trust);
+    const minInsight = Number(requirements.min_insight);
+    const maxInsight = Number(requirements.max_insight);
+    if (Number.isFinite(minHp) && state.player.hp < minHp) return false;
+    if (Number.isFinite(maxHp) && state.player.hp > maxHp) return false;
+    if (Number.isFinite(minGold) && state.player.gold < minGold) return false;
+    if (Number.isFinite(maxGold) && state.player.gold > maxGold) return false;
+    if (Number.isFinite(minTrust) && state.player.counters.trust < minTrust) return false;
+    if (Number.isFinite(maxTrust) && state.player.counters.trust > maxTrust) return false;
+    if (Number.isFinite(minInsight) && state.player.counters.insight < minInsight) return false;
+    if (Number.isFinite(maxInsight) && state.player.counters.insight > maxInsight) return false;
+    return true;
+  }
+
   function renderEnding(endingId) {
     const ending = state.maps.endingsMap.get(endingId);
     setView("explore");
@@ -386,6 +433,11 @@
   function renderNode(nodeId) {
     const node = state.maps.nodesMap.get(nodeId);
     if (!node) {
+      if (nodeId !== DEFAULT_NODE_ID && state.maps.nodesMap.has(DEFAULT_NODE_ID)) {
+        state.nodeId = DEFAULT_NODE_ID;
+        renderNode(DEFAULT_NODE_ID);
+        return;
+      }
       renderFatal(
         [{ name: "nodes", url: "-", status: "-", message: `NODE '${nodeId}' 없음` }],
         "노드 데이터를 찾을 수 없습니다."
@@ -399,8 +451,11 @@
     if (elements.diceValue) elements.diceValue.textContent = "--";
     if (elements.diceLabel) elements.diceLabel.textContent = "주사위 대기";
     clearChoices();
+    let renderedChoices = 0;
     node.choices.forEach((choice) => {
+      if (!meetsRequirements(choice.requirements)) return;
       const label = choice.text ?? choice.label ?? "선택";
+      renderedChoices += 1;
       addChoiceButton(label, () => {
         applyImpact(choice.impact);
         if (choice.startCombat) {
@@ -419,9 +474,9 @@
         renderNode(state.nodeId);
       });
     });
-    if (!node.choices.length) {
-      addChoiceButton("새 여정", () => {
-        newGameState();
+    if (!renderedChoices) {
+      addChoiceButton("길드로 돌아간다", () => {
+        state.nodeId = DEFAULT_NODE_ID;
         saveState();
         renderNode(state.nodeId);
       });
@@ -465,14 +520,29 @@
       renderNode(state.nodeId);
       return;
     }
+    if (state.combat) {
+      const enemyMaxHp = Number(state.combat.enemyMaxHp);
+      if (!Number.isFinite(enemyMaxHp) || enemyMaxHp <= 0) {
+        state.combat.enemyMaxHp = enemy.hp;
+      }
+      if (!Number.isFinite(Number(state.combat.enemyHp))) {
+        state.combat.enemyHp = enemy.hp;
+      }
+    }
     setView("combat");
     if (elements.combatEnemyName) elements.combatEnemyName.textContent = enemy.name;
-    if (elements.combatEnemyHp) {
-      elements.combatEnemyHp.textContent = `${state.combat.enemyHp}/${state.combat.enemyMaxHp}`;
-    }
-    if (elements.combatPlayerHp) {
-      elements.combatPlayerHp.textContent = `${state.player.hp}/${state.player.maxHp}`;
-    }
+    setCombatBar(
+      elements.combatPlayerHp,
+      state.player.hp,
+      state.player.maxHp,
+      "rgba(93, 222, 255, 0.85)"
+    );
+    setCombatBar(
+      elements.combatEnemyHp,
+      state.combat.enemyHp,
+      state.combat.enemyMaxHp,
+      "rgba(255, 104, 143, 0.85)"
+    );
     if (elements.combatSituation) {
       elements.combatSituation.textContent = "전투가 시작됐다.";
     }
@@ -481,6 +551,7 @@
     if (elements.combatDiceBadge) elements.combatDiceBadge.textContent = "-";
     if (elements.combatRecover) elements.combatRecover.hidden = true;
     if (elements.combatDicePanel) elements.combatDicePanel.hidden = false;
+    renderCombatLog();
     if (elements.combatDock) {
       elements.combatDock.innerHTML = "";
       const btn = document.createElement("button");
@@ -547,12 +618,18 @@
       return;
     }
 
-    if (elements.combatEnemyHp) {
-      elements.combatEnemyHp.textContent = `${state.combat.enemyHp}/${state.combat.enemyMaxHp}`;
-    }
-    if (elements.combatPlayerHp) {
-      elements.combatPlayerHp.textContent = `${state.player.hp}/${state.player.maxHp}`;
-    }
+    setCombatBar(
+      elements.combatPlayerHp,
+      state.player.hp,
+      state.player.maxHp,
+      "rgba(93, 222, 255, 0.85)"
+    );
+    setCombatBar(
+      elements.combatEnemyHp,
+      state.combat.enemyHp,
+      state.combat.enemyMaxHp,
+      "rgba(255, 104, 143, 0.85)"
+    );
     saveState();
   }
 
@@ -569,7 +646,10 @@
       return;
     }
     state.player = normalizePlayer(saved.player);
-    state.nodeId = saved.nodeId ?? "NODE_PROLOGUE";
+    state.nodeId = saved.nodeId ?? DEFAULT_NODE_ID;
+    if (state.maps?.nodesMap && !state.maps.nodesMap.has(state.nodeId)) {
+      state.nodeId = DEFAULT_NODE_ID;
+    }
     state.log = Array.isArray(saved.log) ? saved.log : [];
     state.lastSummary = saved.lastSummary ?? "최근 요약: -";
     state.inCombat = Boolean(saved.inCombat);
@@ -582,6 +662,7 @@
     if (!enemyId || !state.maps.enemiesMap.has(enemyId)) {
       addLog("전투 데이터를 복원할 수 없어 탐험으로 복귀합니다.");
       clearCombatState();
+      state.nodeId = DEFAULT_NODE_ID;
       saveState();
     }
   }
@@ -616,7 +697,7 @@
       elements.combatRecoverButton.addEventListener("click", () => {
         clearCombatState();
         saveState();
-        renderNode(state.nodeId || "NODE_PROLOGUE");
+        renderNode(state.nodeId || DEFAULT_NODE_ID);
       });
     }
     if (elements.combatDicePanel) {
@@ -694,7 +775,7 @@
         if (state.inCombat) {
           renderCombat();
         } else {
-          renderNode(state.nodeId || "NODE_PROLOGUE");
+          renderNode(state.nodeId || DEFAULT_NODE_ID);
         }
       })
       .catch((error) => {

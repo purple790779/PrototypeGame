@@ -28,6 +28,13 @@
     "description": "출혈을 멈추고 약간 회복한다."
   },
   {
+    "id": "mana_leaf",
+    "name": "마나 잎",
+    "type": "consumable",
+    "effect": { "mp": 8 },
+    "description": "MP를 조금 회복한다."
+  },
+  {
     "id": "smoke_bomb",
     "name": "연막탄",
     "type": "tool",

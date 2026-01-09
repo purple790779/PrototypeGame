@@ -1,107 +1,151 @@
 [
   {
-    "node_id": "NODE_PROLOGUE",
-    "title": "기억의 파편",
-    "situation": "차가운 안개 속에서 정신을 되찾았다. 당신은 정화자의 사명을 부여받았음을 느낀다.",
-    "event_pool": ["E-001", "E-002", "E-008"],
+    "node_id": "HUB_GUILD",
+    "title": "길드 게시판",
+    "situation": "초보 모험가 등록을 마친 당신. 게시판에는 세 장의 의뢰가 걸려 있다.",
+    "event_pool": ["E-SOCIAL-001"],
     "choices": [
-      { "text": "정화자의 길을 따른다", "impact": { "trust": 1 }, "next_node": "NODE_FOREST" },
-      { "text": "주변을 더 조사한다", "impact": { "insight": 1 }, "next_node": "NODE_RUINS" }
+      { "text": "쉬움: 하수구 쥐 소탕", "next_node": "MISSION_RATS_1" },
+      { "text": "보통: 상인 호위", "next_node": "MISSION_ESCORT_1" },
+      { "text": "도박: 폐허 조사", "next_node": "MISSION_RUINS_1" }
     ]
   },
   {
-    "node_id": "NODE_FOREST",
-    "title": "흐릿한 숲길",
-    "situation": "습기가 가득한 숲. 발자국은 많지만 사람의 흔적은 희미하다.",
-    "event_pool": ["E-001", "E-007", "E-009", "E-010", "E-015"],
+    "node_id": "MISSION_RATS_1",
+    "title": "하수구 입구",
+    "situation": "젖은 돌과 비릿한 냄새가 몰려온다. 안쪽에서 소리가 난다.",
+    "event_pool": ["E-TRAP-001", "E-REST-001"],
     "choices": [
-      { "text": "야영지를 찾아 휴식한다", "impact": { "hp": 6 }, "next_node": "NODE_CAMP" },
-      { "text": "교역로를 향한다", "next_node": "NODE_MARKET" },
-      { "text": "균열 지대를 조사한다", "impact": { "insight": 1 }, "next_node": "NODE_RIFT" }
+      { "text": "천천히 진입한다 (평판+1)", "impact": { "trust": 1 }, "next_node": "MISSION_RATS_2" },
+      { "text": "급하게 내려간다 (HP-3, 부상+1)", "impact": { "hp": -3, "insight": 1 }, "next_node": "MISSION_RATS_2" }
     ]
   },
   {
-    "node_id": "NODE_RUINS",
-    "title": "무너진 유적",
-    "situation": "돌무더기 속에서 희미한 불빛이 깜빡인다. 오래된 장비들이 흩어져 있다.",
-    "event_pool": ["E-006", "E-010", "E-015"],
+    "node_id": "MISSION_RATS_2",
+    "title": "쥐 둥지",
+    "situation": "쥐들이 몰려들기 시작한다. 선택을 빠르게 해야 한다.",
+    "event_pool": ["E-LOOT-001", "E-TRAP-002"],
     "choices": [
-      { "text": "유적을 더 파헤친다", "impact": { "insight": 1 }, "next_node": "NODE_FOREST" },
-      { "text": "외곽의 교역로로 이동한다", "next_node": "NODE_MARKET" }
+      { "text": "횃불로 몰아낸다 (골드+6)", "impact": { "gold": 6 }, "next_node": "MISSION_RATS_3" },
+      { "text": "손으로 정리한다 (평판+1, 부상+1)", "impact": { "trust": 1, "insight": 1 }, "next_node": "MISSION_RATS_3" }
     ]
   },
   {
-    "node_id": "NODE_CAMP",
-    "title": "임시 야영지",
-    "situation": "모닥불이 약하게 타오른다. 숨을 돌릴 수 있는 안전지대다.",
-    "event_pool": ["E-008", "E-003", "E-011"],
+    "node_id": "MISSION_RATS_3",
+    "title": "쥐 소탕 완료",
+    "situation": "작업은 끝났다. 정리하고 나갈 시간이다.",
+    "event_pool": ["E-LOOT-002"],
     "choices": [
-      { "text": "정찰 보고를 확인한다", "impact": { "trust": 1 }, "next_node": "NODE_SANCTUM" },
-      { "text": "다시 숲으로 돌아간다", "next_node": "NODE_FOREST" }
+      { "text": "증거물을 챙긴다 (골드+10)", "impact": { "gold": 10 }, "next_node": "RETURN_SETTLE" },
+      { "text": "빠르게 철수한다 (HP+2)", "impact": { "hp": 2 }, "next_node": "RETURN_SETTLE" }
     ]
   },
   {
-    "node_id": "NODE_MARKET",
-    "title": "교역로",
-    "situation": "희미한 등불이 비추는 길목. 순례자와 상인의 목소리가 섞인다.",
-    "event_pool": ["E-003", "E-007", "E-010", "E-015"],
+    "node_id": "MISSION_ESCORT_1",
+    "title": "호위 출발",
+    "situation": "상인이 마차를 끌고 출발한다. 길은 험하지 않지만 변수는 많다.",
+    "event_pool": ["E-SOCIAL-002", "E-RISK-001"],
     "choices": [
-      { "text": "성역으로 향하는 길을 묻는다", "impact": { "trust": 1 }, "next_node": "NODE_SANCTUM" },
-      { "text": "정보를 모은 뒤 숲으로 되돌아간다", "next_node": "NODE_FOREST" }
+      { "text": "정석 경로로 이동 (평판+1)", "impact": { "trust": 1 }, "next_node": "MISSION_ESCORT_2" },
+      { "text": "지름길을 제안 (골드+4, 부상+1)", "impact": { "gold": 4, "insight": 1 }, "next_node": "MISSION_ESCORT_2" }
     ]
   },
   {
-    "node_id": "NODE_RIFT",
-    "title": "균열 지대",
-    "situation": "대지에 미세한 균열이 퍼져 있다. 푸른 빛이 흐르며 공기가 차갑다.",
-    "event_pool": ["E-005", "E-012", "E-013"],
+    "node_id": "MISSION_ESCORT_2",
+    "title": "매복",
+    "situation": "숲길에서 기척이 사라진다. 누군가 숨었다.",
+    "event_pool": ["E-TRAP-003", "E-SHORTCUT-001"],
     "choices": [
-      { "text": "균열 중심부로 접근한다", "impact": { "insight": 1 }, "next_node": "NODE_TOWER_GATE" },
-      { "text": "위험을 피해 야영지로 복귀한다", "next_node": "NODE_CAMP" }
+      { "text": "매복을 돌파한다 (전투)", "start_combat": "corrupted_scout", "next_node": "MISSION_ESCORT_3" },
+      { "text": "상인을 숨긴다 (평판+1, 골드-4)", "impact": { "trust": 1, "gold": -4 }, "next_node": "MISSION_ESCORT_3" }
     ]
   },
   {
-    "node_id": "NODE_SANCTUM",
-    "title": "성역의 전언",
-    "situation": "정화자들의 집결지. 선발대가 남긴 흔적이 남아 있다.",
-    "event_pool": ["E-011", "E-014"],
+    "node_id": "MISSION_ESCORT_3",
+    "title": "무사 도착",
+    "situation": "도착했다. 상인은 약속한 보수를 꺼낸다.",
+    "event_pool": ["E-LOOT-003"],
     "choices": [
-      { "text": "탑으로 향할 준비를 한다", "impact": { "trust": 1 }, "next_node": "NODE_TOWER_GATE" },
-      { "text": "잠시 숨을 고르고 돌아간다", "next_node": "NODE_CAMP" }
+      { "text": "보수를 확실히 받는다 (골드+20)", "impact": { "gold": 20 }, "next_node": "RETURN_SETTLE" },
+      { "text": "평판을 챙긴다 (평판+2)", "impact": { "trust": 2 }, "next_node": "RETURN_SETTLE" }
     ]
   },
   {
-    "node_id": "NODE_TOWER_GATE",
-    "title": "천공의 문",
-    "situation": "거대한 탑의 입구가 모습을 드러낸다. 차가운 기운이 전신을 감싼다.",
-    "event_pool": ["E-009", "E-013"],
+    "node_id": "MISSION_RUINS_1",
+    "title": "폐허 입구",
+    "situation": "깨진 기둥과 먼지가 가득하다. 바닥이 불안하다.",
+    "event_pool": ["E-TRAP-004", "E-RISK-002"],
     "choices": [
-      { "text": "문지기를 상대한다", "impact": { "trust": 1 }, "start_combat": "sanctum_guard", "next_node": "NODE_TOWER_TOP" },
-      { "text": "전략을 재정비한다", "next_node": "NODE_CAMP" }
+      { "text": "조심히 조사한다 (부상+1)", "impact": { "insight": 1 }, "next_node": "MISSION_RUINS_2" },
+      { "text": "무작정 돌입 (HP-4)", "impact": { "hp": -4 }, "next_node": "MISSION_RUINS_2" }
     ]
   },
   {
-    "node_id": "NODE_TOWER_TOP",
-    "title": "탑 정상",
-    "situation": "바람이 끊긴 정상. 의식의 중심이 느껴진다.",
+    "node_id": "MISSION_RUINS_2",
+    "title": "붕괴 복도",
+    "situation": "복도가 무너지기 직전이다. 그림자가 움직인다.",
+    "event_pool": ["E-LOOT-004", "E-SHORTCUT-002"],
+    "choices": [
+      { "text": "전진하며 수색 (골드+8, 부상+1)", "impact": { "gold": 8, "insight": 1 }, "next_node": "MISSION_RUINS_3" },
+      { "text": "그림자와 조우 (전투)", "start_combat": "ash_wisp", "next_node": "MISSION_RUINS_3" }
+    ]
+  },
+  {
+    "node_id": "MISSION_RUINS_3",
+    "title": "탈출로",
+    "situation": "더 머물수록 위험하다. 이제 정리해야 한다.",
+    "event_pool": ["E-RISK-003"],
+    "choices": [
+      { "text": "전리품을 챙긴다 (골드+30, 부상+1)", "impact": { "gold": 30, "insight": 1 }, "next_node": "RETURN_SETTLE" },
+      { "text": "도망친다 (HP-3)", "impact": { "hp": -3 }, "next_node": "RETURN_SETTLE" }
+    ]
+  },
+  {
+    "node_id": "RETURN_SETTLE",
+    "title": "정산",
+    "situation": "길드가 보고서를 정리한다. 다음 선택은 당신 몫이다.",
+    "event_pool": ["E-REST-002"],
+    "choices": [
+      { "text": "정산 후 다음 의뢰 보기", "next_node": "HUB_GUILD" },
+      { "text": "여정을 정리한다(엔딩 체크)", "next_node": "END_CHECK" }
+    ]
+  },
+  {
+    "node_id": "END_CHECK",
+    "title": "결산",
+    "situation": "지금까지의 성과와 상처가 결말을 정한다.",
     "event_pool": [],
     "choices": [
       {
-        "text": "의식을 시작한다",
-        "requirements": { "min_trust": 3 },
-        "impact": { "trust": 1 },
-        "ending_id": "ENDING_RITE"
+        "text": "부유한 은퇴 (골드 200+)",
+        "requirements": { "min_gold": 200 },
+        "ending_id": "ENDING_RETIRE_RICH"
       },
       {
-        "text": "단서를 되짚는다",
-        "requirements": { "min_insight": 3 },
-        "impact": { "insight": 1 },
-        "ending_id": "ENDING_INSIGHT"
+        "text": "길드의 영웅 (평판 10+)",
+        "requirements": { "min_trust": 10 },
+        "ending_id": "ENDING_GUILD_HERO"
       },
       {
-        "text": "탑을 떠난다",
-        "ending_id": "ENDING_WITHDRAW"
-      }
+        "text": "탈진한 은퇴 (부상 10+)",
+        "requirements": { "min_insight": 10 },
+        "ending_id": "ENDING_WORN_OUT"
+      },
+      {
+        "text": "파산 (골드 -50 이하)",
+        "requirements": { "max_gold": -50 },
+        "ending_id": "ENDING_DEBT"
+      },
+      {
+        "text": "불운한 결말 (부상 6+ / 평판 -3 이하)",
+        "requirements": { "min_insight": 6, "max_trust": -3 },
+        "ending_id": "ENDING_BAD_LUCK"
+      },
+      {
+        "text": "그만두기: 평범한 귀환",
+        "ending_id": "ENDING_FIRST_STEP"
+      },
+      { "text": "계속한다", "next_node": "HUB_GUILD" }
     ]
   }
 ]
