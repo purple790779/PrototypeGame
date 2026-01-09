@@ -1,7 +1,8 @@
-const VERSION = "v0.2.5";
+const VERSION = "v0.2.6";
 const SAVE_SCHEMA_VERSION = 2;
 const SAVE_KEY = "textrpg-omega-save";
 const SLOT_KEYS = ["textrpg_slot_1", "textrpg_slot_2", "textrpg_slot_3"];
+const TEXT_RPG_STORAGE_KEYS = [SAVE_KEY, ...SLOT_KEYS];
 const MAX_LOG_ENTRIES = 60;
 const MAX_COMBAT_LOG = 6;
 const MAIN_SCRIPT = document.getElementById("appMain");
@@ -13,7 +14,8 @@ window.__LAST_BOOT_ERROR = null;
 function recordBootError(error) {
   if (!error) return;
   if (error instanceof Error) {
-    window.__LAST_BOOT_ERROR = `${error.name}: ${error.message}`;
+    const stack = error.stack ?? "";
+    window.__LAST_BOOT_ERROR = stack ? `${error.name}: ${error.message}\n${stack}` : `${error.name}: ${error.message}`;
     return;
   }
   if (typeof error === "string") {
@@ -200,8 +202,7 @@ function normalizeSaveSchema(data) {
 }
 
 function clearTextRpgStorage() {
-  const keys = Object.keys(localStorage).filter((key) => key.startsWith("textrpg"));
-  keys.forEach((key) => localStorage.removeItem(key));
+  TEXT_RPG_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 }
 
 function isCombatSnapshotValid(enemyData) {
@@ -1540,14 +1541,18 @@ function normalizeChoice(choice) {
   if (!choice || typeof choice !== "object") {
     return { text: "알 수 없는 선택지", next_node: null, ending_id: null, start_combat: null };
   }
-  const nextNode = choice.next_node ?? choice.next ?? choice.nextNode ?? null;
+  const nextNode = choice.next_node ?? choice.next_node_id ?? choice.next ?? choice.nextNode ?? null;
   const endingId = choice.ending_id ?? choice.endingId ?? null;
   const startCombat = choice.start_combat ?? choice.startCombat ?? null;
   return {
     ...choice,
     next_node: nextNode,
+    next_node_id: nextNode,
+    nextId: nextNode,
     ending_id: endingId,
-    start_combat: startCombat
+    endingId,
+    start_combat: startCombat,
+    startCombat
   };
 }
 
@@ -1597,9 +1602,10 @@ function normalizeEnemies(enemies, errors) {
         damage: { min: 0, max: 0 }
       };
     }
-    const attack = enemy.attack ?? enemy["공격"];
-    const damageMin = enemy.damage?.min ?? enemy.damageMin ?? enemy["피해량"]?.["최소"];
-    const damageMax = enemy.damage?.max ?? enemy.damageMax ?? enemy["피해량"]?.["최대"];
+    const attack = enemy.attack ?? enemy["공격"] ?? 0;
+    const damageMin = enemy.damageMin ?? enemy.damage?.min ?? enemy["피해량"]?.["최소"] ?? 1;
+    const damageMax = enemy.damageMax ?? enemy.damage?.max ?? enemy["피해량"]?.["최대"] ?? 2;
+    const statusAttack = enemy.status_attack ?? enemy.statusAttack ?? null;
     return {
       ...enemy,
       id: enemy.id ?? enemy.enemyId ?? `enemy-${index}`,
@@ -1608,9 +1614,11 @@ function normalizeEnemies(enemies, errors) {
       ac: Number.isFinite(Number(enemy.ac)) ? Number(enemy.ac) : enemy.ac ?? 10,
       attack: Number.isFinite(Number(attack)) ? Number(attack) : 0,
       damage: {
-        min: Number.isFinite(Number(damageMin)) ? Number(damageMin) : 0,
-        max: Number.isFinite(Number(damageMax)) ? Number(damageMax) : 0
-      }
+        min: Number.isFinite(Number(damageMin)) ? Number(damageMin) : 1,
+        max: Number.isFinite(Number(damageMax)) ? Number(damageMax) : 2
+      },
+      status_attack: statusAttack,
+      statusAttack
     };
   });
 }
@@ -1618,11 +1626,32 @@ function normalizeEnemies(enemies, errors) {
 function normalizeDataPayload(payload, errors) {
   const normalized = { ...payload };
   normalized.nodes = normalizeNodes(payload.nodes, errors);
-  normalized.events = Array.isArray(payload.events) ? payload.events : [];
-  normalized.items = Array.isArray(payload.items) ? payload.items : [];
+  normalized.events = normalizeEntityCollection(payload.events, "events", ["id", "event_id", "eventId"]);
+  normalized.items = normalizeEntityCollection(payload.items, "items", ["id", "item_id", "itemId"]);
   normalized.enemies = normalizeEnemies(payload.enemies, errors);
-  normalized.endings = Array.isArray(payload.endings) ? payload.endings : [];
+  normalized.endings = normalizeEntityCollection(payload.endings, "endings", ["id", "ending_id", "endingId"]);
   return normalized;
+}
+
+function normalizeEntityCollection(raw, key, idKeys) {
+  if (!Array.isArray(raw)) {
+    console.warn(`[TextRPG] ${key} 데이터가 배열이 아닙니다.`);
+    return [];
+  }
+  return raw
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") {
+        console.warn(`[TextRPG] ${key}[${index}]가 객체가 아닙니다.`);
+        return null;
+      }
+      const id = idKeys.map((field) => entry[field]).find((value) => Boolean(value));
+      if (!id) {
+        console.warn(`[TextRPG] ${key}[${index}]에 id가 없습니다.`);
+        return null;
+      }
+      return { ...entry, id };
+    })
+    .filter(Boolean);
 }
 
 async function loadData() {
@@ -1701,9 +1730,10 @@ async function loadData() {
     state.dataReady = false;
     state.dataLoadFailures = failures;
     state.dataMaps = null;
-    renderDataLoadError(failures, window.__LAST_BOOT_ERROR);
+    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
+    renderDataFail(failures, window.__LAST_BOOT_ERROR);
     logDataLoadFailures(failures);
-    return false;
+    return { ok: false, failures };
   }
 
   const normalizeErrors = [];
@@ -1720,9 +1750,10 @@ async function loadData() {
     state.dataReady = false;
     state.dataLoadFailures = validationFailures;
     state.dataMaps = null;
-    renderDataLoadError(validationFailures, window.__LAST_BOOT_ERROR);
+    clearCombatState("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
+    renderDataFail(validationFailures, window.__LAST_BOOT_ERROR);
     logDataLoadFailures(validationFailures);
-    return false;
+    return { ok: false, failures: validationFailures };
   }
 
   state.data = normalized;
@@ -1734,7 +1765,7 @@ async function loadData() {
     nodeIds: new Set(normalized.nodes.map((node) => node.id))
   };
   renderDataLoadError([], window.__LAST_BOOT_ERROR);
-  return true;
+  return { ok: true, data: normalized, maps: state.dataMaps };
 }
 
 function resetTransientUI() {
@@ -1757,10 +1788,14 @@ function resetTransientUI() {
 }
 
 function formatDataLoadFailure(failure) {
+  const parts = [];
   if (failure.status) {
-    return `HTTP ${failure.status}${failure.statusText ? ` ${failure.statusText}` : ""}`;
+    parts.push(`HTTP ${failure.status}${failure.statusText ? ` ${failure.statusText}` : ""}`);
   }
-  return failure.message;
+  if (failure.message) {
+    parts.push(failure.message);
+  }
+  return parts.join(" | ") || "알 수 없는 오류";
 }
 
 function logDataLoadFailures(failures) {
@@ -1790,6 +1825,25 @@ function renderDataLoadError(failures, lastBootError) {
   elements.dataErrorList.textContent = lines.join("\n");
 }
 
+function renderDataFail(failures, lastBootError) {
+  renderDataLoadError(failures, lastBootError);
+  if (elements.resumeCombat) {
+    elements.resumeCombat.hidden = true;
+  }
+  if (elements.combatScene) {
+    elements.combatScene.hidden = true;
+  }
+  if (elements.combatRecover) {
+    elements.combatRecover.hidden = true;
+  }
+  if (elements.combatDicePanel) {
+    elements.combatDicePanel.hidden = true;
+  }
+  if (elements.combatMeter) {
+    elements.combatMeter.hidden = true;
+  }
+}
+
 function wipeSave() {
   clearTextRpgStorage();
 }
@@ -1815,13 +1869,14 @@ async function boot() {
   setScene("준비 중...", "데이터를 불러오는 중입니다.");
   renderDataLoadError([], window.__LAST_BOOT_ERROR);
   renderResumeCombat();
-  const ok = await loadData();
-  if (!ok) {
+  const loadResult = await loadData();
+  if (!loadResult.ok) {
     const saved = loadSaveData();
     if (saved) {
       applySaveData(saved, { render: false, runValidation: false });
       clearCombat("데이터 로드 실패로 전투 상태를 정리했습니다.", { announce: false });
     }
+    renderDataFail(loadResult.failures ?? state.dataLoadFailures, window.__LAST_BOOT_ERROR);
     renderCombatScene();
     renderResumeCombat();
     setScene("데이터 로드 실패", "데이터 로드에 실패했습니다. 아래 오류를 확인해주세요.");
@@ -1838,6 +1893,24 @@ async function boot() {
   renderNode();
   renderCombatScene();
   renderResumeCombat();
+}
+
+function renderFatal(error, failures, lastBootError) {
+  recordBootError(error);
+  const details = lastBootError ?? window.__LAST_BOOT_ERROR;
+  renderDataFail(failures ?? [], details);
+  setScene("치명적 오류", "부팅 중 치명적 오류가 발생했습니다. 아래 정보를 확인해주세요.");
+  showToast("부팅 오류", "error");
+}
+
+function finalizeBootUI() {
+  state.isBusy = false;
+  if (
+    elements.sceneTitle?.textContent === "준비 중..." ||
+    elements.sceneText?.textContent === "데이터를 불러오는 중입니다."
+  ) {
+    setScene("오류", "부팅이 완료되지 않았습니다. 새로고침 후 다시 시도해주세요.");
+  }
 }
 
 function scheduleSave() {
@@ -1894,7 +1967,8 @@ function setupEventListeners() {
     window.location.reload();
   });
   elements.combatRecoverButton?.addEventListener("click", () => {
-    clearCombatState("사용자 요청 복귀", { render: true });
+    clearCombatState("사용자 요청: 탐험으로 복귀", { render: true });
+    renderNode();
     renderCombatScene();
   });
   elements.saveButton.addEventListener("click", () => saveGameWithFeedback());
@@ -1936,15 +2010,24 @@ function init() {
   if (elements.versionLabel) {
     elements.versionLabel.textContent = VERSION;
   }
+  if (elements.versionLabel?.parentElement) {
+    const badge = document.createElement("span");
+    badge.className = "version";
+    badge.textContent = `ENGINE ${VERSION}`;
+    elements.versionLabel.parentElement.appendChild(document.createTextNode(" "));
+    elements.versionLabel.parentElement.appendChild(badge);
+  }
   setLogSummary("준비 중...");
   setupEventListeners();
-
-  boot().catch((error) => {
-    recordBootError(error);
-    renderDataLoadError(state.dataLoadFailures ?? [], window.__LAST_BOOT_ERROR);
-    setScene("오류", "데이터를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.");
-    showToast("데이터를 불러오지 못했습니다.", "error");
-  });
 }
 
-init();
+(async () => {
+  try {
+    init();
+    await boot();
+  } catch (error) {
+    renderFatal(error, state.dataLoadFailures, window.__LAST_BOOT_ERROR);
+  } finally {
+    finalizeBootUI();
+  }
+})();
