@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.2.7";
+  const VERSION = "v0.2.8";
   const SAVE_KEY = "textrpg-omega-save";
   const STORAGE_PREFIX = "textrpg";
   const MAIN_SCRIPT = document.getElementById("appMain");
@@ -64,6 +64,9 @@
     combatEnemyName: document.getElementById("combat-enemy-name"),
     combatEnemyHp: document.getElementById("combat-enemy-hp"),
     combatSituation: document.getElementById("combat-situation"),
+    combatRecover: document.getElementById("combat-recover"),
+    combatRecoverButton: document.getElementById("btn-combat-recover"),
+    combatDicePanel: document.getElementById("combat-dice-panel"),
     combatDiceValue: document.getElementById("combat-dice-value"),
     combatDiceLabel: document.getElementById("combat-dice-label"),
     combatDiceBadge: document.getElementById("combat-dice-badge"),
@@ -476,6 +479,8 @@
     if (elements.combatDiceValue) elements.combatDiceValue.textContent = "--";
     if (elements.combatDiceLabel) elements.combatDiceLabel.textContent = "전투 판정";
     if (elements.combatDiceBadge) elements.combatDiceBadge.textContent = "-";
+    if (elements.combatRecover) elements.combatRecover.hidden = true;
+    if (elements.combatDicePanel) elements.combatDicePanel.hidden = false;
     if (elements.combatDock) {
       elements.combatDock.innerHTML = "";
       const btn = document.createElement("button");
@@ -575,7 +580,9 @@
     if (!state.inCombat) return;
     const enemyId = state.combat?.enemyId;
     if (!enemyId || !state.maps.enemiesMap.has(enemyId)) {
+      addLog("전투 데이터를 복원할 수 없어 탐험으로 복귀합니다.");
       clearCombatState();
+      saveState();
     }
   }
 
@@ -603,6 +610,20 @@
       elements.hardResetButton.addEventListener("click", () => {
         clearTextRpgStorage();
         window.location.reload();
+      });
+    }
+    if (elements.combatRecoverButton) {
+      elements.combatRecoverButton.addEventListener("click", () => {
+        clearCombatState();
+        saveState();
+        renderNode(state.nodeId || "NODE_PROLOGUE");
+      });
+    }
+    if (elements.combatDicePanel) {
+      elements.combatDicePanel.addEventListener("click", () => {
+        if (state.inCombat) {
+          resolveCombatTurn();
+        }
       });
     }
   }

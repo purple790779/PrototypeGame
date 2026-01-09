@@ -14,6 +14,10 @@
   --safe-bottom: env(safe-area-inset-bottom);
 }
 
+[hidden] {
+  display: none !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -514,6 +518,7 @@ textarea {
   display: grid;
   justify-items: center;
   gap: 8px;
+  cursor: pointer;
 }
 
 .combat-scene__badge {
