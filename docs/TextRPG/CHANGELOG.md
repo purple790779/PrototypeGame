@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## v0.3.9
+- Fix: background_parts JSON 구문 오류를 수정해 데이터 로드 실패를 해결
+
 ## v0.3.8
 - Audio: 전투 진입/복귀 시 전투 BGM과 앰비언트 BGM을 페이드 전환하도록 수정
 - Audio: 전투 BGM 파일명을 공백 없는 형태로 정리하고 참조 업데이트
