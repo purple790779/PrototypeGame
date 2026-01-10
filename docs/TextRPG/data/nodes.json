@@ -1,8 +1,17 @@
 [
   {
+    "node_id": "GUILD_ARRIVAL",
+    "title": "모험가 길드 도착",
+    "situation": "긴 여정 끝에 길드에 도착했다. 거대한 게시판과 바쁜 안내원이 당신을 맞이한다.",
+    "event_pool": [],
+    "choices": [
+      { "text": "게시판으로 이동한다", "next_node": "HUB_GUILD" }
+    ]
+  },
+  {
     "node_id": "HUB_GUILD",
     "title": "길드 게시판",
-    "situation": "초보 모험가 등록을 마친 당신. 게시판에는 세 장의 의뢰가 걸려 있다.",
+    "situation": "등록을 마친 당신. 게시판에는 초급 의뢰가 정리돼 있다.",
     "event_pool": ["E-SOCIAL-001"],
     "choices": [
       { "text": "쉬움: 하수구 쥐 소탕", "next_node": "MISSION_RATS_1" },
@@ -36,8 +45,18 @@
     "situation": "작업은 끝났다. 정리하고 나갈 시간이다.",
     "event_pool": ["E-LOOT-002"],
     "choices": [
-      { "text": "증거물을 챙긴다 (골드+10)", "impact": { "gold": 10 }, "next_node": "RETURN_SETTLE" },
-      { "text": "빠르게 철수한다 (HP+2)", "impact": { "hp": 2 }, "next_node": "RETURN_SETTLE" }
+      {
+        "text": "증거물을 챙긴다 (골드+10)",
+        "impact": { "gold": 10 },
+        "quest_complete": true,
+        "next_node": "RETURN_SETTLE"
+      },
+      {
+        "text": "빠르게 철수한다 (HP+2)",
+        "impact": { "hp": 2 },
+        "quest_complete": true,
+        "next_node": "RETURN_SETTLE"
+      }
     ]
   },
   {
@@ -66,8 +85,18 @@
     "situation": "도착했다. 상인은 약속한 보수를 꺼낸다.",
     "event_pool": ["E-LOOT-003"],
     "choices": [
-      { "text": "보수를 확실히 받는다 (골드+20)", "impact": { "gold": 20 }, "next_node": "RETURN_SETTLE" },
-      { "text": "평판을 챙긴다 (평판+2)", "impact": { "trust": 2 }, "next_node": "RETURN_SETTLE" }
+      {
+        "text": "보수를 확실히 받는다 (골드+20)",
+        "impact": { "gold": 20 },
+        "quest_complete": true,
+        "next_node": "RETURN_SETTLE"
+      },
+      {
+        "text": "평판을 챙긴다 (평판+2)",
+        "impact": { "trust": 2 },
+        "quest_complete": true,
+        "next_node": "RETURN_SETTLE"
+      }
     ]
   },
   {
@@ -96,14 +125,24 @@
     "situation": "더 머물수록 위험하다. 이제 정리해야 한다.",
     "event_pool": ["E-RISK-003"],
     "choices": [
-      { "text": "전리품을 챙긴다 (골드+30, 부상+1)", "impact": { "gold": 30, "insight": 1 }, "next_node": "RETURN_SETTLE" },
-      { "text": "도망친다 (HP-3)", "impact": { "hp": -3 }, "next_node": "RETURN_SETTLE" }
+      {
+        "text": "전리품을 챙긴다 (골드+30, 부상+1)",
+        "impact": { "gold": 30, "insight": 1 },
+        "quest_complete": true,
+        "next_node": "RETURN_SETTLE"
+      },
+      {
+        "text": "도망친다 (HP-3)",
+        "impact": { "hp": -3 },
+        "quest_complete": true,
+        "next_node": "RETURN_SETTLE"
+      }
     ]
   },
   {
     "node_id": "RETURN_SETTLE",
     "title": "정산",
-    "situation": "길드가 보고서를 정리한다. 이제 이번 의뢰의 결말을 정할 시간이다.",
+    "situation": "길드가 보고서를 정리한다. 다음 의뢰를 받을지, 오늘을 마감할지 결정해야 한다.",
     "event_pool": ["E-REST-002"],
     "choices": [
       { "text": "여정을 정리한다(엔딩 체크)", "next_node": "END_CHECK" }

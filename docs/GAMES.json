@@ -33,9 +33,9 @@
       "slug": "textrpg-omega",
       "path": "./TextRPG/",
       "icon": "🧭",
-      "version": "v0.3.3",
+      "version": "v0.3.4",
       "status": "active",
-      "summary": "초보 모험가로서 첫 의뢰를 받아 떠나는 가벼운 텍스트 RPG.",
+      "summary": "랜덤 프롤로그와 길드로 향하는 여정을 거치는 텍스트 RPG.",
       "order": 30,
       "tags": ["mobile", "rpg", "text", "story"]
     }

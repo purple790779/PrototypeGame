@@ -1,0 +1,272 @@
+[
+  {
+    "id": "TRAVEL_01",
+    "title": "소매치기",
+    "text": "사람들 틈에서 지갑이 사라졌다.",
+    "options": [
+      { "text": "즉시 쫓아간다 (골드+4, HP-2)", "impact": { "gold": 4, "hp": -2 } },
+      { "text": "포기하고 길을 재정비한다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_02",
+    "title": "길 잃음",
+    "text": "갈림길이 많아 방향을 잃었다.",
+    "options": [
+      { "text": "감으로 직진한다 (부상+1)", "impact": { "insight": 1 } },
+      { "text": "지도를 확인한다 (골드-2)", "impact": { "gold": -2 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_03",
+    "title": "행상인",
+    "text": "행상인이 급히 물자를 팔고 있다.",
+    "options": [
+      { "text": "도움을 준다 (평판+1, 골드-3)", "impact": { "trust": 1, "gold": -3 } },
+      { "text": "흥정을 한다 (골드+3)", "impact": { "gold": 3 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_04",
+    "title": "부상자",
+    "text": "길가에 부상자가 쓰러져 있다.",
+    "options": [
+      { "text": "치료한다 (평판+2, HP-2)", "impact": { "trust": 2, "hp": -2 } },
+      { "text": "지나친다 (평판-1)", "impact": { "trust": -1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_05",
+    "title": "야영 준비",
+    "text": "해가 지기 전에 야영지를 마련해야 한다.",
+    "options": [
+      { "text": "철저히 준비한다 (HP+3, 골드-2)", "impact": { "hp": 3, "gold": -2 } },
+      { "text": "간단히 쉰다 (HP+1)", "impact": { "hp": 1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_06",
+    "title": "작은 몬스터",
+    "text": "작은 슬라임이 길을 막는다.",
+    "options": [
+      { "text": "정면 승부 (전투)", "start_combat": "ether_slime", "impact": {} },
+      { "text": "피해서 돌아간다 (골드-2)", "impact": { "gold": -2 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_07",
+    "title": "폭우",
+    "text": "갑작스러운 폭우가 몰아친다.",
+    "options": [
+      { "text": "강행한다 (HP-3)", "impact": { "hp": -3 } },
+      { "text": "임시 대피 (골드-1, HP+1)", "impact": { "gold": -1, "hp": 1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_08",
+    "title": "동료 만남",
+    "text": "길에서 수습 모험가를 만났다.",
+    "options": [
+      { "text": "동행을 제안한다 (평판+1)", "impact": { "trust": 1 } },
+      { "text": "홀로 간다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_09",
+    "title": "지름길",
+    "text": "짧아 보이는 길이 눈에 띈다.",
+    "options": [
+      { "text": "지름길로 간다 (골드+2, 부상+1)", "impact": { "gold": 2, "insight": 1 } },
+      { "text": "안전한 길을 따른다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_10",
+    "title": "늑대 그림자",
+    "text": "숲속에서 으르렁거림이 들린다.",
+    "options": [
+      { "text": "경계하며 나아간다 (전투)", "start_combat": "gloom_wolf", "impact": {} },
+      { "text": "우회한다 (골드-1)", "impact": { "gold": -1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_11",
+    "title": "버려진 수레",
+    "text": "길가에 부서진 수레가 있다.",
+    "options": [
+      { "text": "뒤진다 (골드+5)", "impact": { "gold": 5 } },
+      { "text": "함정을 의심하고 지나친다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_12",
+    "title": "노숙자의 부탁",
+    "text": "노숙자가 따뜻한 음식이 필요하다고 한다.",
+    "options": [
+      { "text": "나눠 준다 (평판+1, 골드-2)", "impact": { "trust": 1, "gold": -2 } },
+      { "text": "거절한다 (평판-1)", "impact": { "trust": -1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_13",
+    "title": "흔들리는 다리",
+    "text": "강 위의 다리가 크게 흔들린다.",
+    "options": [
+      { "text": "천천히 건넌다 (부상+1)", "impact": { "insight": 1 } },
+      { "text": "우회한다 (골드-2)", "impact": { "gold": -2 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_14",
+    "title": "길 안내",
+    "text": "노인이 지름길을 알려준다.",
+    "options": [
+      { "text": "감사 인사 (평판+1)", "impact": { "trust": 1 } },
+      { "text": "보수를 준다 (평판+2, 골드-2)", "impact": { "trust": 2, "gold": -2 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_15",
+    "title": "마차 수리",
+    "text": "부서진 마차를 고치고 있다.",
+    "options": [
+      { "text": "도와준다 (평판+1, HP-1)", "impact": { "trust": 1, "hp": -1 } },
+      { "text": "재료를 챙긴다 (골드+3)", "impact": { "gold": 3 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_16",
+    "title": "돌풍",
+    "text": "먼지 돌풍이 지나간다.",
+    "options": [
+      { "text": "몸을 숙인다 (HP-1)", "impact": { "hp": -1 } },
+      { "text": "망토로 막는다 (골드-1, 부상-1)", "impact": { "gold": -1, "insight": -1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_17",
+    "title": "약초 발견",
+    "text": "치유에 쓰이는 약초가 자라고 있다.",
+    "options": [
+      { "text": "채집한다 (HP+2)", "impact": { "hp": 2 } },
+      { "text": "독일지 몰라 피한다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_18",
+    "title": "의심스러운 상자",
+    "text": "숲길에 작은 상자가 놓여 있다.",
+    "options": [
+      { "text": "연다 (골드+6, 부상+1)", "impact": { "gold": 6, "insight": 1 } },
+      { "text": "건드리지 않는다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_19",
+    "title": "도움 요청",
+    "text": "상인이 길을 비켜 달라고 요청한다.",
+    "options": [
+      { "text": "길을 비켜준다 (평판+1)", "impact": { "trust": 1 } },
+      { "text": "대가를 요구한다 (골드+2, 평판-1)", "impact": { "gold": 2, "trust": -1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_20",
+    "title": "거대한 발자국",
+    "text": "길가에 큰 발자국이 남아 있다.",
+    "options": [
+      { "text": "추적한다 (부상+1, 골드+4)", "impact": { "insight": 1, "gold": 4 } },
+      { "text": "위험을 피한다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_21",
+    "title": "검은 정찰병",
+    "text": "수상한 정찰병이 길을 가로막는다.",
+    "options": [
+      { "text": "맞선다 (전투)", "start_combat": "corrupted_scout", "impact": {} },
+      { "text": "피해서 간다 (골드-3)", "impact": { "gold": -3 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_22",
+    "title": "하룻밤 휴식",
+    "text": "조용한 호숫가에서 쉬어갈 수 있다.",
+    "options": [
+      { "text": "휴식한다 (HP+4, 골드-2)", "impact": { "hp": 4, "gold": -2 } },
+      { "text": "경계를 유지한다 (평판+1)", "impact": { "trust": 1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_23",
+    "title": "흔들리는 횃불",
+    "text": "길에 쓰러진 횃불이 아직 타고 있다.",
+    "options": [
+      { "text": "줍는다 (골드+2)", "impact": { "gold": 2 } },
+      { "text": "두고 간다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_24",
+    "title": "도적의 흔적",
+    "text": "방금 떠난 듯한 도적의 흔적이 있다.",
+    "options": [
+      { "text": "추격한다 (골드+5, HP-2)", "impact": { "gold": 5, "hp": -2 } },
+      { "text": "안전을 우선한다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_25",
+    "title": "낡은 사당",
+    "text": "작은 사당이 길가에 있다.",
+    "options": [
+      { "text": "기도한다 (평판+1)", "impact": { "trust": 1 } },
+      { "text": "헌금을 남긴다 (평판+2, 골드-2)", "impact": { "trust": 2, "gold": -2 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_26",
+    "title": "비밀 지름길",
+    "text": "수풀 사이에 좁은 길이 있다.",
+    "options": [
+      { "text": "탐험한다 (골드+4, 부상+1)", "impact": { "gold": 4, "insight": 1 } },
+      { "text": "안전하게 돌아간다 (골드-1)", "impact": { "gold": -1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_27",
+    "title": "검게 탄 흔적",
+    "text": "검게 탄 풀숲에서 잿불이 남아 있다.",
+    "options": [
+      { "text": "살핀다 (전투)", "start_combat": "ash_wisp", "impact": {} },
+      { "text": "지나친다 (HP-1)", "impact": { "hp": -1 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_28",
+    "title": "작은 축제",
+    "text": "마을 입구에서 작은 축제가 열린다.",
+    "options": [
+      { "text": "참여한다 (평판+1, 골드-2)", "impact": { "trust": 1, "gold": -2 } },
+      { "text": "서둘러 지나간다", "impact": {} }
+    ]
+  },
+  {
+    "id": "TRAVEL_29",
+    "title": "비틀거리는 짐꾼",
+    "text": "짐꾼이 비틀거리며 도움을 청한다.",
+    "options": [
+      { "text": "짐을 들어준다 (평판+1, HP-1)", "impact": { "trust": 1, "hp": -1 } },
+      { "text": "골드로 대신한다 (골드-3)", "impact": { "gold": -3 } }
+    ]
+  },
+  {
+    "id": "TRAVEL_30",
+    "title": "길 위의 안내표지",
+    "text": "표지판이 길드를 가리킨다.",
+    "options": [
+      { "text": "표지판을 따른다 (평판+1)", "impact": { "trust": 1 } },
+      { "text": "다른 길을 택한다 (골드+2)", "impact": { "gold": 2 } }
+    ]
+  }
+]

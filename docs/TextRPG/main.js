@@ -1,12 +1,18 @@
 (() => {
-  const VERSION = "v0.3.3";
+  const VERSION = "v0.3.4";
   const STORAGE_PREFIX = "textrpg-lucas";
   const LEGACY_PREFIX = "textrpg-omega";
   const SAVE_KEY = `${STORAGE_PREFIX}-save`;
   const RUNS_KEY = `${STORAGE_PREFIX}-runs`;
   const CODEX_KEY = `${STORAGE_PREFIX}-codex`;
   const AUDIO_MUTE_KEY = `${STORAGE_PREFIX}-audio-muted`;
-  const DEFAULT_NODE_ID = "HUB_GUILD";
+  const DEFAULT_NODE_ID = "GUILD_ARRIVAL";
+  const DEFAULT_PLAYER_NAME = "당신";
+  const TRAVEL_STEPS_MIN = 3;
+  const TRAVEL_STEPS_MAX = 6;
+  const QUEST_STEPS_MIN = 1;
+  const QUEST_STEPS_MAX = 3;
+  const INTRO_START_SELECTOR = "[data-intro-start]";
   const MAIN_SCRIPT = document.getElementById("appMain");
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
@@ -69,6 +75,10 @@
     introOverlay: document.getElementById("introOverlay"),
     introNotice: document.getElementById("intro-audio-notice"),
     introAudioButton: document.getElementById("btn-intro-audio"),
+    nameModal: document.getElementById("nameModal"),
+    nameInput: document.getElementById("nameInput"),
+    nameConfirm: document.getElementById("btn-name-confirm"),
+    nameCancel: document.getElementById("btn-name-cancel"),
     mainCenter: document.getElementById("main-center"),
     exploreCard: document.getElementById("explore-card"),
     sceneTitle: document.getElementById("scene-title"),
@@ -114,6 +124,7 @@
     combatDiceBadge: document.getElementById("combat-dice-badge"),
     combatDock: document.getElementById("combat-dock"),
     combatLog: document.getElementById("combat-log"),
+    combatPlayerName: document.getElementById("combat-player-name"),
     statusSheet: document.getElementById("status-sheet"),
     statusClose: document.getElementById("btn-close-status"),
     statsGrid: document.getElementById("stats-grid"),
@@ -149,6 +160,14 @@
     maps: null,
     player: null,
     nodeId: DEFAULT_NODE_ID,
+    phase: "node",
+    prologueId: null,
+    travelEventId: null,
+    travelCount: 0,
+    travelTarget: 0,
+    travelHistory: [],
+    questCount: 0,
+    questTarget: 0,
     inCombat: false,
     combat: null,
     log: [],
@@ -156,6 +175,10 @@
     runs: [],
     codex: { nodes: [], enemies: [], endings: [] },
     runRecorded: false
+  };
+
+  const uiState = {
+    pendingNamePrompt: false
   };
 
   function updateAudioButton() {
@@ -333,6 +356,9 @@
       const removeIntro = () => intro.remove();
       intro.addEventListener("transitionend", removeIntro, { once: true });
       window.setTimeout(removeIntro, 900);
+      if (uiState.pendingNamePrompt) {
+        window.setTimeout(() => openNameModal(), 360);
+      }
     };
 
     const maxAttempts = 3;
@@ -345,7 +371,7 @@
       elements.introNotice.hidden = !message;
     };
 
-    const attemptStart = async () => {
+    const attemptStart = async (dismissOnSuccess = true) => {
       if (handling || dismissed) return false;
       handling = true;
       attempts += 1;
@@ -354,7 +380,9 @@
       });
       handling = false;
       if (success) {
-        dismissIntro();
+        if (dismissOnSuccess) {
+          dismissIntro();
+        }
         return true;
       }
       if (attempts >= maxAttempts) {
@@ -371,7 +399,8 @@
           eventName,
           async (event) => {
             if (event.target.closest(".intro__audio-toggle")) return;
-            const started = await attemptStart();
+            if (!event.target.closest(INTRO_START_SELECTOR)) return;
+            const started = await attemptStart(true);
             if (!started && attempts < maxAttempts) {
               registerOneShot();
             }
@@ -386,7 +415,7 @@
     intro.addEventListener("keydown", async (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        const started = await attemptStart();
+        const started = await attemptStart(true);
         if (!started && attempts < maxAttempts) {
           registerOneShot();
         }
@@ -394,24 +423,32 @@
     });
 
     if (elements.introAudioButton) {
+      ["pointerdown", "touchstart"].forEach((eventName) => {
+        elements.introAudioButton.addEventListener(eventName, (event) => {
+          event.stopPropagation();
+          event.preventDefault();
+        });
+      });
       elements.introAudioButton.addEventListener("click", async (event) => {
         event.stopPropagation();
+        event.preventDefault();
         if (audioState.started) {
           setAudioMuted(!audioState.muted);
           return;
         }
-        const started = await attemptStart();
+        const started = await attemptStart(false);
         if (!started && attempts < maxAttempts) {
           registerOneShot();
         }
       });
       updateAudioButton();
     }
+
   }
 
   function defaultPlayer() {
     return {
-      name: "모험가",
+      name: DEFAULT_PLAYER_NAME,
       hp: 42,
       maxHp: 42,
       mp: 8,
@@ -425,9 +462,11 @@
   function normalizePlayer(playerData) {
     const fallback = defaultPlayer();
     const safe = playerData && typeof playerData === "object" ? playerData : {};
+    const safeName = typeof safe.name === "string" ? safe.name.trim() : "";
     return {
       ...fallback,
       ...safe,
+      name: safeName || fallback.name,
       mp: Number.isFinite(Number(safe.mp)) ? Number(safe.mp) : fallback.mp,
       maxMp: Number.isFinite(Number(safe.maxMp)) ? Number(safe.maxMp) : fallback.maxMp,
       stats: { ...fallback.stats, ...(safe.stats ?? {}) },
@@ -501,6 +540,14 @@
       version: VERSION,
       nodeId: state.nodeId,
       player: state.player,
+      phase: state.phase,
+      prologueId: state.prologueId,
+      travelEventId: state.travelEventId,
+      travelCount: state.travelCount,
+      travelTarget: state.travelTarget,
+      travelHistory: state.travelHistory,
+      questCount: state.questCount,
+      questTarget: state.questTarget,
       inCombat: state.inCombat,
       combat: state.combat,
       log: state.log,
@@ -666,7 +713,10 @@
       }
     }
     if (elements.playerName) {
-      elements.playerName.textContent = state.player.name ?? "모험가";
+      elements.playerName.textContent = state.player.name ?? DEFAULT_PLAYER_NAME;
+    }
+    if (elements.combatPlayerName) {
+      elements.combatPlayerName.textContent = state.player.name ?? DEFAULT_PLAYER_NAME;
     }
     if (elements.statStr) elements.statStr.textContent = String(state.player.stats?.STR ?? 0);
     if (elements.statWis) elements.statWis.textContent = String(state.player.stats?.WIS ?? 0);
@@ -689,6 +739,162 @@
     elements.choiceList.appendChild(button);
   }
 
+  function setScene(title, text) {
+    if (elements.sceneTitle) elements.sceneTitle.textContent = title ?? "";
+    if (elements.sceneText) elements.sceneText.textContent = text ?? "";
+    if (elements.diceValue) elements.diceValue.textContent = "--";
+    if (elements.diceLabel) elements.diceLabel.textContent = "주사위 대기";
+  }
+
+  function getRandomItem(list) {
+    if (!list.length) return null;
+    const index = Math.floor(Math.random() * list.length);
+    return list[index];
+  }
+
+  function getCurrentPrologue() {
+    const prologues = state.data?.prologues ?? [];
+    if (state.prologueId) {
+      return prologues.find((prologue) => prologue.id === state.prologueId) ?? null;
+    }
+    const selected = getRandomItem(prologues);
+    if (selected) {
+      state.prologueId = selected.id;
+      saveState();
+    }
+    return selected;
+  }
+
+  function getCurrentTravelEvent() {
+    const travelEvents = state.data?.travelEvents ?? [];
+    if (state.travelEventId) {
+      return travelEvents.find((event) => event.id === state.travelEventId) ?? null;
+    }
+    const remaining = travelEvents.filter((event) => !state.travelHistory.includes(event.id));
+    const pool = remaining.length ? remaining : travelEvents;
+    const selected = getRandomItem(pool);
+    if (selected) {
+      state.travelEventId = selected.id;
+      saveState();
+    }
+    return selected;
+  }
+
+  function advanceTravel() {
+    if (state.travelCount >= state.travelTarget) {
+      state.phase = "node";
+      state.nodeId = "GUILD_ARRIVAL";
+      renderNode(state.nodeId);
+      return;
+    }
+    renderTravelEvent();
+  }
+
+  function renderPrologue() {
+    state.phase = "prologue";
+    setView("explore");
+    const prologue = getCurrentPrologue();
+    if (!prologue) {
+      setScene("프롤로그", "여정을 시작할 이유를 찾지 못했다.");
+      clearChoices();
+      addChoiceButton("여정을 시작한다", () => {
+        state.phase = "travel";
+        state.travelEventId = null;
+        renderTravelEvent();
+        saveState();
+      });
+      addLog("프롤로그를 건너뛰고 여정을 시작했다.");
+      updateHud();
+      saveState();
+      return;
+    }
+
+    setScene(prologue.title ?? "프롤로그", prologue.text ?? "");
+    clearChoices();
+    addChoiceButton("여정을 시작한다", () => {
+      state.phase = "travel";
+      state.travelEventId = null;
+      renderTravelEvent();
+      saveState();
+    });
+    addLog(prologue.title ?? "프롤로그");
+    updateHud();
+    saveState();
+  }
+
+  function renderTravelEvent() {
+    state.phase = "travel";
+    setView("explore");
+    const travelEvent = getCurrentTravelEvent();
+    if (!travelEvent) {
+      setScene("여정", "길이 잠시 끊겼다. 숨을 고르고 다시 걷는다.");
+      clearChoices();
+      addChoiceButton("계속 걷는다", () => {
+        state.travelCount += 1;
+        state.travelEventId = null;
+        advanceTravel();
+        saveState();
+      });
+      addLog("여정이 잠시 멈췄다.");
+      updateHud();
+      saveState();
+      return;
+    }
+
+    setScene(travelEvent.title ?? "여정", travelEvent.text ?? "");
+    clearChoices();
+    const options = Array.isArray(travelEvent.options) ? travelEvent.options : [];
+    if (!options.length) {
+      addChoiceButton("계속 걷는다", () => {
+        state.travelCount += 1;
+        if (travelEvent.id && !state.travelHistory.includes(travelEvent.id)) {
+          state.travelHistory.push(travelEvent.id);
+        }
+        state.travelEventId = null;
+        advanceTravel();
+        saveState();
+      });
+    } else {
+      options.forEach((option) => {
+        const label = option.text ?? "선택";
+        addChoiceButton(label, () => {
+          applyImpact(option.impact);
+          state.travelCount += 1;
+          if (travelEvent.id && !state.travelHistory.includes(travelEvent.id)) {
+            state.travelHistory.push(travelEvent.id);
+          }
+          state.travelEventId = null;
+          if (option.startCombat) {
+            startCombat(option.startCombat);
+            saveState();
+            return;
+          }
+          advanceTravel();
+          saveState();
+        });
+      });
+    }
+    addLog(`여정: ${travelEvent.title ?? "이벤트"}`);
+    updateHud();
+    saveState();
+  }
+
+  function renderCurrent() {
+    if (state.inCombat) {
+      renderCombat();
+      return;
+    }
+    if (state.phase === "prologue") {
+      renderPrologue();
+      return;
+    }
+    if (state.phase === "travel") {
+      renderTravelEvent();
+      return;
+    }
+    renderNode(state.nodeId || DEFAULT_NODE_ID);
+  }
+
   function normalizeNodes(raw) {
     const list = Array.isArray(raw) ? raw : raw?.nodes ?? [];
     return list
@@ -706,7 +912,46 @@
             next: choice.next_node ?? choice.next ?? null,
             ending: choice.ending_id ?? choice.endingId ?? null,
             startCombat: choice.start_combat ?? choice.startCombat ?? null,
-            impact: choice.impact ?? choice.effects ?? choice.delta ?? null
+            impact: choice.impact ?? choice.effects ?? choice.delta ?? null,
+            questComplete: choice.quest_complete ?? choice.questComplete ?? false
+          }))
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function normalizePrologues(raw) {
+    const list = Array.isArray(raw) ? raw : raw?.prologues ?? [];
+    return list
+      .map((prologue) => {
+        const id = prologue.id ?? prologue.prologue_id ?? prologue.prologueId;
+        if (!id) return null;
+        return {
+          ...prologue,
+          id,
+          title: prologue.title ?? "프롤로그",
+          text: prologue.text ?? prologue.situation ?? ""
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function normalizeTravelEvents(raw) {
+    const list = Array.isArray(raw) ? raw : raw?.events ?? raw?.travel ?? [];
+    return list
+      .map((event) => {
+        const id = event.id ?? event.event_id ?? event.eventId;
+        if (!id) return null;
+        const options = Array.isArray(event.options) ? event.options : [];
+        return {
+          ...event,
+          id,
+          title: event.title ?? "여정",
+          text: event.text ?? event.situation ?? "",
+          options: options.map((option) => ({
+            ...option,
+            impact: option.impact ?? option.effects ?? option.delta ?? null,
+            startCombat: option.start_combat ?? option.startCombat ?? null
           }))
         };
       })
@@ -760,14 +1005,55 @@
     return { nodesMap, enemiesMap, endingsMap };
   }
 
-  function newGameState() {
-    state.player = normalizePlayer(null);
-    state.nodeId = DEFAULT_NODE_ID;
+  function newGameState(playerName = DEFAULT_PLAYER_NAME) {
+    state.player = normalizePlayer({ name: playerName });
+    state.nodeId = "GUILD_ARRIVAL";
+    state.phase = "prologue";
+    state.prologueId = null;
+    state.travelEventId = null;
+    state.travelCount = 0;
+    state.travelTarget = randomBetween(TRAVEL_STEPS_MIN, TRAVEL_STEPS_MAX);
+    state.travelHistory = [];
+    state.questCount = 0;
+    state.questTarget = randomBetween(QUEST_STEPS_MIN, QUEST_STEPS_MAX);
     state.inCombat = false;
     state.combat = null;
     state.log = [];
     state.lastSummary = "최근 요약: -";
     state.runRecorded = false;
+  }
+
+  function openNameModal() {
+    if (!elements.nameModal || !elements.nameInput) return;
+    elements.nameModal.hidden = false;
+    const currentName = state.player?.name ?? DEFAULT_PLAYER_NAME;
+    elements.nameInput.value = currentName === DEFAULT_PLAYER_NAME ? "" : currentName;
+    window.setTimeout(() => {
+      elements.nameInput?.focus();
+      elements.nameInput?.select();
+    }, 0);
+  }
+
+  function closeNameModal() {
+    if (!elements.nameModal) return;
+    elements.nameModal.hidden = true;
+  }
+
+  function normalizePlayerName(raw) {
+    const trimmed = String(raw ?? "").trim();
+    return trimmed.length ? trimmed : DEFAULT_PLAYER_NAME;
+  }
+
+  function applyNewJourney(playerName) {
+    uiState.pendingNamePrompt = false;
+    newGameState(normalizePlayerName(playerName));
+    saveState();
+    renderCurrent();
+  }
+
+  function promptNewJourney() {
+    uiState.pendingNamePrompt = true;
+    openNameModal();
   }
 
   function applyImpact(impact) {
@@ -936,7 +1222,7 @@
       row.className = "sheet__list-item";
       const clearedLabel = run.cleared ? "클리어" : "중도 종료";
       row.innerHTML = `
-        <strong>#${index + 1} ${run.name ?? "모험가"}</strong>
+        <strong>#${index + 1} ${run.name ?? DEFAULT_PLAYER_NAME}</strong>
         <div>엔딩: ${run.endingId ?? "-"}</div>
         <div>${clearedLabel} · 골드 ${run.maxGold ?? 0} · 평판 ${run.reputation ?? 0} · 부상 ${
         run.injury ?? 0
@@ -950,7 +1236,7 @@
   function recordRun(endingId, cleared) {
     if (state.runRecorded) return;
     const entry = {
-      name: state.player.name ?? "모험가",
+      name: state.player.name ?? DEFAULT_PLAYER_NAME,
       cleared: Boolean(cleared),
       maxGold: state.player.gold ?? 0,
       reputation: state.player.counters?.trust ?? 0,
@@ -976,9 +1262,7 @@
     addCodexEntry("endings", endingId);
     recordRun(endingId, true);
     addChoiceButton("새 여정", () => {
-      newGameState();
-      saveState();
-      renderNode(state.nodeId);
+      promptNewJourney();
     });
   }
 
@@ -996,20 +1280,46 @@
       );
       return;
     }
+    state.phase = "node";
     state.nodeId = node.id;
     setView("explore");
-    if (elements.sceneTitle) elements.sceneTitle.textContent = node.title ?? "";
-    if (elements.sceneText) elements.sceneText.textContent = node.situation ?? "";
-    if (elements.diceValue) elements.diceValue.textContent = "--";
-    if (elements.diceLabel) elements.diceLabel.textContent = "주사위 대기";
+    setScene(node.title ?? "", node.situation ?? "");
     clearChoices();
     let renderedChoices = 0;
-    node.choices.forEach((choice) => {
+    let choices = node.choices ?? [];
+    if (node.id === "RETURN_SETTLE") {
+      choices = [];
+      if (state.questCount >= state.questTarget) {
+        choices.push({
+          text: "오늘의 마감 (엔딩 체크)",
+          next: "END_CHECK"
+        });
+      } else {
+        choices.push({
+          text: `추가 의뢰 확인 (${state.questCount}/${state.questTarget})`,
+          next: "HUB_GUILD"
+        });
+      }
+    }
+    if (node.id === "HUB_GUILD" && state.questCount >= state.questTarget) {
+      choices = [
+        {
+          text: "오늘의 마감 (엔딩 체크)",
+          next: "END_CHECK"
+        }
+      ];
+    }
+
+    choices.forEach((choice) => {
       if (!meetsRequirements(choice.requirements)) return;
       const label = choice.text ?? choice.label ?? "선택";
       renderedChoices += 1;
       addChoiceButton(label, () => {
         applyImpact(choice.impact);
+        if (choice.questComplete) {
+          state.questCount += 1;
+          addLog(`의뢰 ${state.questCount}/${state.questTarget} 완료`);
+        }
         if (choice.startCombat) {
           startCombat(choice.startCombat);
           return;
@@ -1053,7 +1363,7 @@
     if (!enemy) {
       clearCombatState();
       addLog("전투 데이터를 복원할 수 없어 탐험으로 복귀합니다.");
-      renderNode(state.nodeId);
+      renderCurrent();
       return;
     }
     state.inCombat = true;
@@ -1071,7 +1381,7 @@
     const enemy = state.maps.enemiesMap.get(state.combat?.enemyId);
     if (!enemy) {
       clearCombatState();
-      renderNode(state.nodeId);
+      renderCurrent();
       return;
     }
     if (state.combat) {
@@ -1121,7 +1431,7 @@
     const enemy = state.maps.enemiesMap.get(state.combat?.enemyId);
     if (!enemy) {
       clearCombatState();
-      renderNode(state.nodeId);
+      renderCurrent();
       return;
     }
     const roll = Math.floor(Math.random() * 20) + 1;
@@ -1142,7 +1452,7 @@
     if (state.combat.enemyHp <= 0) {
       addLog(`${enemy.name} 처치! 탐험으로 복귀합니다.`);
       clearCombatState();
-      renderNode(state.nodeId);
+      renderCurrent();
       return;
     }
 
@@ -1161,13 +1471,12 @@
       }
       clearChoices();
       addChoiceButton("새 여정", () => {
-        newGameState();
-        saveState();
-        renderNode(state.nodeId);
+        promptNewJourney();
       });
-      addChoiceButton("탐험으로 복귀", () => {
+      const returnLabel = state.phase === "travel" ? "여정으로 복귀" : "탐험으로 복귀";
+      addChoiceButton(returnLabel, () => {
         state.player.hp = Math.max(1, state.player.hp);
-        renderNode(state.nodeId);
+        renderCurrent();
       });
       updateHud();
       saveState();
@@ -1200,18 +1509,29 @@
     const saved = loadState();
     if (!saved) {
       newGameState();
-      return;
+      uiState.pendingNamePrompt = true;
+      return false;
     }
     state.player = normalizePlayer(saved.player);
     state.nodeId = saved.nodeId ?? DEFAULT_NODE_ID;
     if (state.maps?.nodesMap && !state.maps.nodesMap.has(state.nodeId)) {
       state.nodeId = DEFAULT_NODE_ID;
     }
+    const phase = saved.phase;
+    state.phase = ["prologue", "travel", "node"].includes(phase) ? phase : "node";
+    state.prologueId = saved.prologueId ?? null;
+    state.travelEventId = saved.travelEventId ?? null;
+    state.travelCount = Number(saved.travelCount ?? 0);
+    state.travelTarget = Number(saved.travelTarget ?? randomBetween(TRAVEL_STEPS_MIN, TRAVEL_STEPS_MAX));
+    state.travelHistory = Array.isArray(saved.travelHistory) ? saved.travelHistory : [];
+    state.questCount = Number(saved.questCount ?? 0);
+    state.questTarget = Number(saved.questTarget ?? randomBetween(QUEST_STEPS_MIN, QUEST_STEPS_MAX));
     state.log = Array.isArray(saved.log) ? saved.log : [];
     state.lastSummary = saved.lastSummary ?? "최근 요약: -";
     state.inCombat = Boolean(saved.inCombat);
     state.combat = saved.combat ?? null;
     state.runRecorded = false;
+    return true;
   }
 
   function ensureCombatRestored() {
@@ -1283,9 +1603,7 @@
     }
     if (elements.resetButton) {
       elements.resetButton.addEventListener("click", () => {
-        newGameState();
-        saveState();
-        renderNode(state.nodeId);
+        promptNewJourney();
       });
     }
     if (elements.emergencyResetButton) {
@@ -1356,7 +1674,7 @@
       elements.combatRecoverButton.addEventListener("click", () => {
         clearCombatState();
         saveState();
-        renderNode(state.nodeId || DEFAULT_NODE_ID);
+        renderCurrent();
       });
     }
     if (elements.combatDicePanel) {
@@ -1381,6 +1699,29 @@
         setAudioMuted(!audioState.muted);
       });
       updateAudioButton();
+    }
+    if (elements.nameConfirm) {
+      elements.nameConfirm.addEventListener("click", () => {
+        const name = elements.nameInput?.value ?? "";
+        closeNameModal();
+        applyNewJourney(name);
+      });
+    }
+    if (elements.nameCancel) {
+      elements.nameCancel.addEventListener("click", () => {
+        closeNameModal();
+        applyNewJourney(DEFAULT_PLAYER_NAME);
+      });
+    }
+    if (elements.nameInput) {
+      elements.nameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const name = elements.nameInput?.value ?? "";
+          closeNameModal();
+          applyNewJourney(name);
+        }
+      });
     }
     window.addEventListener("scroll", hideTooltip, { passive: true });
     window.addEventListener("resize", hideTooltip);
@@ -1422,7 +1763,9 @@
       loadJson("events"),
       loadJson("items"),
       loadJson("enemies"),
-      loadJson("endings")
+      loadJson("endings"),
+      loadJson("prologues"),
+      loadJson("travel_events")
     ])
       .then((results) => {
         const failures = [];
@@ -1445,7 +1788,9 @@
           enemies: normalizeEnemies(data.enemies),
           endings: normalizeEndings(data.endings),
           events: data.events ?? [],
-          items: data.items ?? []
+          items: data.items ?? [],
+          prologues: normalizePrologues(data.prologues),
+          travelEvents: normalizeTravelEvents(data.travel_events)
         };
         state.maps = createMaps(state.data);
 
@@ -1458,10 +1803,12 @@
         renderCodexSheet();
         renderRankingSheet();
 
-        if (state.inCombat) {
-          renderCombat();
-        } else {
-          renderNode(state.nodeId || DEFAULT_NODE_ID);
+        renderCurrent();
+        if (
+          uiState.pendingNamePrompt &&
+          (!elements.introOverlay || !document.body.contains(elements.introOverlay))
+        ) {
+          openNameModal();
         }
       })
       .catch((error) => {
