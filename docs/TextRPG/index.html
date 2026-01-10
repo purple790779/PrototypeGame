@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="./" />
     <title>루카스 어드벤처</title>
-    <link rel="stylesheet" href="style.css?v=0.3.4" />
+    <link rel="stylesheet" href="style.css?v=0.3.5" />
   </head>
   <body>
     <div id="introOverlay" class="intro-overlay" role="dialog" aria-modal="true" aria-label="인트로" tabindex="0">
@@ -101,8 +101,6 @@
           <div class="profile-meta">
             <div class="profile-row">
               <strong class="profile-name" id="player-name">당신</strong>
-              <span class="version" id="version-label">v0.3.4</span>
-              <button id="btn-reset" class="btn btn--ghost btn--tiny">새 여정</button>
             </div>
             <div class="profile-stats">
               <div class="hud-pill" id="hud-hp" aria-label="체력">
@@ -110,7 +108,7 @@
                 <span class="hud-pill__value">0/0</span>
               </div>
               <div class="hud-pill" id="hud-mp" aria-label="마나">
-                <span class="hud-pill__icon" aria-hidden="true">💠</span>
+                <span class="hud-pill__icon" aria-hidden="true">🔷</span>
                 <span class="hud-pill__value">0/0</span>
               </div>
               <div class="hud-pill" id="hud-gold" aria-label="골드">
@@ -121,47 +119,26 @@
           </div>
         </div>
         <div class="top-hud__right" id="hud-stats">
-          <div class="stat-chip" aria-label="힘" data-tooltip="STR" data-toast="STR">
+          <div class="stat-chip" aria-label="힘" data-tooltip="힘 (STR)" data-toast="힘">
             <span class="stat-chip__icon" aria-hidden="true">⚔️</span>
             <span class="stat-chip__value" id="hud-stat-str">0</span>
           </div>
-          <div class="stat-chip" aria-label="지혜" data-tooltip="WIS" data-toast="WIS">
+          <div class="stat-chip" aria-label="지혜" data-tooltip="지혜 (WIS)" data-toast="지혜">
             <span class="stat-chip__icon" aria-hidden="true">🧠</span>
             <span class="stat-chip__value" id="hud-stat-wis">0</span>
           </div>
-          <div class="stat-chip" aria-label="지능" data-tooltip="INT" data-toast="INT">
+          <div class="stat-chip" aria-label="지능" data-tooltip="지능 (INT)" data-toast="지능">
             <span class="stat-chip__icon" aria-hidden="true">📘</span>
             <span class="stat-chip__value" id="hud-stat-int">0</span>
           </div>
-          <div class="stat-chip" aria-label="민첩" data-tooltip="DEX" data-toast="DEX">
+          <div class="stat-chip" aria-label="민첩" data-tooltip="민첩 (DEX)" data-toast="민첩">
             <span class="stat-chip__icon" aria-hidden="true">🏹</span>
             <span class="stat-chip__value" id="hud-stat-dex">0</span>
           </div>
-          <div class="stat-chip" aria-label="행운" data-tooltip="LUK" data-toast="LUK">
+          <div class="stat-chip" aria-label="행운" data-tooltip="행운 (LUK)" data-toast="행운">
             <span class="stat-chip__icon" aria-hidden="true">🍀</span>
             <span class="stat-chip__value" id="hud-stat-luk">0</span>
           </div>
-          <button
-            id="btn-save"
-            class="icon-btn"
-            aria-label="저장"
-            data-tooltip="저장"
-            data-toast="저장"
-            type="button"
-          >
-            💾
-          </button>
-          <button
-            id="btn-audio"
-            class="icon-btn icon-btn--audio"
-            aria-label="배경음악 켜기/끄기"
-            aria-pressed="false"
-            data-tooltip="BGM"
-            data-toast="BGM"
-            type="button"
-          >
-            🔇
-          </button>
         </div>
       </header>
 
@@ -245,9 +222,33 @@
             <h3>로그</h3>
             <span class="log-panel__summary" id="log-summary">최근 요약: -</span>
           </div>
-          <button class="log-panel__toggle" id="log-toggle" aria-expanded="false" type="button">
-            펼치기
-          </button>
+          <div class="log-panel__actions">
+            <button
+              id="btn-save"
+              class="icon-btn icon-btn--mini"
+              aria-label="저장"
+              data-tooltip="저장"
+              data-toast="저장"
+              type="button"
+            >
+              💾
+            </button>
+            <button
+              id="btn-audio"
+              class="icon-btn icon-btn--audio icon-btn--mini"
+              aria-label="배경음악 켜기/끄기"
+              aria-pressed="false"
+              data-tooltip="BGM"
+              data-toast="BGM"
+              type="button"
+            >
+              🔇
+            </button>
+            <button id="btn-reset" class="btn btn--ghost btn--tiny">새 여정</button>
+            <button class="log-panel__toggle" id="log-toggle" aria-expanded="false" type="button">
+              펼치기
+            </button>
+          </div>
         </div>
         <div class="log-panel__entries" id="log"></div>
         <button class="log-panel__scroll-bottom" id="log-scroll-bottom">맨 아래로</button>
@@ -256,20 +257,20 @@
       <nav class="bottom-dock" id="action-dock" aria-label="하단 도크">
         <button
           class="dock-btn"
-          data-sheet="inventory-sheet"
-          data-tooltip="장비/인벤토리"
-          data-toast="인벤토리"
-          aria-label="장비/인벤토리"
+          data-open="coming"
+          data-tooltip="장비"
+          data-toast="준비중"
+          aria-label="장비"
           type="button"
         >
           <span class="dock-btn__icon" aria-hidden="true">🎒</span>
-          <span class="dock-btn__label">인벤</span>
+          <span class="dock-btn__label">장비</span>
         </button>
         <button
           class="dock-btn"
-          data-sheet="skills-sheet"
+          data-open="coming"
           data-tooltip="스킬"
-          data-toast="스킬"
+          data-toast="준비중"
           aria-label="스킬"
           type="button"
         >
@@ -278,9 +279,9 @@
         </button>
         <button
           class="dock-btn"
-          data-sheet="codex-sheet"
+          data-open="coming"
           data-tooltip="도감"
-          data-toast="도감"
+          data-toast="준비중"
           aria-label="도감"
           type="button"
         >
@@ -289,26 +290,14 @@
         </button>
         <button
           class="dock-btn"
-          data-sheet="ranking-sheet"
+          data-open="coming"
           data-tooltip="랭킹"
-          data-toast="랭킹"
+          data-toast="준비중"
           aria-label="랭킹"
           type="button"
         >
           <span class="dock-btn__icon" aria-hidden="true">🏆</span>
           <span class="dock-btn__label">랭킹</span>
-        </button>
-        <button
-          class="dock-btn"
-          data-open="status"
-          data-tab="settings"
-          data-tooltip="설정/도움말"
-          data-toast="설정"
-          aria-label="설정/도움말"
-          type="button"
-        >
-          <span class="dock-btn__icon" aria-hidden="true">⚙️</span>
-          <span class="dock-btn__label">설정</span>
         </button>
       </nav>
     </div>
@@ -460,6 +449,15 @@
       </div>
     </div>
 
+    <div class="modal-backdrop" id="modal-backdrop" hidden></div>
+    <div class="modal" id="coming-soon-modal" hidden role="dialog" aria-modal="true" aria-labelledby="coming-soon-title">
+      <div class="modal__card">
+        <h3 id="coming-soon-title">준비 중</h3>
+        <p>이 기능은 다음 업데이트에서 열릴 예정입니다.</p>
+        <button class="btn btn--ghost btn--small" id="btn-close-coming">확인</button>
+      </div>
+    </div>
+
     <div class="backdrop" id="sheet-backdrop" hidden></div>
 
     <div class="tooltip" id="tooltip" hidden>
@@ -469,6 +467,6 @@
 
     <div class="toast" id="save-toast" role="status" aria-live="polite"></div>
 
-    <script id="appMain" src="main.js?v=0.3.4" defer></script>
+    <script id="appMain" src="main.js?v=0.3.5" defer></script>
   </body>
 </html>

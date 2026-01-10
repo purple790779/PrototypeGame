@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.3.4";
+  const VERSION = "v0.3.5";
   const STORAGE_PREFIX = "textrpg-lucas";
   const LEGACY_PREFIX = "textrpg-omega";
   const SAVE_KEY = `${STORAGE_PREFIX}-save`;
@@ -148,7 +148,10 @@
     audioButton: document.getElementById("btn-audio"),
     tooltip: document.getElementById("tooltip"),
     tooltipContent: document.getElementById("tooltip-content"),
-    toast: document.getElementById("save-toast")
+    toast: document.getElementById("save-toast"),
+    comingSoonModal: document.getElementById("coming-soon-modal"),
+    comingSoonClose: document.getElementById("btn-close-coming"),
+    modalBackdrop: document.getElementById("modal-backdrop")
   };
 
   if (elements.versionLabel) {
@@ -859,6 +862,9 @@
         const label = option.text ?? "선택";
         addChoiceButton(label, () => {
           applyImpact(option.impact);
+          if (option.outcomeText) {
+            addLog(option.outcomeText);
+          }
           state.travelCount += 1;
           if (travelEvent.id && !state.travelHistory.includes(travelEvent.id)) {
             state.travelHistory.push(travelEvent.id);
@@ -951,7 +957,8 @@
           options: options.map((option) => ({
             ...option,
             impact: option.impact ?? option.effects ?? option.delta ?? null,
-            startCombat: option.start_combat ?? option.startCombat ?? null
+            startCombat: option.start_combat ?? option.startCombat ?? null,
+            outcomeText: option.outcomeText ?? option.outcome_text ?? option.outcome ?? ""
           }))
         };
       })
@@ -1558,6 +1565,17 @@
     if (elements.sheetBackdrop) elements.sheetBackdrop.hidden = true;
   }
 
+  function openComingSoon() {
+    if (!elements.comingSoonModal || !elements.modalBackdrop) return;
+    elements.comingSoonModal.hidden = false;
+    elements.modalBackdrop.hidden = false;
+  }
+
+  function closeComingSoon() {
+    if (elements.comingSoonModal) elements.comingSoonModal.hidden = true;
+    if (elements.modalBackdrop) elements.modalBackdrop.hidden = true;
+  }
+
   function setActiveTab(tabName) {
     const tabs = elements.statusSheet?.querySelectorAll(".sheet__tab") ?? [];
     const panels = elements.statusSheet?.querySelectorAll(".sheet__panel") ?? [];
@@ -1639,12 +1657,31 @@
         openStatusSheet("stats");
       });
     }
+    document.querySelectorAll(".stat-chip").forEach((chip) => {
+      let pressTimer = null;
+      const tooltipText = chip.dataset.tooltip || chip.getAttribute("aria-label");
+      chip.addEventListener("pointerdown", () => {
+        pressTimer = window.setTimeout(() => {
+          if (tooltipText) setToast(tooltipText);
+        }, 450);
+      });
+      ["pointerup", "pointerleave", "pointercancel"].forEach((eventName) => {
+        chip.addEventListener(eventName, () => {
+          if (pressTimer) {
+            clearTimeout(pressTimer);
+            pressTimer = null;
+          }
+        });
+      });
+    });
     document.querySelectorAll(".dock-btn").forEach((button) => {
       button.addEventListener("click", () => {
         const sheetId = button.dataset.sheet;
         const openType = button.dataset.open;
         if (openType === "status") {
           openStatusSheet(button.dataset.tab || "stats");
+        } else if (openType === "coming") {
+          openComingSoon();
         } else if (sheetId) {
           openSheet(document.getElementById(sheetId));
         }
@@ -1664,6 +1701,12 @@
     });
     if (elements.sheetBackdrop) {
       elements.sheetBackdrop.addEventListener("click", () => closeSheets());
+    }
+    if (elements.modalBackdrop) {
+      elements.modalBackdrop.addEventListener("click", () => closeComingSoon());
+    }
+    if (elements.comingSoonClose) {
+      elements.comingSoonClose.addEventListener("click", () => closeComingSoon());
     }
     document.querySelectorAll(".sheet__tab").forEach((tab) => {
       tab.addEventListener("click", () => {
