@@ -103,10 +103,9 @@
   {
     "node_id": "RETURN_SETTLE",
     "title": "정산",
-    "situation": "길드가 보고서를 정리한다. 다음 선택은 당신 몫이다.",
+    "situation": "길드가 보고서를 정리한다. 이제 이번 의뢰의 결말을 정할 시간이다.",
     "event_pool": ["E-REST-002"],
     "choices": [
-      { "text": "정산 후 다음 의뢰 보기", "next_node": "HUB_GUILD" },
       { "text": "여정을 정리한다(엔딩 체크)", "next_node": "END_CHECK" }
     ]
   },
@@ -144,8 +143,7 @@
       {
         "text": "그만두기: 평범한 귀환",
         "ending_id": "ENDING_FIRST_STEP"
-      },
-      { "text": "계속한다", "next_node": "HUB_GUILD" }
+      }
     ]
   }
 ]

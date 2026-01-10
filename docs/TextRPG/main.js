@@ -1,15 +1,17 @@
 (() => {
-  const VERSION = "v0.3.2";
-  const SAVE_KEY = "textrpg-omega-save";
-  const RUNS_KEY = "textrpg-omega-runs";
-  const CODEX_KEY = "textrpg-omega-codex";
-  const STORAGE_PREFIX = "textrpg";
+  const VERSION = "v0.3.3";
+  const STORAGE_PREFIX = "textrpg-lucas";
+  const LEGACY_PREFIX = "textrpg-omega";
+  const SAVE_KEY = `${STORAGE_PREFIX}-save`;
+  const RUNS_KEY = `${STORAGE_PREFIX}-runs`;
+  const CODEX_KEY = `${STORAGE_PREFIX}-codex`;
+  const AUDIO_MUTE_KEY = `${STORAGE_PREFIX}-audio-muted`;
   const DEFAULT_NODE_ID = "HUB_GUILD";
   const MAIN_SCRIPT = document.getElementById("appMain");
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
   const STAT_KEYS = ["STR", "WIS", "INT", "DEX", "LUK"];
-  const INTRO_STORAGE_KEY = "textrpg-intro-seen";
+  const INTRO_STORAGE_KEY = `${STORAGE_PREFIX}-intro-seen`;
   const INTRO_SKIP_ENABLED = false;
 
   const ITEM_ICONS = {
@@ -58,13 +60,15 @@
     padOscillators: [],
     noiseSource: null,
     chordTimer: null,
-    baseGain: 0.045,
+    baseGain: 0.085,
     muted: false,
     started: false
   };
 
   const elements = {
     introOverlay: document.getElementById("introOverlay"),
+    introNotice: document.getElementById("intro-audio-notice"),
+    introAudioButton: document.getElementById("btn-intro-audio"),
     mainCenter: document.getElementById("main-center"),
     exploreCard: document.getElementById("explore-card"),
     sceneTitle: document.getElementById("scene-title"),
@@ -155,18 +159,24 @@
   };
 
   function updateAudioButton() {
-    if (!elements.audioButton) return;
     const isActive = audioState.started && !audioState.muted;
-    elements.audioButton.textContent = isActive ? "🔈" : "🔇";
-    elements.audioButton.setAttribute("aria-pressed", String(isActive));
-    elements.audioButton.setAttribute(
-      "aria-label",
-      isActive ? "배경음악 끄기" : "배경음악 켜기"
-    );
+    const label = isActive ? "배경음악 끄기" : "배경음악 켜기";
+    const icon = isActive ? "🔊" : "🔇";
+    [elements.audioButton, elements.introAudioButton].forEach((button) => {
+      if (!button) return;
+      button.textContent = icon;
+      button.setAttribute("aria-pressed", String(isActive));
+      button.setAttribute("aria-label", label);
+    });
   }
 
   function setAudioMuted(muted) {
     audioState.muted = muted;
+    try {
+      localStorage.setItem(AUDIO_MUTE_KEY, muted ? "1" : "0");
+    } catch (error) {
+      recordBootError(error);
+    }
     if (audioState.master && audioState.context) {
       const target = muted ? 0 : audioState.baseGain;
       audioState.master.gain.setTargetAtTime(target, audioState.context.currentTime, 0.6);
@@ -183,18 +193,25 @@
     return buffer;
   }
 
-  function startAmbientBGM() {
+  function ensureAudioContext() {
+    if (audioState.context) return audioState.context;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    const context = new AudioContextClass();
+    audioState.context = context;
+    return context;
+  }
+
+  function startAmbientBGM(context) {
+    if (!context) return;
     if (audioState.started) {
-      if (audioState.context?.state === "suspended") {
-        audioState.context.resume();
+      if (context.state === "suspended") {
+        context.resume();
       }
-      setAudioMuted(false);
+      updateAudioButton();
       return;
     }
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
 
-    const context = new AudioContextClass();
     const master = context.createGain();
     master.gain.value = audioState.baseGain;
     master.connect(context.destination);
@@ -205,7 +222,7 @@
     padFilter.Q.value = 0.7;
 
     const padGain = context.createGain();
-    padGain.gain.value = 0.8;
+    padGain.gain.value = 0.85;
     padGain.connect(padFilter);
     padFilter.connect(master);
 
@@ -239,7 +256,7 @@
     noiseLow.type = "lowpass";
     noiseLow.frequency.value = 1400;
     const noiseGain = context.createGain();
-    noiseGain.gain.value = 0.015;
+    noiseGain.gain.value = 0.02;
     noise.connect(noiseBand);
     noiseBand.connect(noiseLow);
     noiseLow.connect(noiseGain);
@@ -260,16 +277,34 @@
       applyChord(chordIndex);
     }, 12000);
 
-    audioState.context = context;
     audioState.master = master;
     audioState.noiseSource = noise;
     audioState.started = true;
-    audioState.muted = false;
     updateAudioButton();
+    setAudioMuted(audioState.muted);
+  }
 
-    if (context.state === "suspended") {
-      context.resume();
+  function loadAudioPreference() {
+    try {
+      audioState.muted = localStorage.getItem(AUDIO_MUTE_KEY) === "1";
+    } catch (error) {
+      recordBootError(error);
     }
+    updateAudioButton();
+  }
+
+  async function activateAudioFromGesture(onFailure) {
+    const context = ensureAudioContext();
+    if (!context) return false;
+    try {
+      await context.resume();
+    } catch (error) {
+      if (onFailure) onFailure(error);
+      return false;
+    }
+    setAudioMuted(false);
+    startAmbientBGM(context);
+    return true;
   }
 
   function setupIntroOverlay() {
@@ -287,7 +322,6 @@
     const dismissIntro = () => {
       if (dismissed) return;
       dismissed = true;
-      startAmbientBGM();
       if (INTRO_SKIP_ENABLED) {
         try {
           localStorage.setItem(INTRO_STORAGE_KEY, "1");
@@ -301,13 +335,78 @@
       window.setTimeout(removeIntro, 900);
     };
 
-    intro.addEventListener("pointerdown", dismissIntro, { passive: true });
-    intro.addEventListener("keydown", (event) => {
+    const maxAttempts = 3;
+    let attempts = 0;
+    let handling = false;
+
+    const showAudioNotice = (message) => {
+      if (!elements.introNotice) return;
+      elements.introNotice.textContent = message;
+      elements.introNotice.hidden = !message;
+    };
+
+    const attemptStart = async () => {
+      if (handling || dismissed) return false;
+      handling = true;
+      attempts += 1;
+      const success = await activateAudioFromGesture(() => {
+        showAudioNotice("🔇 사운드가 차단되었습니다. 화면을 한 번 더 터치해 주세요.");
+      });
+      handling = false;
+      if (success) {
+        dismissIntro();
+        return true;
+      }
+      if (attempts >= maxAttempts) {
+        showAudioNotice("🔇 사운드가 계속 차단됩니다. 브라우저 설정을 확인해 주세요.");
+        return false;
+      }
+      showAudioNotice("🔇 사운드가 차단되었습니다. 화면을 한 번 더 터치해 주세요.");
+      return false;
+    };
+
+    const registerOneShot = () => {
+      ["pointerdown", "touchend", "click"].forEach((eventName) => {
+        intro.addEventListener(
+          eventName,
+          async (event) => {
+            if (event.target.closest(".intro__audio-toggle")) return;
+            const started = await attemptStart();
+            if (!started && attempts < maxAttempts) {
+              registerOneShot();
+            }
+          },
+          { once: true, passive: true }
+        );
+      });
+    };
+
+    registerOneShot();
+
+    intro.addEventListener("keydown", async (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        dismissIntro();
+        const started = await attemptStart();
+        if (!started && attempts < maxAttempts) {
+          registerOneShot();
+        }
       }
     });
+
+    if (elements.introAudioButton) {
+      elements.introAudioButton.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        if (audioState.started) {
+          setAudioMuted(!audioState.muted);
+          return;
+        }
+        const started = await attemptStart();
+        if (!started && attempts < maxAttempts) {
+          registerOneShot();
+        }
+      });
+      updateAudioButton();
+    }
   }
 
   function defaultPlayer() {
@@ -334,6 +433,23 @@
       stats: { ...fallback.stats, ...(safe.stats ?? {}) },
       counters: { ...fallback.counters, ...(safe.counters ?? {}) }
     };
+  }
+
+  function migrateStorageKey(oldKey, newKey) {
+    if (localStorage.getItem(newKey)) return;
+    const legacyValue = localStorage.getItem(oldKey);
+    if (legacyValue == null) return;
+    try {
+      localStorage.setItem(newKey, legacyValue);
+    } catch (error) {
+      recordBootError(error);
+    }
+  }
+
+  function migrateLegacyStorage() {
+    migrateStorageKey(`${LEGACY_PREFIX}-save`, SAVE_KEY);
+    migrateStorageKey(`${LEGACY_PREFIX}-runs`, RUNS_KEY);
+    migrateStorageKey(`${LEGACY_PREFIX}-codex`, CODEX_KEY);
   }
 
   function loadRuns() {
@@ -416,7 +532,10 @@
     const keys = [];
     for (let i = 0; i < localStorage.length; i += 1) {
       const key = localStorage.key(i);
-      if (key && key.startsWith(STORAGE_PREFIX)) {
+      if (
+        key &&
+        (key.startsWith(STORAGE_PREFIX) || key.startsWith(LEGACY_PREFIX))
+      ) {
         keys.push(key);
       }
     }
@@ -1254,9 +1373,9 @@
       target.addEventListener("blur", hideTooltip);
     });
     if (elements.audioButton) {
-      elements.audioButton.addEventListener("click", () => {
+      elements.audioButton.addEventListener("click", async () => {
         if (!audioState.started) {
-          startAmbientBGM();
+          await activateAudioFromGesture();
           return;
         }
         setAudioMuted(!audioState.muted);
@@ -1290,6 +1409,8 @@
 
   function boot() {
     handleResetParam();
+    migrateLegacyStorage();
+    loadAudioPreference();
     state.runs = loadRuns();
     state.codex = loadCodex();
     renderLoading();

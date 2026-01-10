@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.3.3
+- Title: 게임 타이틀을 "루카스 어드벤처"로 통일 및 허브 요약 문구 톤 조정
+- Audio: 인트로 첫 탭에서 AudioContext 재개 후 BGM을 안정 재생하고 음소거 토글/안내 문구 추가
+- Content: 길드 의뢰 루프 제거 및 정산 후 엔딩 진입으로 구조 정리
+- Storage: textrpg-lucas 키로 전환하고 textrpg-omega 저장 데이터를 1회 마이그레이션
+
 ## v0.3.2
 - Scene: 인트로 타이틀 오버레이 추가(루카스 어드벤처 타이틀/터치 안내/배경 실루엣)
 - Audio: 클릭/터치 후 WebAudio 기반 앰비언트 BGM 재생 및 HUD 토글 제공

@@ -56,6 +56,21 @@ body {
   pointer-events: none;
 }
 
+.intro__audio-toggle {
+  position: absolute;
+  top: calc(18px + var(--safe-top));
+  right: 18px;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(10, 14, 20, 0.55);
+  color: #f2f7ff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
 .intro__bg {
   position: absolute;
   inset: 0;
@@ -98,6 +113,12 @@ body {
   letter-spacing: 0.08em;
   color: rgba(226, 235, 255, 0.8);
   animation: introPulse 2.4s ease-in-out infinite;
+}
+
+.intro__notice {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 200, 160, 0.9);
 }
 
 @keyframes introGlow {
