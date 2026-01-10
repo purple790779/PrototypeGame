@@ -33,7 +33,7 @@
       "slug": "textrpg-omega",
       "path": "./TextRPG/",
       "icon": "🧭",
-      "version": "v0.3.4",
+      "version": "v0.3.8",
       "status": "active",
       "summary": "랜덤 프롤로그와 길드로 향하는 여정을 거치는 텍스트 RPG.",
       "order": 30,
