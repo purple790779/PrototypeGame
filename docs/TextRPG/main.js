@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.3.7";
+  const VERSION = "v0.3.8";
   const STORAGE_PREFIX = "textrpg-lucas";
   const LEGACY_PREFIX = "textrpg-omega";
   const SAVE_KEY = `${STORAGE_PREFIX}-save`;
@@ -13,11 +13,15 @@
   const QUEST_STEPS_MIN = 1;
   const QUEST_STEPS_MAX = 3;
   const INTRO_START_SELECTOR = "[data-intro-start]";
-  const INTRO_BGM_FILE = "Intro_BGM_Fog_Over_the_Faerie_Vale.mp3";
+  const AMBIENT_BGM_FILE = "Intro_BGM_Fog_Over_the_Faerie_Vale.mp3";
+  const BATTLE_BGM_FILE = "Battle_BGM_Shadowfront_Reckoning.mp3";
+  const BGM_FADE_MS = 320;
+  const BASE_HP = 40;
+  const CON_HP_MULTIPLIER = 2;
   const MAIN_SCRIPT = document.getElementById("appMain");
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
-  const STAT_KEYS = ["STR", "WIS", "INT", "DEX", "LUK"];
+  const STAT_KEYS = ["STR", "CON", "WIS", "INT", "DEX", "LUK"];
   const INTRO_STORAGE_KEY = `${STORAGE_PREFIX}-intro-seen`;
   const INTRO_SKIP_ENABLED = false;
 
@@ -62,10 +66,12 @@
   });
 
   const audioState = {
-    audio: null,
+    ambient: null,
+    battle: null,
     volume: 0.85,
     muted: false,
-    started: false
+    started: false,
+    current: "ambient"
   };
 
   const elements = {
@@ -99,6 +105,7 @@
     statInt: document.getElementById("hud-stat-int"),
     statDex: document.getElementById("hud-stat-dex"),
     statLuk: document.getElementById("hud-stat-luk"),
+    statCon: document.getElementById("hud-stat-con"),
     saveButton: document.getElementById("btn-save"),
     actionDock: document.getElementById("action-dock"),
     versionLabel: document.getElementById("version-label"),
@@ -200,25 +207,92 @@
     } catch (error) {
       recordBootError(error);
     }
-    if (audioState.audio) {
-      audioState.audio.muted = muted;
-    }
+    [audioState.ambient, audioState.battle].forEach((audio) => {
+      if (audio) audio.muted = muted;
+    });
     updateAudioButton();
   }
 
-  function getIntroBgmUrl() {
-    return new URL(`sounds/${INTRO_BGM_FILE}`, BASE_URL).toString();
+  function getBgmUrl(fileName) {
+    return new URL(`sounds/${fileName}`, BASE_URL).toString();
   }
 
-  function ensureIntroAudio() {
-    if (audioState.audio) return audioState.audio;
-    const audio = new Audio(getIntroBgmUrl());
+  function ensureAmbientAudio() {
+    if (audioState.ambient) return audioState.ambient;
+    const audio = new Audio(getBgmUrl(AMBIENT_BGM_FILE));
     audio.loop = true;
     audio.preload = "auto";
     audio.volume = audioState.volume;
     audio.muted = audioState.muted;
-    audioState.audio = audio;
+    audioState.ambient = audio;
     return audio;
+  }
+
+  function ensureBattleAudio() {
+    if (audioState.battle) return audioState.battle;
+    const audio = new Audio(getBgmUrl(BATTLE_BGM_FILE));
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = 0;
+    audio.muted = audioState.muted;
+    audioState.battle = audio;
+    return audio;
+  }
+
+  function fadeAudio(audio, from, to, duration, onComplete) {
+    if (!audio) return;
+    const startTime = performance.now();
+    const delta = to - from;
+    audio.volume = Math.max(0, Math.min(1, from));
+    const step = (now) => {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const value = from + delta * progress;
+      audio.volume = Math.max(0, Math.min(1, value));
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else if (onComplete) {
+        onComplete();
+      }
+    };
+    requestAnimationFrame(step);
+  }
+
+  function ensureBgmTrack(key) {
+    return key === "battle" ? ensureBattleAudio() : ensureAmbientAudio();
+  }
+
+  function switchBgm(target, immediate = false) {
+    const next = ensureBgmTrack(target);
+    const prev = audioState.current === "battle" ? audioState.battle : audioState.ambient;
+    audioState.current = target;
+    if (!next) return;
+    if (audioState.muted || !audioState.started) {
+      next.muted = audioState.muted;
+      return;
+    }
+    if (prev === next) {
+      if (next.paused) {
+        next.play().catch(() => {});
+      }
+      next.volume = audioState.volume;
+      return;
+    }
+    next.muted = false;
+    next.volume = 0;
+    next.play().catch(() => {});
+    if (immediate) {
+      if (prev) {
+        prev.volume = 0;
+        prev.pause();
+      }
+      next.volume = audioState.volume;
+      return;
+    }
+    if (prev) {
+      const from = Number.isFinite(prev.volume) ? prev.volume : audioState.volume;
+      fadeAudio(prev, from, 0, BGM_FADE_MS, () => prev.pause());
+    }
+    fadeAudio(next, 0, audioState.volume, BGM_FADE_MS);
   }
 
   function loadAudioPreference() {
@@ -235,7 +309,8 @@
       updateAudioButton();
       return true;
     }
-    const audio = ensureIntroAudio();
+    const target = state.inCombat ? "battle" : "ambient";
+    const audio = ensureBgmTrack(target);
     if (!audio) return false;
     if (audioState.muted) {
       updateAudioButton();
@@ -244,6 +319,7 @@
     try {
       await audio.play();
       audioState.started = true;
+      switchBgm(target, true);
       updateAudioButton();
       return true;
     } catch (error) {
@@ -320,12 +396,13 @@
         updateAudioButton();
         return;
       }
-      const audio = ensureIntroAudio();
+      const audio = ensureAmbientAudio();
       if (!audio) return;
       audio
         .play()
         .then(() => {
           audioState.started = true;
+          switchBgm("ambient", true);
           updateAudioButton();
         })
         .catch(() => {});
@@ -373,6 +450,10 @@
         event.preventDefault();
         if (audioState.muted) {
           setAudioMuted(false);
+          if (audioState.started) {
+            switchBgm("ambient", true);
+            return;
+          }
         } else if (audioState.started) {
           setAudioMuted(true);
           return;
@@ -387,15 +468,22 @@
 
   }
 
+  function calculateMaxHp(stats) {
+    const con = Number(stats?.CON ?? 0);
+    return BASE_HP + con * CON_HP_MULTIPLIER;
+  }
+
   function defaultPlayer() {
+    const stats = { STR: 2, DEX: 2, INT: 1, WIS: 1, LUK: 1, CHA: 1, CON: 1 };
+    const maxHp = calculateMaxHp(stats);
     return {
       name: DEFAULT_PLAYER_NAME,
-      hp: 42,
-      maxHp: 42,
+      hp: maxHp,
+      maxHp,
       mp: 8,
       maxMp: 8,
       gold: 20,
-      stats: { STR: 2, DEX: 2, INT: 1, WIS: 1, LUK: 1, CHA: 1, CON: 1 },
+      stats,
       counters: { trust: 0, insight: 0 }
     };
   }
@@ -404,7 +492,7 @@
     const fallback = defaultPlayer();
     const safe = playerData && typeof playerData === "object" ? playerData : {};
     const safeName = typeof safe.name === "string" ? safe.name.trim() : "";
-    return {
+    const player = {
       ...fallback,
       ...safe,
       name: safeName || fallback.name,
@@ -413,6 +501,10 @@
       stats: { ...fallback.stats, ...(safe.stats ?? {}) },
       counters: { ...fallback.counters, ...(safe.counters ?? {}) }
     };
+    const calculatedMaxHp = calculateMaxHp(player.stats);
+    player.maxHp = calculatedMaxHp;
+    player.hp = Math.min(Number(player.hp ?? calculatedMaxHp), calculatedMaxHp);
+    return player;
   }
 
   function migrateStorageKey(oldKey, newKey) {
@@ -664,6 +756,7 @@
     if (elements.statInt) elements.statInt.textContent = String(state.player.stats?.INT ?? 0);
     if (elements.statDex) elements.statDex.textContent = String(state.player.stats?.DEX ?? 0);
     if (elements.statLuk) elements.statLuk.textContent = String(state.player.stats?.LUK ?? 0);
+    if (elements.statCon) elements.statCon.textContent = String(state.player.stats?.CON ?? 0);
     renderStatusSheet();
   }
 
@@ -1361,6 +1454,7 @@
   function clearCombatState() {
     state.inCombat = false;
     state.combat = null;
+    switchBgm("ambient");
   }
 
   function startCombat(enemyId) {
@@ -1377,6 +1471,7 @@
       enemyHp: enemy.hp,
       enemyMaxHp: enemy.hp
     };
+    switchBgm("battle");
     addCodexEntry("enemies", enemy.id);
     renderCombat();
     saveState();
@@ -1538,6 +1633,11 @@
     state.runRecorded = false;
     if (!state.player.background) {
       state.player.background = createBackgroundForPlayer();
+    }
+    if (state.inCombat) {
+      switchBgm("battle");
+    } else {
+      switchBgm("ambient");
     }
     return true;
   }
@@ -1738,6 +1838,10 @@
       elements.audioButton.addEventListener("click", async () => {
         if (audioState.muted) {
           setAudioMuted(false);
+          if (audioState.started) {
+            switchBgm(state.inCombat ? "battle" : "ambient", true);
+            return;
+          }
         } else if (audioState.started) {
           setAudioMuted(true);
           return;

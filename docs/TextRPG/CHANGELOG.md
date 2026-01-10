@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.3.8
+- Audio: 전투 진입/복귀 시 전투 BGM과 앰비언트 BGM을 페이드 전환하도록 수정
+- Audio: 전투 BGM 파일명을 공백 없는 형태로 정리하고 참조 업데이트
+- Stat: CON(체력) 스탯을 HUD/상태 시트에 추가하고 최대 HP 계산에 반영
+
 ## v0.3.7
 - Added: Character Background generator (20x20)
 - Added: Intro BGM from /sounds with proper toggle separation
