@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.3.5";
+  const VERSION = "v0.3.6";
   const STORAGE_PREFIX = "textrpg-lucas";
   const LEGACY_PREFIX = "textrpg-omega";
   const SAVE_KEY = `${STORAGE_PREFIX}-save`;
