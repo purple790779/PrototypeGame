@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="./" />
     <title>루카스 어드벤처</title>
-    <link rel="stylesheet" href="style.css?v=0.3.8" />
+    <link rel="stylesheet" href="style.css?v=0.3.10" />
   </head>
   <body>
     <div id="introOverlay" class="intro-overlay" role="dialog" aria-modal="true" aria-label="인트로" tabindex="0">
@@ -91,6 +91,69 @@
         <div class="name-modal__actions">
           <button id="btn-name-cancel" class="btn btn--ghost btn--small" type="button">취소</button>
           <button id="btn-name-confirm" class="btn btn--small" type="button">확정</button>
+        </div>
+      </div>
+    </div>
+    <div
+      id="buildModal"
+      class="build-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="build-modal-title"
+      hidden
+    >
+      <div class="build-modal__card">
+        <h2 id="build-modal-title">스탯 빌드 선택</h2>
+        <p class="build-modal__subtitle">기본 스탯 1에서 15포인트를 배분합니다. (최대 8 제한)</p>
+        <div class="build-grid">
+          <article class="build-card">
+            <div class="build-card__header">
+              <h3>랜덤</h3>
+              <span class="build-card__tag">추천</span>
+            </div>
+            <p class="build-card__desc">균형 잡힌 무작위 분배. 새로운 시작에 어울립니다.</p>
+            <p class="build-card__stats" id="random-build-summary">STR? DEX? ...</p>
+            <button class="btn btn--small" type="button" data-build-select="RANDOM">선택</button>
+          </article>
+          <article class="build-card">
+            <div class="build-card__header">
+              <h3>근력형</h3>
+              <span class="build-card__tag">STR</span>
+            </div>
+            <p class="build-card__desc">STR/CON 위주, 튼튼한 전사 타입.</p>
+            <p class="build-card__stats">STR7 CON5 DEX3 WIS2 INT2 LUK2</p>
+            <button class="btn btn--small" type="button" data-build-select="STR">선택</button>
+          </article>
+          <article class="build-card">
+            <div class="build-card__header">
+              <h3>민첩형</h3>
+              <span class="build-card__tag">DEX</span>
+            </div>
+            <p class="build-card__desc">DEX/LUK 중심, 민첩한 정찰자 타입.</p>
+            <p class="build-card__stats">DEX7 LUK4 CON4 STR3 WIS2 INT1</p>
+            <button class="btn btn--small" type="button" data-build-select="DEX">선택</button>
+          </article>
+          <article class="build-card">
+            <div class="build-card__header">
+              <h3>지력형</h3>
+              <span class="build-card__tag">INT</span>
+            </div>
+            <p class="build-card__desc">INT/WIS 중심, 분석형 마도사 타입.</p>
+            <p class="build-card__stats">INT7 WIS5 LUK3 CON3 DEX2 STR1</p>
+            <button class="btn btn--small" type="button" data-build-select="INT">선택</button>
+          </article>
+          <article class="build-card">
+            <div class="build-card__header">
+              <h3>밸런스형</h3>
+              <span class="build-card__tag">균형</span>
+            </div>
+            <p class="build-card__desc">모든 능력치를 고르게 올린 안정형.</p>
+            <p class="build-card__stats">STR4 DEX4 INT4 WIS4 CON3 LUK2</p>
+            <button class="btn btn--small" type="button" data-build-select="BALANCE">선택</button>
+          </article>
+        </div>
+        <div class="build-modal__actions">
+          <button id="btn-build-back" class="btn btn--ghost btn--small" type="button">이름 다시 입력</button>
         </div>
       </div>
     </div>

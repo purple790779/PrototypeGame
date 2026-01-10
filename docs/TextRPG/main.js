@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.3.9";
+  const VERSION = "v0.3.10";
   const STORAGE_PREFIX = "textrpg-lucas";
   const LEGACY_PREFIX = "textrpg-omega";
   const SAVE_KEY = `${STORAGE_PREFIX}-save`;
@@ -8,8 +8,8 @@
   const AUDIO_MUTE_KEY = `${STORAGE_PREFIX}-audio-muted`;
   const DEFAULT_NODE_ID = "GUILD_ARRIVAL";
   const DEFAULT_PLAYER_NAME = "당신";
-  const TRAVEL_STEPS_MIN = 1;
-  const TRAVEL_STEPS_MAX = 3;
+  const TRAVEL_STEPS_MIN = 4;
+  const TRAVEL_STEPS_MAX = 7;
   const QUEST_STEPS_MIN = 1;
   const QUEST_STEPS_MAX = 3;
   const INTRO_START_SELECTOR = "[data-intro-start]";
@@ -22,6 +22,17 @@
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
   const STAT_KEYS = ["STR", "CON", "WIS", "INT", "DEX", "LUK"];
+  const STAT_LABELS = {
+    STR: "힘",
+    CON: "체력",
+    WIS: "지혜",
+    INT: "지능",
+    DEX: "민첩",
+    LUK: "행운"
+  };
+  const STAT_BASE_VALUE = 1;
+  const STAT_POINT_POOL = 15;
+  const STAT_MAX_VALUE = 8;
   const INTRO_STORAGE_KEY = `${STORAGE_PREFIX}-intro-seen`;
   const INTRO_SKIP_ENABLED = false;
 
@@ -82,6 +93,9 @@
     nameInput: document.getElementById("nameInput"),
     nameConfirm: document.getElementById("btn-name-confirm"),
     nameCancel: document.getElementById("btn-name-cancel"),
+    buildModal: document.getElementById("buildModal"),
+    buildBack: document.getElementById("btn-build-back"),
+    buildRandomSummary: document.getElementById("random-build-summary"),
     mainCenter: document.getElementById("main-center"),
     exploreCard: document.getElementById("explore-card"),
     sceneTitle: document.getElementById("scene-title"),
@@ -173,6 +187,14 @@
     travelCount: 0,
     travelTarget: 0,
     travelHistory: [],
+    travelRecent: [],
+    travelFlags: {
+      hasForcedCombat: false,
+      hasForcedItem: false,
+      hasForcedStatUp: false,
+      travelStepIndex: 0,
+      targetTravelSteps: 0
+    },
     questCount: 0,
     questTarget: 0,
     inCombat: false,
@@ -185,7 +207,9 @@
   };
 
   const uiState = {
-    pendingNamePrompt: false
+    pendingNamePrompt: false,
+    pendingName: null,
+    pendingRandomStats: null
   };
 
   function updateAudioButton() {
@@ -474,7 +498,15 @@
   }
 
   function defaultPlayer() {
-    const stats = { STR: 2, DEX: 2, INT: 1, WIS: 1, LUK: 1, CHA: 1, CON: 1 };
+    const stats = {
+      STR: STAT_BASE_VALUE,
+      DEX: STAT_BASE_VALUE,
+      INT: STAT_BASE_VALUE,
+      WIS: STAT_BASE_VALUE,
+      LUK: STAT_BASE_VALUE,
+      CHA: STAT_BASE_VALUE,
+      CON: STAT_BASE_VALUE
+    };
     const maxHp = calculateMaxHp(stats);
     return {
       name: DEFAULT_PLAYER_NAME,
@@ -484,7 +516,9 @@
       maxMp: 8,
       gold: 20,
       stats,
-      counters: { trust: 0, insight: 0 }
+      counters: { trust: 0, insight: 0 },
+      inventory: [],
+      build: "BALANCE"
     };
   }
 
@@ -499,7 +533,9 @@
       mp: Number.isFinite(Number(safe.mp)) ? Number(safe.mp) : fallback.mp,
       maxMp: Number.isFinite(Number(safe.maxMp)) ? Number(safe.maxMp) : fallback.maxMp,
       stats: { ...fallback.stats, ...(safe.stats ?? {}) },
-      counters: { ...fallback.counters, ...(safe.counters ?? {}) }
+      counters: { ...fallback.counters, ...(safe.counters ?? {}) },
+      inventory: Array.isArray(safe.inventory) ? safe.inventory : [],
+      build: typeof safe.build === "string" ? safe.build : fallback.build
     };
     const calculatedMaxHp = calculateMaxHp(player.stats);
     player.maxHp = calculatedMaxHp;
@@ -579,6 +615,8 @@
       travelCount: state.travelCount,
       travelTarget: state.travelTarget,
       travelHistory: state.travelHistory,
+      travelRecent: state.travelRecent,
+      travelFlags: state.travelFlags,
       questCount: state.questCount,
       questTarget: state.questTarget,
       inCombat: state.inCombat,
@@ -833,14 +871,49 @@
     return selected;
   }
 
+  function ensureTravelFlags() {
+    if (!state.travelFlags || typeof state.travelFlags !== "object") {
+      state.travelFlags = createTravelFlags(state.travelTarget, state.travelCount);
+    }
+    state.travelFlags.travelStepIndex = state.travelCount;
+    state.travelFlags.targetTravelSteps = state.travelTarget;
+  }
+
+  function getMissingTravelTypes() {
+    ensureTravelFlags();
+    const missing = [];
+    if (!state.travelFlags.hasForcedCombat) missing.push("combat");
+    if (!state.travelFlags.hasForcedItem) missing.push("item");
+    if (!state.travelFlags.hasForcedStatUp) missing.push("stat_up");
+    return missing;
+  }
+
+  function selectTravelEventByType(events, type, recentIds) {
+    if (!type) return null;
+    const typed = events.filter((event) => event.type === type);
+    if (!typed.length) return null;
+    const filtered = typed.filter((event) => !recentIds.includes(event.id));
+    return getRandomItem(filtered.length ? filtered : typed);
+  }
+
   function getCurrentTravelEvent() {
     const travelEvents = state.data?.travelEvents ?? [];
     if (state.travelEventId) {
       return travelEvents.find((event) => event.id === state.travelEventId) ?? null;
     }
-    const remaining = travelEvents.filter((event) => !state.travelHistory.includes(event.id));
-    const pool = remaining.length ? remaining : travelEvents;
-    const selected = getRandomItem(pool);
+    const recentIds = Array.isArray(state.travelRecent) ? state.travelRecent : [];
+    const remainingSteps = Math.max(0, state.travelTarget - state.travelCount);
+    const missingTypes = getMissingTravelTypes();
+    let selected = null;
+    if (missingTypes.length && remainingSteps <= missingTypes.length) {
+      const forcedType = getRandomItem(missingTypes);
+      selected = selectTravelEventByType(travelEvents, forcedType, recentIds);
+    }
+    if (!selected) {
+      const filtered = travelEvents.filter((event) => !recentIds.includes(event.id));
+      const pool = filtered.length ? filtered : travelEvents;
+      selected = getRandomItem(pool);
+    }
     if (selected) {
       state.travelEventId = selected.id;
       saveState();
@@ -856,6 +929,78 @@
       return;
     }
     renderTravelEvent();
+  }
+
+  function getTravelRewardItem() {
+    const items = Array.isArray(state.data?.items) ? state.data.items : [];
+    const consumables = items.filter((item) => item.type === "consumable");
+    const pool = consumables.length ? consumables : items;
+    return getRandomItem(pool);
+  }
+
+  function applyTravelEventTypeEffects(travelEvent) {
+    ensureTravelFlags();
+    const result = { item: null, statKey: null };
+    if (!travelEvent?.type) return result;
+    if (travelEvent.type === "combat") {
+      state.travelFlags.hasForcedCombat = true;
+      return result;
+    }
+    if (travelEvent.type === "item") {
+      state.travelFlags.hasForcedItem = true;
+      const item = getTravelRewardItem();
+      if (item) {
+        addItemToInventory(item.id);
+        result.item = item;
+      }
+    }
+    if (travelEvent.type === "stat_up") {
+      state.travelFlags.hasForcedStatUp = true;
+      const statKey = getRandomItem(STAT_KEYS);
+      if (statKey) {
+        increaseStat(statKey, 1);
+        result.statKey = statKey;
+      }
+    }
+    return result;
+  }
+
+  function finalizeTravelEvent(travelEvent, option = null) {
+    const outcomeText = option?.outcomeText ?? travelEvent?.outcomeText ?? "";
+    if (option?.impact) {
+      applyImpact(option.impact);
+    }
+    const { item, statKey } = applyTravelEventTypeEffects(travelEvent);
+    if (outcomeText) {
+      addLog(outcomeText);
+    }
+    if (item) {
+      addLog(`아이템 획득: ${item.name ?? item.id}`);
+    }
+    if (statKey) {
+      const label = STAT_LABELS[statKey] ?? statKey;
+      addLog(`${label}이 1 상승했다.`);
+    }
+    updateHud();
+    state.travelCount += 1;
+    ensureTravelFlags();
+    if (travelEvent?.id && !state.travelHistory.includes(travelEvent.id)) {
+      state.travelHistory.push(travelEvent.id);
+    }
+    if (travelEvent?.id) {
+      state.travelRecent.push(travelEvent.id);
+      if (state.travelRecent.length > 3) {
+        state.travelRecent = state.travelRecent.slice(-3);
+      }
+    }
+    state.travelEventId = null;
+    if (option?.startCombat) {
+      startCombat(option.startCombat);
+      saveState();
+      return;
+    }
+    advanceTravel();
+    saveState();
   }
 
   function renderBackground() {
@@ -919,6 +1064,7 @@
       clearChoices();
       addChoiceButton("계속 걷는다", () => {
         state.travelCount += 1;
+        ensureTravelFlags();
         state.travelEventId = null;
         advanceTravel();
         saveState();
@@ -934,34 +1080,13 @@
     const options = Array.isArray(travelEvent.options) ? travelEvent.options : [];
     if (!options.length) {
       addChoiceButton("계속 걷는다", () => {
-        state.travelCount += 1;
-        if (travelEvent.id && !state.travelHistory.includes(travelEvent.id)) {
-          state.travelHistory.push(travelEvent.id);
-        }
-        state.travelEventId = null;
-        advanceTravel();
-        saveState();
+        finalizeTravelEvent(travelEvent);
       });
     } else {
       options.forEach((option) => {
         const label = option.text ?? "선택";
         addChoiceButton(label, () => {
-          applyImpact(option.impact);
-          if (option.outcomeText) {
-            addLog(option.outcomeText);
-          }
-          state.travelCount += 1;
-          if (travelEvent.id && !state.travelHistory.includes(travelEvent.id)) {
-            state.travelHistory.push(travelEvent.id);
-          }
-          state.travelEventId = null;
-          if (option.startCombat) {
-            startCombat(option.startCombat);
-            saveState();
-            return;
-          }
-          advanceTravel();
-          saveState();
+          finalizeTravelEvent(travelEvent, option);
         });
       });
     }
@@ -1043,6 +1168,7 @@
           id,
           title: event.title ?? "여정",
           text: event.text ?? event.situation ?? "",
+          outcomeText: event.outcomeText ?? event.outcome_text ?? event.outcome ?? "",
           options: options.map((option) => ({
             ...option,
             impact: option.impact ?? option.effects ?? option.delta ?? null,
@@ -1101,8 +1227,26 @@
     return { nodesMap, enemiesMap, endingsMap };
   }
 
-  function newGameState(playerName = DEFAULT_PLAYER_NAME) {
-    state.player = normalizePlayer({ name: playerName, background: null });
+  function createTravelFlags(targetSteps, stepIndex = 0) {
+    return {
+      hasForcedCombat: false,
+      hasForcedItem: false,
+      hasForcedStatUp: false,
+      travelStepIndex: stepIndex,
+      targetTravelSteps: targetSteps
+    };
+  }
+
+  function newGameState(playerName = DEFAULT_PLAYER_NAME, buildType = "BALANCE", buildStats = null) {
+    state.player = normalizePlayer({
+      name: playerName,
+      background: null,
+      stats: buildStats ?? createBaseStats(),
+      inventory: [],
+      build: buildType
+    });
+    state.player.maxHp = calculateMaxHp(state.player.stats);
+    state.player.hp = state.player.maxHp;
     state.nodeId = "GUILD_ARRIVAL";
     state.phase = "background";
     state.prologueId = null;
@@ -1110,6 +1254,8 @@
     state.travelCount = 0;
     state.travelTarget = randomBetween(TRAVEL_STEPS_MIN, TRAVEL_STEPS_MAX);
     state.travelHistory = [];
+    state.travelRecent = [];
+    state.travelFlags = createTravelFlags(state.travelTarget, state.travelCount);
     state.questCount = 0;
     state.questTarget = randomBetween(QUEST_STEPS_MIN, QUEST_STEPS_MAX);
     state.inCombat = false;
@@ -1135,14 +1281,83 @@
     elements.nameModal.hidden = true;
   }
 
+  function openBuildModal() {
+    if (!elements.buildModal) return;
+    uiState.pendingRandomStats = generateRandomBuildStats();
+    if (elements.buildRandomSummary) {
+      elements.buildRandomSummary.textContent = formatStatsSummary(uiState.pendingRandomStats);
+    }
+    elements.buildModal.hidden = false;
+  }
+
+  function closeBuildModal() {
+    if (!elements.buildModal) return;
+    elements.buildModal.hidden = true;
+  }
+
   function normalizePlayerName(raw) {
     const trimmed = String(raw ?? "").trim();
     return trimmed.length ? trimmed : DEFAULT_PLAYER_NAME;
   }
 
-  function applyNewJourney(playerName) {
+  function createBaseStats() {
+    return {
+      STR: STAT_BASE_VALUE,
+      DEX: STAT_BASE_VALUE,
+      INT: STAT_BASE_VALUE,
+      WIS: STAT_BASE_VALUE,
+      LUK: STAT_BASE_VALUE,
+      CON: STAT_BASE_VALUE,
+      CHA: STAT_BASE_VALUE
+    };
+  }
+
+  function buildStatsFromPreset(additional) {
+    const stats = createBaseStats();
+    Object.entries(additional ?? {}).forEach(([key, value]) => {
+      stats[key] = Math.max(STAT_BASE_VALUE, stats[key] + Number(value ?? 0));
+    });
+    return stats;
+  }
+
+  function generateRandomBuildStats() {
+    const stats = createBaseStats();
+    let points = STAT_POINT_POOL;
+    while (points > 0) {
+      const key = getRandomItem(STAT_KEYS);
+      if (!key) break;
+      if (stats[key] < STAT_MAX_VALUE) {
+        stats[key] += 1;
+        points -= 1;
+      }
+    }
+    return stats;
+  }
+
+  function getBuildPreset(buildType) {
+    const presets = {
+      STR: { STR: 6, CON: 4, DEX: 2, WIS: 1, INT: 1, LUK: 1 },
+      DEX: { DEX: 6, LUK: 3, CON: 3, STR: 2, WIS: 1, INT: 0 },
+      INT: { INT: 6, WIS: 4, LUK: 2, CON: 2, DEX: 1, STR: 0 },
+      BALANCE: { STR: 3, DEX: 3, INT: 3, WIS: 3, CON: 2, LUK: 1 }
+    };
+    if (buildType === "RANDOM") return null;
+    return presets[buildType] ?? presets.BALANCE;
+  }
+
+  function formatStatsSummary(stats) {
+    if (!stats) return "";
+    return STAT_KEYS.map((key) => `${key}${stats[key] ?? 0}`).join(" ");
+  }
+
+  function applyNewJourney(playerName, buildType = "BALANCE", buildStats = null) {
     uiState.pendingNamePrompt = false;
-    newGameState(normalizePlayerName(playerName));
+    const normalizedName = normalizePlayerName(playerName);
+    const preset = getBuildPreset(buildType);
+    const finalStats =
+      buildStats ??
+      (buildType === "RANDOM" ? generateRandomBuildStats() : buildStatsFromPreset(preset));
+    newGameState(normalizedName, buildType, finalStats);
     state.player.background = createBackgroundForPlayer();
     state.phase = "background";
     saveState();
@@ -1177,6 +1392,31 @@
       state.player.counters.insight = Number(state.player.counters.insight ?? 0) + insightDelta;
     }
     updateHud();
+  }
+
+  function addItemToInventory(itemId) {
+    if (!itemId) return;
+    if (!Array.isArray(state.player.inventory)) {
+      state.player.inventory = [];
+    }
+    state.player.inventory.push(itemId);
+  }
+
+  function increaseStat(statKey, amount = 1) {
+    if (!statKey) return;
+    if (!state.player.stats) state.player.stats = {};
+    const current = Number(state.player.stats[statKey] ?? 0);
+    state.player.stats[statKey] = current + amount;
+    const recalculatedMaxHp = calculateMaxHp(state.player.stats);
+    state.player.maxHp = recalculatedMaxHp;
+    state.player.hp = Math.min(state.player.hp, recalculatedMaxHp);
+  }
+
+  function getInventoryItems() {
+    const inventory = Array.isArray(state.player?.inventory) ? state.player.inventory : [];
+    const items = Array.isArray(state.data?.items) ? state.data.items : [];
+    const itemsMap = new Map(items.map((item) => [item.id, item]));
+    return inventory.map((id) => itemsMap.get(id) ?? { id, name: id, type: "item" });
   }
 
   function meetsRequirements(requirements) {
@@ -1250,12 +1490,12 @@
       empty.textContent = "이상 없음";
       elements.statusList.appendChild(empty);
     }
-    const items = Array.isArray(state.data?.items) ? state.data.items : [];
+    const items = getInventoryItems();
     renderInventoryGrid(elements.inventoryGrid, items);
   }
 
   function renderInventorySheet() {
-    const items = Array.isArray(state.data?.items) ? state.data.items : [];
+    const items = getInventoryItems();
     if (elements.inventoryEmpty) {
       elements.inventoryEmpty.hidden = items.length > 0;
     }
@@ -1624,6 +1864,17 @@
     state.travelCount = Number(saved.travelCount ?? 0);
     state.travelTarget = Number(saved.travelTarget ?? randomBetween(TRAVEL_STEPS_MIN, TRAVEL_STEPS_MAX));
     state.travelHistory = Array.isArray(saved.travelHistory) ? saved.travelHistory : [];
+    state.travelRecent = Array.isArray(saved.travelRecent) ? saved.travelRecent : [];
+    state.travelFlags =
+      saved.travelFlags && typeof saved.travelFlags === "object"
+        ? {
+            hasForcedCombat: Boolean(saved.travelFlags.hasForcedCombat),
+            hasForcedItem: Boolean(saved.travelFlags.hasForcedItem),
+            hasForcedStatUp: Boolean(saved.travelFlags.hasForcedStatUp),
+            travelStepIndex: Number(saved.travelFlags.travelStepIndex ?? state.travelCount),
+            targetTravelSteps: Number(saved.travelFlags.targetTravelSteps ?? state.travelTarget)
+          }
+        : createTravelFlags(state.travelTarget, state.travelCount);
     state.questCount = Number(saved.questCount ?? 0);
     state.questTarget = Number(saved.questTarget ?? randomBetween(QUEST_STEPS_MIN, QUEST_STEPS_MAX));
     state.log = Array.isArray(saved.log) ? saved.log : [];
@@ -1854,13 +2105,15 @@
       elements.nameConfirm.addEventListener("click", () => {
         const name = elements.nameInput?.value ?? "";
         closeNameModal();
-        applyNewJourney(name);
+        uiState.pendingName = normalizePlayerName(name);
+        openBuildModal();
       });
     }
     if (elements.nameCancel) {
       elements.nameCancel.addEventListener("click", () => {
         closeNameModal();
-        applyNewJourney(DEFAULT_PLAYER_NAME);
+        uiState.pendingName = DEFAULT_PLAYER_NAME;
+        openBuildModal();
       });
     }
     if (elements.nameInput) {
@@ -1869,8 +2122,27 @@
           event.preventDefault();
           const name = elements.nameInput?.value ?? "";
           closeNameModal();
-          applyNewJourney(name);
+          uiState.pendingName = normalizePlayerName(name);
+          openBuildModal();
         }
+      });
+    }
+    document.querySelectorAll("[data-build-select]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const buildType = button.dataset.buildSelect ?? "BALANCE";
+        const finalName = uiState.pendingName ?? DEFAULT_PLAYER_NAME;
+        const stats =
+          buildType === "RANDOM" ? uiState.pendingRandomStats : buildStatsFromPreset(getBuildPreset(buildType));
+        closeBuildModal();
+        applyNewJourney(finalName, buildType, stats);
+        uiState.pendingName = null;
+        uiState.pendingRandomStats = null;
+      });
+    });
+    if (elements.buildBack) {
+      elements.buildBack.addEventListener("click", () => {
+        closeBuildModal();
+        openNameModal();
       });
     }
     window.addEventListener("scroll", hideTooltip, { passive: true });
