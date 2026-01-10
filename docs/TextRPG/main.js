@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.3.6";
+  const VERSION = "v0.3.7";
   const STORAGE_PREFIX = "textrpg-lucas";
   const LEGACY_PREFIX = "textrpg-omega";
   const SAVE_KEY = `${STORAGE_PREFIX}-save`;
@@ -8,11 +8,12 @@
   const AUDIO_MUTE_KEY = `${STORAGE_PREFIX}-audio-muted`;
   const DEFAULT_NODE_ID = "GUILD_ARRIVAL";
   const DEFAULT_PLAYER_NAME = "당신";
-  const TRAVEL_STEPS_MIN = 3;
-  const TRAVEL_STEPS_MAX = 6;
+  const TRAVEL_STEPS_MIN = 1;
+  const TRAVEL_STEPS_MAX = 3;
   const QUEST_STEPS_MIN = 1;
   const QUEST_STEPS_MAX = 3;
   const INTRO_START_SELECTOR = "[data-intro-start]";
+  const INTRO_BGM_FILE = "Intro_BGM_Fog_Over_the_Faerie_Vale.mp3";
   const MAIN_SCRIPT = document.getElementById("appMain");
   const scriptSrc = MAIN_SCRIPT?.src || window.location.href;
   const BASE_URL = new URL("./", scriptSrc);
@@ -61,12 +62,8 @@
   });
 
   const audioState = {
-    context: null,
-    master: null,
-    padOscillators: [],
-    noiseSource: null,
-    chordTimer: null,
-    baseGain: 0.085,
+    audio: null,
+    volume: 0.85,
     muted: false,
     started: false
   };
@@ -185,7 +182,7 @@
   };
 
   function updateAudioButton() {
-    const isActive = audioState.started && !audioState.muted;
+    const isActive = !audioState.muted;
     const label = isActive ? "배경음악 끄기" : "배경음악 켜기";
     const icon = isActive ? "🔊" : "🔇";
     [elements.audioButton, elements.introAudioButton].forEach((button) => {
@@ -203,111 +200,25 @@
     } catch (error) {
       recordBootError(error);
     }
-    if (audioState.master && audioState.context) {
-      const target = muted ? 0 : audioState.baseGain;
-      audioState.master.gain.setTargetAtTime(target, audioState.context.currentTime, 0.6);
+    if (audioState.audio) {
+      audioState.audio.muted = muted;
     }
     updateAudioButton();
   }
 
-  function createNoiseBuffer(context) {
-    const buffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i += 1) {
-      data[i] = (Math.random() * 2 - 1) * 0.5;
-    }
-    return buffer;
+  function getIntroBgmUrl() {
+    return new URL(`sounds/${INTRO_BGM_FILE}`, BASE_URL).toString();
   }
 
-  function ensureAudioContext() {
-    if (audioState.context) return audioState.context;
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return null;
-    const context = new AudioContextClass();
-    audioState.context = context;
-    return context;
-  }
-
-  function startAmbientBGM(context) {
-    if (!context) return;
-    if (audioState.started) {
-      if (context.state === "suspended") {
-        context.resume();
-      }
-      updateAudioButton();
-      return;
-    }
-
-    const master = context.createGain();
-    master.gain.value = audioState.baseGain;
-    master.connect(context.destination);
-
-    const padFilter = context.createBiquadFilter();
-    padFilter.type = "lowpass";
-    padFilter.frequency.value = 520;
-    padFilter.Q.value = 0.7;
-
-    const padGain = context.createGain();
-    padGain.gain.value = 0.85;
-    padGain.connect(padFilter);
-    padFilter.connect(master);
-
-    const chords = [
-      [110, 165, 220],
-      [98, 147, 196],
-      [123.47, 185, 246.94],
-      [130.81, 196, 261.63]
-    ];
-    const oscTypes = ["sine", "triangle", "sine"];
-    const detunes = [-7, 4, 8];
-
-    chords[0].forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = oscTypes[index % oscTypes.length];
-      oscillator.frequency.value = frequency;
-      oscillator.detune.value = detunes[index % detunes.length];
-      oscillator.connect(padGain);
-      oscillator.start();
-      audioState.padOscillators.push(oscillator);
-    });
-
-    const noise = context.createBufferSource();
-    noise.buffer = createNoiseBuffer(context);
-    noise.loop = true;
-    const noiseBand = context.createBiquadFilter();
-    noiseBand.type = "bandpass";
-    noiseBand.frequency.value = 580;
-    noiseBand.Q.value = 0.65;
-    const noiseLow = context.createBiquadFilter();
-    noiseLow.type = "lowpass";
-    noiseLow.frequency.value = 1400;
-    const noiseGain = context.createGain();
-    noiseGain.gain.value = 0.02;
-    noise.connect(noiseBand);
-    noiseBand.connect(noiseLow);
-    noiseLow.connect(noiseGain);
-    noiseGain.connect(master);
-    noise.start();
-
-    let chordIndex = 0;
-    const applyChord = (index) => {
-      const chord = chords[index];
-      audioState.padOscillators.forEach((oscillator, oscIndex) => {
-        const base = chord[oscIndex % chord.length];
-        oscillator.frequency.setTargetAtTime(base, context.currentTime, 3.4);
-      });
-    };
-    applyChord(chordIndex);
-    audioState.chordTimer = window.setInterval(() => {
-      chordIndex = (chordIndex + 1) % chords.length;
-      applyChord(chordIndex);
-    }, 12000);
-
-    audioState.master = master;
-    audioState.noiseSource = noise;
-    audioState.started = true;
-    updateAudioButton();
-    setAudioMuted(audioState.muted);
+  function ensureIntroAudio() {
+    if (audioState.audio) return audioState.audio;
+    const audio = new Audio(getIntroBgmUrl());
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = audioState.volume;
+    audio.muted = audioState.muted;
+    audioState.audio = audio;
+    return audio;
   }
 
   function loadAudioPreference() {
@@ -320,17 +231,25 @@
   }
 
   async function activateAudioFromGesture(onFailure) {
-    const context = ensureAudioContext();
-    if (!context) return false;
+    if (audioState.started) {
+      updateAudioButton();
+      return true;
+    }
+    const audio = ensureIntroAudio();
+    if (!audio) return false;
+    if (audioState.muted) {
+      updateAudioButton();
+      return true;
+    }
     try {
-      await context.resume();
+      await audio.play();
+      audioState.started = true;
+      updateAudioButton();
+      return true;
     } catch (error) {
       if (onFailure) onFailure(error);
       return false;
     }
-    setAudioMuted(false);
-    startAmbientBGM(context);
-    return true;
   }
 
   function setupIntroOverlay() {
@@ -396,6 +315,22 @@
       return false;
     };
 
+    const attemptAutoplay = () => {
+      if (audioState.muted) {
+        updateAudioButton();
+        return;
+      }
+      const audio = ensureIntroAudio();
+      if (!audio) return;
+      audio
+        .play()
+        .then(() => {
+          audioState.started = true;
+          updateAudioButton();
+        })
+        .catch(() => {});
+    };
+
     const registerOneShot = () => {
       ["pointerdown", "touchend", "click"].forEach((eventName) => {
         intro.addEventListener(
@@ -413,6 +348,7 @@
       });
     };
 
+    attemptAutoplay();
     registerOneShot();
 
     intro.addEventListener("keydown", async (event) => {
@@ -435,8 +371,10 @@
       elements.introAudioButton.addEventListener("click", async (event) => {
         event.stopPropagation();
         event.preventDefault();
-        if (audioState.started) {
-          setAudioMuted(!audioState.muted);
+        if (audioState.muted) {
+          setAudioMuted(false);
+        } else if (audioState.started) {
+          setAudioMuted(true);
           return;
         }
         const started = await attemptStart(false);
@@ -755,6 +693,40 @@
     return list[index];
   }
 
+  function normalizeBackgroundParts(raw) {
+    return {
+      origins: Array.isArray(raw?.origins) ? raw.origins : [],
+      catalysts: Array.isArray(raw?.catalysts) ? raw.catalysts : [],
+      templates: Array.isArray(raw?.templates) ? raw.templates : []
+    };
+  }
+
+  function createBackgroundForPlayer() {
+    const parts = state.data?.backgroundParts;
+    if (!parts) return null;
+    const name = state.player?.name ?? DEFAULT_PLAYER_NAME;
+    const origin = getRandomItem(parts.origins) ?? "알 수 없는 뿌리에서 자라났다";
+    const catalyst = getRandomItem(parts.catalysts) ?? "작은 계기를 얻었다";
+    const template =
+      getRandomItem(parts.templates) ??
+      "{name}. 당신은 {origin}.\n어느 날 {catalyst}\n그래서 당신은 모험가 길드를 향했다.";
+    const text = String(template)
+      .replace(/\{name\}/g, name)
+      .replace(/\{origin\}/g, origin)
+      .replace(/\{catalyst\}/g, catalyst);
+    return { origin, catalyst, text };
+  }
+
+  function ensurePlayerBackground() {
+    if (state.player?.background?.text) return state.player.background;
+    const background = createBackgroundForPlayer();
+    if (background) {
+      state.player.background = background;
+      saveState();
+    }
+    return background;
+  }
+
   function getCurrentPrologue() {
     const prologues = state.data?.prologues ?? [];
     if (state.prologueId) {
@@ -791,6 +763,26 @@
       return;
     }
     renderTravelEvent();
+  }
+
+  function renderBackground() {
+    state.phase = "background";
+    setView("explore");
+    const background = ensurePlayerBackground();
+    const text =
+      background?.text ??
+      `${state.player?.name ?? DEFAULT_PLAYER_NAME}. 당신의 기록을 불러올 수 없습니다.\n잠시 후 다시 시도해 주세요.`;
+    setScene("모험가 등록서", text);
+    clearChoices();
+    addChoiceButton("길드로 향한다", () => {
+      state.phase = "prologue";
+      state.prologueId = null;
+      renderPrologue();
+      saveState();
+    });
+    addLog("모험가 등록서를 작성했다.");
+    updateHud();
+    saveState();
   }
 
   function renderPrologue() {
@@ -888,6 +880,10 @@
   function renderCurrent() {
     if (state.inCombat) {
       renderCombat();
+      return;
+    }
+    if (state.phase === "background") {
+      renderBackground();
       return;
     }
     if (state.phase === "prologue") {
@@ -1013,9 +1009,9 @@
   }
 
   function newGameState(playerName = DEFAULT_PLAYER_NAME) {
-    state.player = normalizePlayer({ name: playerName });
+    state.player = normalizePlayer({ name: playerName, background: null });
     state.nodeId = "GUILD_ARRIVAL";
-    state.phase = "prologue";
+    state.phase = "background";
     state.prologueId = null;
     state.travelEventId = null;
     state.travelCount = 0;
@@ -1054,6 +1050,8 @@
   function applyNewJourney(playerName) {
     uiState.pendingNamePrompt = false;
     newGameState(normalizePlayerName(playerName));
+    state.player.background = createBackgroundForPlayer();
+    state.phase = "background";
     saveState();
     renderCurrent();
   }
@@ -1525,7 +1523,7 @@
       state.nodeId = DEFAULT_NODE_ID;
     }
     const phase = saved.phase;
-    state.phase = ["prologue", "travel", "node"].includes(phase) ? phase : "node";
+    state.phase = ["background", "prologue", "travel", "node"].includes(phase) ? phase : "node";
     state.prologueId = saved.prologueId ?? null;
     state.travelEventId = saved.travelEventId ?? null;
     state.travelCount = Number(saved.travelCount ?? 0);
@@ -1538,6 +1536,9 @@
     state.inCombat = Boolean(saved.inCombat);
     state.combat = saved.combat ?? null;
     state.runRecorded = false;
+    if (!state.player.background) {
+      state.player.background = createBackgroundForPlayer();
+    }
     return true;
   }
 
@@ -1735,11 +1736,13 @@
     });
     if (elements.audioButton) {
       elements.audioButton.addEventListener("click", async () => {
-        if (!audioState.started) {
-          await activateAudioFromGesture();
+        if (audioState.muted) {
+          setAudioMuted(false);
+        } else if (audioState.started) {
+          setAudioMuted(true);
           return;
         }
-        setAudioMuted(!audioState.muted);
+        await activateAudioFromGesture();
       });
       updateAudioButton();
     }
@@ -1808,7 +1811,8 @@
       loadJson("enemies"),
       loadJson("endings"),
       loadJson("prologues"),
-      loadJson("travel_events")
+      loadJson("travel_events"),
+      loadJson("background_parts")
     ])
       .then((results) => {
         const failures = [];
@@ -1833,7 +1837,8 @@
           events: data.events ?? [],
           items: data.items ?? [],
           prologues: normalizePrologues(data.prologues),
-          travelEvents: normalizeTravelEvents(data.travel_events)
+          travelEvents: normalizeTravelEvents(data.travel_events),
+          backgroundParts: normalizeBackgroundParts(data.background_parts)
         };
         state.maps = createMaps(state.data);
 

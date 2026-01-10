@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="./" />
     <title>루카스 어드벤처</title>
-    <link rel="stylesheet" href="style.css?v=0.3.5" />
+    <link rel="stylesheet" href="style.css?v=0.3.7" />
   </head>
   <body>
     <div id="introOverlay" class="intro-overlay" role="dialog" aria-modal="true" aria-label="인트로" tabindex="0">
@@ -14,9 +14,9 @@
         class="intro__audio-toggle"
         type="button"
         aria-label="배경음악 켜기/끄기"
-        aria-pressed="false"
+        aria-pressed="true"
       >
-        🔇
+        🔊
       </button>
       <svg
         class="intro__bg"
@@ -237,12 +237,12 @@
               id="btn-audio"
               class="icon-btn icon-btn--audio icon-btn--mini"
               aria-label="배경음악 켜기/끄기"
-              aria-pressed="false"
+              aria-pressed="true"
               data-tooltip="BGM"
               data-toast="BGM"
               type="button"
             >
-              🔇
+              🔊
             </button>
             <button id="btn-reset" class="btn btn--ghost btn--tiny">새 여정</button>
             <button class="log-panel__toggle" id="log-toggle" aria-expanded="false" type="button">
@@ -467,6 +467,6 @@
 
     <div class="toast" id="save-toast" role="status" aria-live="polite"></div>
 
-    <script id="appMain" src="main.js?v=0.3.5" defer></script>
+    <script id="appMain" src="main.js?v=0.3.7" defer></script>
   </body>
 </html>

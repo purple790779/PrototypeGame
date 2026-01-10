@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.3.7
+- Added: Character Background generator (20x20)
+- Added: Intro BGM from /sounds with proper toggle separation
+- Fixed: Intro sound toggle advancing scene
+- Changed: Start flow now background → prologue → travel → guild arrival
+
 ## v0.3.6
 - Fix: travel_events JSON 문자열 따옴표 이스케이프 오류 수정
 
