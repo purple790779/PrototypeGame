@@ -203,6 +203,86 @@ body {
   margin-top: 6px;
 }
 
+.build-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 12, 0.82);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+
+.build-modal__card {
+  width: min(840px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  background: rgba(18, 24, 34, 0.94);
+  border: 1px solid rgba(109, 213, 255, 0.25);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 16px;
+}
+
+.build-modal__subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.build-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.build-card {
+  background: rgba(8, 12, 18, 0.7);
+  border: 1px solid rgba(109, 213, 255, 0.2);
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  min-height: 170px;
+}
+
+.build-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.build-card__tag {
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(90, 140, 200, 0.25);
+  color: rgba(220, 235, 255, 0.9);
+}
+
+.build-card__desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(220, 235, 255, 0.82);
+}
+
+.build-card__stats {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(180, 205, 235, 0.9);
+}
+
+.build-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 button,
 select,
 input,
