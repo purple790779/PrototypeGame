@@ -29,13 +29,13 @@
     },
     {
       "id": "textrpg-omega",
-      "title": "프로젝트 오메가 - 에테르의 눈물",
+      "title": "루카스 어드벤처",
       "slug": "textrpg-omega",
       "path": "./TextRPG/",
       "icon": "🧭",
-      "version": "v0.3.1",
+      "version": "v0.3.3",
       "status": "active",
-      "summary": "정화자로서 사건을 겪으며 D20 판정과 선택으로 여정을 이어가는 텍스트 RPG.",
+      "summary": "초보 모험가로서 첫 의뢰를 받아 떠나는 가벼운 텍스트 RPG.",
       "order": 30,
       "tags": ["mobile", "rpg", "text", "story"]
     }
