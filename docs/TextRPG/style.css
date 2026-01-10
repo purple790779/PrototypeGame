@@ -13,9 +13,9 @@
   --shadow: 0 12px 32px rgba(6, 8, 12, 0.45);
   --safe-bottom: env(safe-area-inset-bottom);
   --safe-top: env(safe-area-inset-top);
-  --hud-height: 88px;
-  --dock-height: 68px;
-  --log-collapsed-height: 88px;
+  --hud-height: 72px;
+  --dock-height: 64px;
+  --log-collapsed-height: 84px;
 }
 
 [hidden] {
@@ -274,16 +274,23 @@ textarea {
   min-width: 36px;
 }
 
+.icon-btn--mini {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  border-radius: 10px;
+}
+
 .top-hud {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: rgba(15, 20, 30, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  gap: 10px;
+  gap: 8px;
   backdrop-filter: blur(8px);
+  min-height: var(--hud-height);
 }
 
 .top-hud__left {
@@ -291,12 +298,12 @@ textarea {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  flex: 1.2;
+  flex: 1.3;
 }
 
 .avatar {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: rgba(109, 213, 255, 0.2);
   border: 1px solid rgba(109, 213, 255, 0.55);
@@ -308,7 +315,7 @@ textarea {
 
 .profile-meta {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -320,55 +327,55 @@ textarea {
 }
 
 .profile-name {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
 .profile-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .hud-pill {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: 4px;
+  padding: 3px 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
 }
 
 .hud-pill__icon {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .top-hud__right {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
   align-items: center;
-  flex: 1;
+  flex: 0.7;
   justify-items: center;
 }
 
 .stat-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  border-radius: 10px;
+  gap: 3px;
+  padding: 3px 6px;
+  border-radius: 9px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(10, 14, 22, 0.85);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 600;
   color: var(--text);
 }
 
 .stat-chip__icon {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .main-center {
@@ -406,8 +413,9 @@ textarea {
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
-  max-height: 6em;
+  max-height: 14em;
   overflow: auto;
+  white-space: pre-line;
 }
 
 .event-card__resume {
@@ -530,6 +538,14 @@ textarea {
   gap: 10px;
 }
 
+.log-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .log-panel__header h3 {
   margin: 0;
   font-size: 1rem;
@@ -582,6 +598,7 @@ textarea {
   align-items: flex-start;
   padding: 4px 6px;
   border-radius: 10px;
+  white-space: pre-line;
 }
 
 .log__entry strong {
@@ -633,7 +650,7 @@ textarea {
 
 .bottom-dock {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 6px 8px;
   background: rgba(10, 12, 18, 0.92);
@@ -656,6 +673,35 @@ textarea {
   display: grid;
   gap: 4px;
   justify-items: center;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 8, 12, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 9400;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 9500;
+  padding: 16px;
+}
+
+.modal__card {
+  width: min(320px, 100%);
+  background: rgba(18, 24, 34, 0.95);
+  border: 1px solid rgba(109, 213, 255, 0.25);
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
 }
 
 .dock-btn__icon {
@@ -1166,14 +1212,8 @@ textarea {
     grid-template-rows: var(--hud-height) minmax(0, 1fr) minmax(0, var(--log-collapsed-height)) var(--dock-height);
   }
 
-  .top-hud {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
   .top-hud__right {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .event-card {
@@ -1192,8 +1232,8 @@ textarea {
 
 @media (max-width: 480px) {
   :root {
-    --hud-height: 96px;
-    --dock-height: 72px;
+    --hud-height: 78px;
+    --dock-height: 68px;
   }
 
   .top-hud__right {
