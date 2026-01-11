@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Spectral Battle Prototype v0.1.0</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="badge">v0.1.0</div>
+        <div class="title">스펙트럴 프로젝트 · 전투 시뮬</div>
+      </div>
+
+      <div class="topbar-right">
+        <div class="pill" id="statusPill">배치 단계</div>
+        <div class="pill">시간 <span id="timeText">00:00</span></div>
+      </div>
+    </header>
+
+    <main class="stage">
+      <aside class="side left">
+        <div class="panel">
+          <div class="panel-title">청군 지휘관</div>
+          <div class="row">
+            <div class="portrait blue"></div>
+            <div class="stats">
+              <div>이름: <b>청룡</b></div>
+              <div>지휘: <b id="blueCmd">80</b></div>
+              <div>전술: <b id="blueTac">70</b></div>
+              <div>사기: <b id="blueMor">75</b></div>
+            </div>
+          </div>
+
+          <div class="group">
+            <label>청군 진형</label>
+            <select id="blueFormation">
+              <option value="line">횡대(Line)</option>
+              <option value="wedge">쐐기(Wedge)</option>
+              <option value="column">종대(Column)</option>
+              <option value="echelon">사선(Echelon)</option>
+              <option value="square">방진(Square)</option>
+            </select>
+          </div>
+
+          <div class="hint">
+            배치 단계에서는 <b>청군(좌측 절반)</b> 중대를 드래그로 이동할 수 있어.
+          </div>
+        </div>
+      </aside>
+
+      <section class="center">
+        <canvas id="battleCanvas"></canvas>
+
+        <div class="floating">
+          <div class="mini">
+            <div class="mini-title">조작</div>
+            <ul>
+              <li>배치: 중대 드래그</li>
+              <li>전투: 자동 진행</li>
+              <li>하단 버튼: 시작/정지/배속</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side right">
+        <div class="panel">
+          <div class="panel-title">적군 지휘관</div>
+          <div class="row">
+            <div class="portrait red"></div>
+            <div class="stats">
+              <div>이름: <b>적호</b></div>
+              <div>지휘: <b id="redCmd">78</b></div>
+              <div>전술: <b id="redTac">74</b></div>
+              <div>사기: <b id="redMor">72</b></div>
+            </div>
+          </div>
+
+          <div class="group">
+            <label>적군 진형</label>
+            <select id="redFormation">
+              <option value="line">횡대(Line)</option>
+              <option value="wedge">쐐기(Wedge)</option>
+              <option value="column">종대(Column)</option>
+              <option value="echelon">사선(Echelon)</option>
+              <option value="square">방진(Square)</option>
+            </select>
+          </div>
+
+          <div class="hint">
+            적군은 배치 단계에서도 <b>AI가 진형대로 배치</b>만 하고, 전투는 자동 진행.
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="bottombar">
+      <button class="btn" id="applyFormationBtn">진형 적용</button>
+      <button class="btn primary" id="startBtn">전투 시작</button>
+      <button class="btn" id="pauseBtn">일시정지</button>
+
+      <div class="speed">
+        <span>배속</span>
+        <button class="btn tiny" data-speed="1">x1</button>
+        <button class="btn tiny" data-speed="2">x2</button>
+        <button class="btn tiny" data-speed="4">x4</button>
+      </div>
+
+      <div class="result" id="resultText"></div>
+    </footer>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
