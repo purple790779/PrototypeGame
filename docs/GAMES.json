@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "hubVersion": "v0.2.0",
-  "updatedAt": "2026-01-08",
+  "updatedAt": "2026-02-01",
   "games": [
     {
       "id": "gdc",
@@ -13,7 +13,11 @@
       "status": "active",
       "summary": "자동 조준/자동 발사 기반의 생존형 디펜스 프로토타입.",
       "order": 10,
-      "tags": ["mobile", "action", "defense"]
+      "tags": [
+        "mobile",
+        "action",
+        "defense"
+      ]
     },
     {
       "id": "castle",
@@ -25,7 +29,11 @@
       "status": "active",
       "summary": "성+마을 경영 시뮬레이션 프로토타입. 자원/인구/시설 운영.",
       "order": 20,
-      "tags": ["mobile", "simulation", "management"]
+      "tags": [
+        "mobile",
+        "simulation",
+        "management"
+      ]
     },
     {
       "id": "textrpg-omega",
@@ -33,11 +41,16 @@
       "slug": "textrpg-omega",
       "path": "./TextRPG/",
       "icon": "🧭",
-      "version": "v0.3.8",
+      "version": "v0.4.0",
       "status": "active",
       "summary": "랜덤 프롤로그와 길드로 향하는 여정을 거치는 텍스트 RPG.",
       "order": 30,
-      "tags": ["mobile", "rpg", "text", "story"]
+      "tags": [
+        "mobile",
+        "rpg",
+        "text",
+        "story"
+      ]
     }
   ]
 }

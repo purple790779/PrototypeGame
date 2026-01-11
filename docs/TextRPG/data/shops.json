@@ -1,0 +1,44 @@
+[
+  {
+    "id": "guild_shop",
+    "name": "길드 공용 상점",
+    "description": "소모품과 장비를 준비한다.",
+    "inventory": [
+      {
+        "id": "potion_small",
+        "type": "item",
+        "price": 8
+      },
+      {
+        "id": "potion_medium",
+        "type": "item",
+        "price": 18
+      },
+      {
+        "id": "bandage",
+        "type": "item",
+        "price": 6
+      },
+      {
+        "id": "antidote",
+        "type": "item",
+        "price": 10
+      },
+      {
+        "id": "eq_iron_saber",
+        "type": "equipment",
+        "price": 32
+      },
+      {
+        "id": "eq_guard_armor",
+        "type": "equipment",
+        "price": 34
+      },
+      {
+        "id": "eq_focus_talisman",
+        "type": "equipment",
+        "price": 28
+      }
+    ]
+  }
+]

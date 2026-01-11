@@ -5,8 +5,15 @@
     "hp": 22,
     "ac": 11,
     "attack": 3,
-    "damage": { "min": 3, "max": 6 },
-    "status_attack": { "id": "bleed", "chance": 0.25, "turns": 2 }
+    "damage": {
+      "min": 3,
+      "max": 6
+    },
+    "status_attack": {
+      "id": "bleed",
+      "chance": 0.25,
+      "turns": 2
+    }
   },
   {
     "id": "corrupted_scout",
@@ -14,8 +21,15 @@
     "hp": 20,
     "ac": 12,
     "attack": 4,
-    "damage": { "min": 2, "max": 6 },
-    "status_attack": { "id": "poison", "chance": 0.2, "turns": 2 }
+    "damage": {
+      "min": 2,
+      "max": 6
+    },
+    "status_attack": {
+      "id": "poison",
+      "chance": 0.2,
+      "turns": 2
+    }
   },
   {
     "id": "ether_slime",
@@ -23,8 +37,15 @@
     "hp": 26,
     "ac": 10,
     "attack": 3,
-    "damage": { "min": 2, "max": 5 },
-    "status_attack": { "id": "poison", "chance": 0.3, "turns": 2 }
+    "damage": {
+      "min": 2,
+      "max": 5
+    },
+    "status_attack": {
+      "id": "poison",
+      "chance": 0.3,
+      "turns": 2
+    }
   },
   {
     "id": "ash_wisp",
@@ -32,7 +53,10 @@
     "hp": 16,
     "ac": 13,
     "attack": 5,
-    "damage": { "min": 3, "max": 7 }
+    "damage": {
+      "min": 3,
+      "max": 7
+    }
   },
   {
     "id": "rift_knight",
@@ -40,8 +64,15 @@
     "hp": 34,
     "ac": 15,
     "attack": 6,
-    "damage": { "min": 5, "max": 10 },
-    "status_attack": { "id": "bleed", "chance": 0.35, "turns": 3 }
+    "damage": {
+      "min": 5,
+      "max": 10
+    },
+    "status_attack": {
+      "id": "bleed",
+      "chance": 0.35,
+      "turns": 3
+    }
   },
   {
     "id": "sanctum_guard",
@@ -49,6 +80,25 @@
     "hp": 38,
     "ac": 16,
     "attack": 7,
-    "damage": { "min": 6, "max": 12 }
+    "damage": {
+      "min": 6,
+      "max": 12
+    }
+  },
+  {
+    "id": "boss_belltower",
+    "name": "종탑의 그림자",
+    "hp": 46,
+    "ac": 16,
+    "attack": 7,
+    "damage": {
+      "min": 6,
+      "max": 13
+    },
+    "status_attack": {
+      "id": "bleed",
+      "chance": 0.3,
+      "turns": 3
+    }
   }
 ]

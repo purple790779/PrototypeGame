@@ -1,0 +1,249 @@
+{
+  "locations": [
+    "성역 외곽",
+    "은빛 숲길",
+    "바람 절벽",
+    "안개 호수",
+    "망각의 골짜기",
+    "폐광 지대",
+    "메아리 동굴",
+    "흐린 초원",
+    "고대 연무지",
+    "붉은 협곡",
+    "황혼의 계단",
+    "스카이릿 언덕",
+    "부서진 다리",
+    "침묵의 정원",
+    "깊은 늪",
+    "유리 사막",
+    "검은 숲",
+    "빛바랜 탑",
+    "잿빛 평야",
+    "해안 절벽"
+  ],
+  "objectives": [
+    "도적 잔당 추적",
+    "유물 회수",
+    "신호 봉화 복구",
+    "실종자 수색",
+    "오염 정화",
+    "정찰 보고",
+    "보급로 확보",
+    "수호 인장 복원",
+    "괴수 흔적 조사",
+    "주술 정화",
+    "난민 호위",
+    "비밀 통로 탐색",
+    "희귀 약초 채집",
+    "부상자 구조",
+    "감시 거점 구축",
+    "길목 봉쇄",
+    "전언 전달",
+    "전투 흔적 조사",
+    "주요 문서 회수",
+    "방벽 보수"
+  ],
+  "enemies": [
+    {
+      "id": "gloom_wolf",
+      "name": "그림자 늑대"
+    },
+    {
+      "id": "corrupted_scout",
+      "name": "오염된 정찰병"
+    },
+    {
+      "id": "ether_slime",
+      "name": "에테르 점액체"
+    },
+    {
+      "id": "ash_wisp",
+      "name": "재의 망령"
+    },
+    {
+      "id": "rift_knight",
+      "name": "균열 기사"
+    },
+    {
+      "id": "sanctum_guard",
+      "name": "성역의 수호자"
+    },
+    {
+      "id": "gloom_wolf",
+      "name": "그림자 늑대"
+    },
+    {
+      "id": "ether_slime",
+      "name": "에테르 점액체"
+    },
+    {
+      "id": "ash_wisp",
+      "name": "재의 망령"
+    },
+    {
+      "id": "corrupted_scout",
+      "name": "오염된 정찰병"
+    }
+  ],
+  "npc_archetypes": [
+    "수습 기사",
+    "떠돌이 연금술사",
+    "길잡이 정찰병",
+    "침묵의 수도사",
+    "비밀 정보상",
+    "투박한 대장장이",
+    "은둔 현자",
+    "부상병 생존자",
+    "상단 호위",
+    "성역 파견관"
+  ],
+  "complications": [
+    "폭우로 길이 끊겼다",
+    "독안개가 시야를 가렸다",
+    "지형이 붕괴했다",
+    "길잡이가 사라졌다",
+    "순찰대가 늦게 도착했다",
+    "정체불명의 울음소리가 따라왔다",
+    "야영지가 습격받았다",
+    "은밀한 방해 공작이 있었다",
+    "장비가 고장났다",
+    "이상한 빛이 앞길을 막았다",
+    "예상보다 적이 많았다",
+    "날씨가 급변했다",
+    "길을 잃기 쉬운 안개가 깔렸다",
+    "연료가 부족했다",
+    "땅이 흔들렸다",
+    "수상한 의뢰인이 나타났다",
+    "상급자에게 감시당했다",
+    "고대 장치가 활성화됐다",
+    "소모품이 바닥났다",
+    "시간이 촉박했다"
+  ],
+  "reward_tables": {
+    "common": {
+      "gold": [
+        6,
+        14
+      ],
+      "items": [
+        "potion_small",
+        "bandage",
+        "mana_leaf",
+        "antidote"
+      ],
+      "equipment": [
+        "eq_rusty_sword",
+        "eq_worn_armor",
+        "eq_scout_charm"
+      ]
+    },
+    "uncommon": {
+      "gold": [
+        12,
+        24
+      ],
+      "items": [
+        "potion_small",
+        "potion_medium",
+        "bandage",
+        "mana_leaf"
+      ],
+      "equipment": [
+        "eq_iron_saber",
+        "eq_guard_armor",
+        "eq_focus_talisman"
+      ]
+    },
+    "rare": {
+      "gold": [
+        20,
+        40
+      ],
+      "items": [
+        "potion_medium",
+        "mana_leaf",
+        "antidote"
+      ],
+      "equipment": [
+        "eq_moonblade",
+        "eq_void_armor",
+        "eq_lucky_charm"
+      ]
+    },
+    "epic": {
+      "gold": [
+        40,
+        80
+      ],
+      "items": [
+        "potion_medium",
+        "mana_leaf"
+      ],
+      "equipment": [
+        "eq_belltower_blade",
+        "eq_sanctum_plate",
+        "eq_oracle_orb"
+      ]
+    }
+  },
+  "equipment_tables": {
+    "rare_weapon_pool": [
+      "eq_moonblade",
+      "eq_belltower_blade"
+    ],
+    "rare_armor_pool": [
+      "eq_void_armor",
+      "eq_sanctum_plate"
+    ],
+    "rare_accessory_pool": [
+      "eq_oracle_orb",
+      "eq_lucky_charm"
+    ]
+  },
+  "chains": [
+    {
+      "chain_id": "CH_FUGITIVE",
+      "name": "도망자 추적",
+      "stages": [
+        {
+          "title": "도망자 목격담",
+          "summary": "도망자에 대한 단서를 수집한다.",
+          "type": "event",
+          "difficulty": "보통",
+          "rewards": {
+            "gold": 12,
+            "items": [
+              "potion_small"
+            ]
+          }
+        },
+        {
+          "title": "은밀한 교섭",
+          "summary": "숲길에서 정보를 가진 자와 접촉한다.",
+          "type": "explore",
+          "difficulty": "보통",
+          "rewards": {
+            "gold": 18,
+            "statUp": {
+              "type": "WIS",
+              "amount": 1
+            }
+          }
+        },
+        {
+          "title": "도망자 포획",
+          "summary": "끝내 도망자를 붙잡는다.",
+          "type": "combat",
+          "enemy_id": "corrupted_scout",
+          "difficulty": "어려움",
+          "rewards": {
+            "gold": 28,
+            "equipment": [
+              "eq_focus_talisman"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
