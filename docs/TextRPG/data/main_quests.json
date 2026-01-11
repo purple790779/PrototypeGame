@@ -1,0 +1,32 @@
+[
+  {
+    "id": "MQ_001",
+    "title": "검은 종의 울림",
+    "boss_enemy_id": "boss_belltower",
+    "recommended_power": 18,
+    "intro": "길드가 쉬쉬하던 의뢰다. 종탑의 울림이 사람들을 잠식한다.",
+    "rewards": {
+      "gold": 80,
+      "equipment_drop_table": "rare_weapon_pool",
+      "stat_up": {
+        "type": "ANY",
+        "amount": 1
+      }
+    }
+  },
+  {
+    "id": "MQ_002",
+    "title": "성역의 봉인",
+    "boss_enemy_id": "sanctum_guard",
+    "recommended_power": 20,
+    "intro": "성역 심장부의 봉인이 흔들린다. 수호자를 진정시켜야 한다.",
+    "rewards": {
+      "gold": 90,
+      "equipment_drop_table": "rare_armor_pool",
+      "stat_up": {
+        "type": "CON",
+        "amount": 1
+      }
+    }
+  }
+]

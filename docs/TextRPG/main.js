@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v0.3.10";
+  const VERSION = "v0.4.0";
   const STORAGE_PREFIX = "textrpg-lucas";
   const LEGACY_PREFIX = "textrpg-omega";
   const SAVE_KEY = `${STORAGE_PREFIX}-save`;
@@ -12,6 +12,19 @@
   const TRAVEL_STEPS_MAX = 7;
   const QUEST_STEPS_MIN = 1;
   const QUEST_STEPS_MAX = 3;
+  const MAIN_QUESTS_MIN = 1;
+  const MAIN_QUESTS_MAX = 2;
+  const SIDE_QUESTS_MIN = 3;
+  const SIDE_QUESTS_MAX = 6;
+  const MAIN_QUEST_PREP_MIN = 1;
+  const MAIN_QUEST_PREP_MAX = 3;
+  const QUEST_REFRESH_COST = 30;
+  const RARITY_WEIGHTS = {
+    common: 0.8,
+    uncommon: 0.15,
+    rare: 0.045,
+    epic: 0.005
+  };
   const INTRO_START_SELECTOR = "[data-intro-start]";
   const AMBIENT_BGM_FILE = "Intro_BGM_Fog_Over_the_Faerie_Vale.mp3";
   const BATTLE_BGM_FILE = "Battle_BGM_Shadowfront_Reckoning.mp3";
@@ -41,7 +54,8 @@
     tool: "🧰",
     artifact: "🔮",
     weapon: "⚔️",
-    armor: "🛡️"
+    armor: "🛡️",
+    accessory: "📿"
   };
 
   window.__ENGINE = VERSION;
@@ -104,6 +118,7 @@
     diceLabel: document.getElementById("dice-label"),
     resumeCombat: document.getElementById("resume-combat"),
     choiceList: document.getElementById("choice-list"),
+    guildBoard: document.getElementById("guild-board"),
     logPanel: document.getElementById("log-panel"),
     logToggle: document.getElementById("log-toggle"),
     log: document.getElementById("log"),
@@ -154,6 +169,10 @@
     inventoryEmpty: document.getElementById("inventory-empty"),
     skillsList: document.getElementById("skills-list"),
     skillsEmpty: document.getElementById("skills-empty"),
+    equipmentSlots: document.getElementById("equipment-slots"),
+    equipmentList: document.getElementById("equipment-list"),
+    equipmentSheetSlots: document.getElementById("equipment-sheet-slots"),
+    equipmentSheetList: document.getElementById("equipment-sheet-list"),
     codexNodes: document.getElementById("codex-nodes"),
     codexEnemies: document.getElementById("codex-enemies"),
     codexEndings: document.getElementById("codex-endings"),
@@ -169,7 +188,13 @@
     toast: document.getElementById("save-toast"),
     comingSoonModal: document.getElementById("coming-soon-modal"),
     comingSoonClose: document.getElementById("btn-close-coming"),
-    modalBackdrop: document.getElementById("modal-backdrop")
+    modalBackdrop: document.getElementById("modal-backdrop"),
+    mainQuestModal: document.getElementById("main-quest-modal"),
+    mainQuestTitle: document.getElementById("main-quest-title"),
+    mainQuestDesc: document.getElementById("main-quest-desc"),
+    mainQuestPrepare: document.getElementById("btn-main-quest-prepare"),
+    mainQuestChallenge: document.getElementById("btn-main-quest-challenge"),
+    mainQuestCancel: document.getElementById("btn-main-quest-cancel")
   };
 
   if (elements.versionLabel) {
@@ -197,6 +222,16 @@
     },
     questCount: 0,
     questTarget: 0,
+    runSeed: null,
+    dayIndex: 1,
+    guildBoard: null,
+    acceptedMainQuestId: null,
+    mainQuestState: "idle",
+    mainQuestPrepRemaining: 0,
+    chainProgress: {},
+    activeQuest: null,
+    combatContext: null,
+    activeShopId: null,
     inCombat: false,
     combat: null,
     log: [],
@@ -497,6 +532,11 @@
     return BASE_HP + con * CON_HP_MULTIPLIER;
   }
 
+  function ensureRunSeed() {
+    if (Number.isFinite(Number(state.runSeed))) return;
+    state.runSeed = Math.floor(Math.random() * 1000000000);
+  }
+
   function defaultPlayer() {
     const stats = {
       STR: STAT_BASE_VALUE,
@@ -518,6 +558,8 @@
       stats,
       counters: { trust: 0, insight: 0 },
       inventory: [],
+      equipmentInventory: [],
+      equipmentSlots: { weapon: null, armor: null, accessory: null },
       build: "BALANCE"
     };
   }
@@ -535,11 +577,10 @@
       stats: { ...fallback.stats, ...(safe.stats ?? {}) },
       counters: { ...fallback.counters, ...(safe.counters ?? {}) },
       inventory: Array.isArray(safe.inventory) ? safe.inventory : [],
+      equipmentInventory: Array.isArray(safe.equipmentInventory) ? safe.equipmentInventory : [],
+      equipmentSlots: { ...fallback.equipmentSlots, ...(safe.equipmentSlots ?? {}) },
       build: typeof safe.build === "string" ? safe.build : fallback.build
     };
-    const calculatedMaxHp = calculateMaxHp(player.stats);
-    player.maxHp = calculatedMaxHp;
-    player.hp = Math.min(Number(player.hp ?? calculatedMaxHp), calculatedMaxHp);
     return player;
   }
 
@@ -619,6 +660,16 @@
       travelFlags: state.travelFlags,
       questCount: state.questCount,
       questTarget: state.questTarget,
+      runSeed: state.runSeed,
+      dayIndex: state.dayIndex,
+      guildBoard: state.guildBoard,
+      acceptedMainQuestId: state.acceptedMainQuestId,
+      mainQuestState: state.mainQuestState,
+      mainQuestPrepRemaining: state.mainQuestPrepRemaining,
+      chainProgress: state.chainProgress,
+      activeQuest: state.activeQuest,
+      combatContext: state.combatContext,
+      activeShopId: state.activeShopId,
       inCombat: state.inCombat,
       combat: state.combat,
       log: state.log,
@@ -765,6 +816,7 @@
   }
 
   function updateHud() {
+    const effectiveStats = getEffectiveStats();
     if (elements.hudHp) {
       const hpValue = elements.hudHp.querySelector(".hud-pill__value");
       if (hpValue) {
@@ -789,12 +841,12 @@
     if (elements.combatPlayerName) {
       elements.combatPlayerName.textContent = state.player.name ?? DEFAULT_PLAYER_NAME;
     }
-    if (elements.statStr) elements.statStr.textContent = String(state.player.stats?.STR ?? 0);
-    if (elements.statWis) elements.statWis.textContent = String(state.player.stats?.WIS ?? 0);
-    if (elements.statInt) elements.statInt.textContent = String(state.player.stats?.INT ?? 0);
-    if (elements.statDex) elements.statDex.textContent = String(state.player.stats?.DEX ?? 0);
-    if (elements.statLuk) elements.statLuk.textContent = String(state.player.stats?.LUK ?? 0);
-    if (elements.statCon) elements.statCon.textContent = String(state.player.stats?.CON ?? 0);
+    if (elements.statStr) elements.statStr.textContent = String(effectiveStats.STR ?? 0);
+    if (elements.statWis) elements.statWis.textContent = String(effectiveStats.WIS ?? 0);
+    if (elements.statInt) elements.statInt.textContent = String(effectiveStats.INT ?? 0);
+    if (elements.statDex) elements.statDex.textContent = String(effectiveStats.DEX ?? 0);
+    if (elements.statLuk) elements.statLuk.textContent = String(effectiveStats.LUK ?? 0);
+    if (elements.statCon) elements.statCon.textContent = String(effectiveStats.CON ?? 0);
     renderStatusSheet();
   }
 
@@ -816,6 +868,7 @@
     if (elements.sceneText) elements.sceneText.textContent = text ?? "";
     if (elements.diceValue) elements.diceValue.textContent = "--";
     if (elements.diceLabel) elements.diceLabel.textContent = "주사위 대기";
+    if (elements.guildBoard) elements.guildBoard.hidden = true;
   }
 
   function getRandomItem(list) {
@@ -1096,6 +1149,25 @@
   }
 
   function renderCurrent() {
+    if (state.phase === "guild") {
+      renderGuildBoard();
+      return;
+    }
+    if (state.phase === "quest") {
+      if (state.activeQuest) {
+        startSideQuest(state.activeQuest.id);
+        return;
+      }
+      renderGuildBoard();
+      return;
+    }
+    if (state.phase === "shop") {
+      const shop = (state.data?.shops ?? []).find((entry) => entry.id === state.activeShopId);
+      if (shop) {
+        renderShop(shop);
+        return;
+      }
+    }
     if (state.inCombat) {
       renderCombat();
       return;
@@ -1224,7 +1296,9 @@
     data.enemies.forEach((enemy) => enemiesMap.set(enemy.id, enemy));
     const endingsMap = new Map();
     data.endings.forEach((ending) => endingsMap.set(ending.id, ending));
-    return { nodesMap, enemiesMap, endingsMap };
+    const equipmentMap = new Map();
+    (data.equipment ?? []).forEach((item) => equipmentMap.set(item.id, item));
+    return { nodesMap, enemiesMap, endingsMap, equipmentMap };
   }
 
   function createTravelFlags(targetSteps, stepIndex = 0) {
@@ -1245,7 +1319,17 @@
       inventory: [],
       build: buildType
     });
-    state.player.maxHp = calculateMaxHp(state.player.stats);
+    ensureRunSeed();
+    state.dayIndex = 1;
+    state.guildBoard = null;
+    state.acceptedMainQuestId = null;
+    state.mainQuestState = "idle";
+    state.mainQuestPrepRemaining = 0;
+    state.chainProgress = {};
+    state.activeQuest = null;
+    state.combatContext = null;
+    state.activeShopId = null;
+    recalcDerivedStats();
     state.player.hp = state.player.maxHp;
     state.nodeId = "GUILD_ARRIVAL";
     state.phase = "background";
@@ -1391,6 +1475,7 @@
     if (Number.isFinite(insightDelta)) {
       state.player.counters.insight = Number(state.player.counters.insight ?? 0) + insightDelta;
     }
+    recalcDerivedStats();
     updateHud();
   }
 
@@ -1407,9 +1492,15 @@
     if (!state.player.stats) state.player.stats = {};
     const current = Number(state.player.stats[statKey] ?? 0);
     state.player.stats[statKey] = current + amount;
-    const recalculatedMaxHp = calculateMaxHp(state.player.stats);
-    state.player.maxHp = recalculatedMaxHp;
-    state.player.hp = Math.min(state.player.hp, recalculatedMaxHp);
+    recalcDerivedStats();
+  }
+
+  function addEquipmentToInventory(equipmentId) {
+    if (!equipmentId) return;
+    if (!Array.isArray(state.player.equipmentInventory)) {
+      state.player.equipmentInventory = [];
+    }
+    state.player.equipmentInventory.push(equipmentId);
   }
 
   function getInventoryItems() {
@@ -1417,6 +1508,100 @@
     const items = Array.isArray(state.data?.items) ? state.data.items : [];
     const itemsMap = new Map(items.map((item) => [item.id, item]));
     return inventory.map((id) => itemsMap.get(id) ?? { id, name: id, type: "item" });
+  }
+
+  function getEquipmentItems() {
+    const inventory = Array.isArray(state.player?.equipmentInventory)
+      ? state.player.equipmentInventory
+      : [];
+    const equipment = Array.isArray(state.data?.equipment) ? state.data.equipment : [];
+    const equipmentMap = new Map(equipment.map((item) => [item.id, item]));
+    return inventory.map((id) => equipmentMap.get(id) ?? { id, name: id, slot: "unknown" });
+  }
+
+  function getEquippedItems() {
+    const slots = state.player?.equipmentSlots ?? {};
+    const equipment = Array.isArray(state.data?.equipment) ? state.data.equipment : [];
+    const equipmentMap = new Map(equipment.map((item) => [item.id, item]));
+    return Object.entries(slots).map(([slot, id]) => ({
+      slot,
+      item: id ? equipmentMap.get(id) ?? { id, name: id, slot } : null
+    }));
+  }
+
+  function getEquipmentMods() {
+    const equipped = getEquippedItems();
+    const mods = {};
+    equipped.forEach(({ item }) => {
+      if (!item || !item.mods) return;
+      Object.entries(item.mods).forEach(([key, value]) => {
+        mods[key] = Number(mods[key] ?? 0) + Number(value ?? 0);
+      });
+    });
+    return mods;
+  }
+
+  function getEffectiveStats() {
+    const base = state.player?.stats ?? {};
+    const mods = getEquipmentMods();
+    const result = { ...base };
+    STAT_KEYS.forEach((key) => {
+      result[key] = Number(base[key] ?? 0) + Number(mods[key] ?? 0);
+    });
+    return result;
+  }
+
+  function recalcDerivedStats() {
+    const effectiveStats = getEffectiveStats();
+    const recalculatedMaxHp = calculateMaxHp(effectiveStats);
+    state.player.maxHp = recalculatedMaxHp;
+    state.player.hp = Math.min(state.player.hp, recalculatedMaxHp);
+  }
+
+  function formatMods(mods) {
+    if (!mods) return "보정 없음";
+    const entries = Object.entries(mods)
+      .filter(([, value]) => Number(value ?? 0) != 0)
+      .map(([key, value]) => `${key} ${Number(value) > 0 ? "+" : ""}${value}`);
+    return entries.length ? entries.join(" / ") : "보정 없음";
+  }
+
+  function equipItem(equipmentId) {
+    if (!equipmentId) return;
+    const equipmentMap = state.maps?.equipmentMap;
+    const item = equipmentMap?.get(equipmentId);
+    if (!item) return;
+    const slot = item.slot ?? "weapon";
+    const slots = state.player.equipmentSlots ?? {};
+    const prev = slots[slot];
+    if (prev) {
+      addEquipmentToInventory(prev);
+    }
+    slots[slot] = equipmentId;
+    state.player.equipmentSlots = slots;
+    state.player.equipmentInventory = (state.player.equipmentInventory ?? []).filter(
+      (id) => id !== equipmentId
+    );
+    recalcDerivedStats();
+    updateHud();
+    renderStatusSheet();
+    renderInventorySheet();
+    saveState();
+  }
+
+  function unequipItem(slot) {
+    if (!slot) return;
+    const slots = state.player.equipmentSlots ?? {};
+    const equippedId = slots[slot];
+    if (!equippedId) return;
+    addEquipmentToInventory(equippedId);
+    slots[slot] = null;
+    state.player.equipmentSlots = slots;
+    recalcDerivedStats();
+    updateHud();
+    renderStatusSheet();
+    renderInventorySheet();
+    saveState();
   }
 
   function meetsRequirements(requirements) {
@@ -1466,14 +1651,78 @@
     });
   }
 
+  function renderEquipmentPanel(slotTarget, listTarget) {
+    if (slotTarget) {
+      slotTarget.innerHTML = "";
+      const equipped = getEquippedItems();
+      equipped.forEach(({ slot, item }) => {
+        const row = document.createElement("div");
+        row.className = "equipment-slot";
+        const label = item?.name ?? "비어 있음";
+        row.innerHTML = `
+          <div class="equipment-slot__meta">
+            <strong>${slot.toUpperCase()}</strong>
+            <span>${label}</span>
+          </div>
+        `;
+        const action = document.createElement("button");
+        action.className = "btn btn--ghost btn--tiny";
+        action.textContent = item ? "해제" : "해제";
+        action.disabled = !item;
+        action.addEventListener("click", () => {
+          if (!item) return;
+          unequipItem(slot);
+        });
+        row.appendChild(action);
+        slotTarget.appendChild(row);
+      });
+    }
+    if (listTarget) {
+      listTarget.innerHTML = "";
+      const equipmentItems = getEquipmentItems();
+      if (!equipmentItems.length) {
+        const empty = document.createElement("div");
+        empty.className = "sheet__notice";
+        empty.textContent = "보유 장비가 없습니다.";
+        listTarget.appendChild(empty);
+        return;
+      }
+      equipmentItems.forEach((item) => {
+        const card = document.createElement("div");
+        card.className = "equipment-item";
+        const rarity = item.rarity ?? "common";
+        card.innerHTML = `
+          <div class="equipment-item__header">
+            <strong>${item.name ?? "이름 없음"}</strong>
+            <span class="rarity-chip rarity-chip--${rarity}">${rarity}</span>
+          </div>
+          <div class="equipment-item__meta">${item.slot ?? "-"}</div>
+          <div class="equipment-item__mods">${formatMods(item.mods)}</div>
+        `;
+        const button = document.createElement("button");
+        button.className = "btn btn--small";
+        button.textContent = "장착";
+        button.addEventListener("click", () => {
+          equipItem(item.id);
+        });
+        card.appendChild(button);
+        listTarget.appendChild(card);
+      });
+    }
+  }
+
   function renderStatusSheet() {
     if (elements.statsGrid) {
       elements.statsGrid.innerHTML = "";
+      const effectiveStats = getEffectiveStats();
+      const mods = getEquipmentMods();
       STAT_KEYS.forEach((key) => {
-        const value = state.player.stats?.[key] ?? 0;
+        const value = effectiveStats[key] ?? 0;
+        const bonus = Number(mods[key] ?? 0);
         const row = document.createElement("div");
         row.className = "stat-card";
-        row.innerHTML = `<span>${key}</span><strong>${value}</strong>`;
+        const bonusLabel = bonus ? ` (+${bonus})` : "";
+        row.innerHTML = `<span>${key}</span><strong>${value}${bonusLabel}</strong>`;
         elements.statsGrid.appendChild(row);
       });
     }
@@ -1491,14 +1740,17 @@
       elements.statusList.appendChild(empty);
     }
     const items = getInventoryItems();
+    renderEquipmentPanel(elements.equipmentSlots, elements.equipmentList);
     renderInventoryGrid(elements.inventoryGrid, items);
   }
 
   function renderInventorySheet() {
     const items = getInventoryItems();
+    const equipmentItems = getEquipmentItems();
     if (elements.inventoryEmpty) {
-      elements.inventoryEmpty.hidden = items.length > 0;
+      elements.inventoryEmpty.hidden = items.length > 0 || equipmentItems.length > 0;
     }
+    renderEquipmentPanel(elements.equipmentSheetSlots, elements.equipmentSheetList);
     renderInventoryGrid(elements.inventorySheetGrid, items);
   }
 
@@ -1618,6 +1870,11 @@
       );
       return;
     }
+    if (node.id === "HUB_GUILD") {
+      state.phase = "guild";
+      renderGuildBoard();
+      return;
+    }
     state.phase = "node";
     state.nodeId = node.id;
     setView("explore");
@@ -1688,12 +1945,13 @@
   }
 
   function getPlayerAttackBonus() {
-    return Number(state.player.stats?.STR ?? 0);
+    return Number(getEffectiveStats().STR ?? 0);
   }
 
   function clearCombatState() {
     state.inCombat = false;
     state.combat = null;
+    state.combatContext = null;
     switchBgm("ambient");
   }
 
@@ -1790,8 +2048,14 @@
     }
 
     if (state.combat.enemyHp <= 0) {
-      addLog(`${enemy.name} 처치! 탐험으로 복귀합니다.`);
+      addLog(`${enemy.name} 처치!`);
+      const context = state.combatContext;
       clearCombatState();
+      if (context) {
+        handleQuestCombatVictory(context);
+        return;
+      }
+      addLog("탐험으로 복귀합니다.");
       renderCurrent();
       return;
     }
@@ -1845,6 +2109,655 @@
     return Math.floor(Math.random() * (high - low + 1)) + low;
   }
 
+  function hashSeed(input) {
+    const str = String(input);
+    let hash = 2166136261;
+    for (let i = 0; i < str.length; i += 1) {
+      hash ^= str.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function createSeededRandom(seed) {
+    let t = seed >>> 0;
+    return () => {
+      t += 0x6d2b79f5;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function pickRandom(rng, list) {
+    if (!list || !list.length) return null;
+    const index = Math.floor(rng() * list.length);
+    return list[index];
+  }
+
+  function rollRarity(rng, bonus = 0) {
+    const weights = { ...RARITY_WEIGHTS };
+    if (bonus > 0) {
+      weights.common = Math.max(0.6, weights.common - bonus);
+      weights.rare = weights.rare + bonus * 0.6;
+      weights.epic = weights.epic + bonus * 0.4;
+    }
+    const roll = rng();
+    let acc = 0;
+    const entries = Object.entries(weights);
+    for (const [rarity, weight] of entries) {
+      acc += weight;
+      if (roll <= acc) return rarity;
+    }
+    return "common";
+  }
+
+  function normalizeTemplateValue(value) {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    return value.name ?? value.title ?? "";
+  }
+
+  function estimateQuestDifficulty(rarity, enemyId) {
+    if (rarity === "epic") return "매우 어려움";
+    if (rarity === "rare") return "어려움";
+    if (rarity === "uncommon") return "보통";
+    if (enemyId) return "보통";
+    return "쉬움";
+  }
+
+  function calculatePlayerPower() {
+    const stats = getEffectiveStats();
+    return STAT_KEYS.reduce((sum, key) => sum + Number(stats[key] ?? 0), 0);
+  }
+
+  function getRewardTable(rarity) {
+    return state.data?.questTemplates?.reward_tables?.[rarity] ?? {};
+  }
+
+  function getEquipmentTable(tableId) {
+    return state.data?.questTemplates?.equipment_tables?.[tableId] ?? [];
+  }
+
+  function rollReward(rarity, rng) {
+    const table = getRewardTable(rarity);
+    const reward = { gold: 0, items: [], equipment: [], statUp: null, shopVisit: false };
+    const goldRange = table.gold ?? [6, 18];
+    reward.gold = randomBetween(goldRange[0], goldRange[1]);
+    const items = table.items ?? [];
+    const equipment = table.equipment ?? [];
+    if (items.length && rng() < 0.6) {
+      const itemId = pickRandom(rng, items);
+      if (itemId) reward.items.push(itemId);
+    }
+    if (equipment.length && rng() < 0.25) {
+      const equipmentId = pickRandom(rng, equipment);
+      if (equipmentId) reward.equipment.push(equipmentId);
+    }
+    if (rng() < 0.18) {
+      reward.statUp = { type: "ANY", amount: 1 };
+    }
+    if (rng() < 0.15) {
+      reward.shopVisit = true;
+    }
+    if ((rarity === "rare" || rarity === "epic") && !reward.statUp && !reward.equipment.length) {
+      reward.statUp = { type: "ANY", amount: 1 };
+    }
+    return reward;
+  }
+
+  function applyReward(reward) {
+    if (!reward) return;
+    if (Number.isFinite(Number(reward.gold))) {
+      state.player.gold = Number(state.player.gold ?? 0) + Number(reward.gold ?? 0);
+    }
+    (reward.items ?? []).forEach((itemId) => addItemToInventory(itemId));
+    (reward.equipment ?? []).forEach((equipmentId) => addEquipmentToInventory(equipmentId));
+    if (reward.statUp) {
+      const statType = reward.statUp.type ?? "ANY";
+      const amount = Number(reward.statUp.amount ?? 1);
+      const key =
+        statType === "ANY" ? pickRandom(Math.random, STAT_KEYS) ?? "STR" : statType;
+      increaseStat(key, amount);
+    }
+    recalcDerivedStats();
+  }
+
+  function formatRewardPreview(reward) {
+    if (!reward) return "-";
+    const parts = [];
+    if (reward.gold) parts.push(`🪙${reward.gold}`);
+    if (reward.items?.length) parts.push("🎁아이템");
+    if (reward.equipment?.length) parts.push("🧰장비");
+    if (reward.equipment_drop_table) parts.push("🧰장비");
+    if (reward.statUp || reward.stat_up) parts.push("⬆️스탯");
+    if (reward.shopVisit) parts.push("🏪상점");
+    return parts.join(" · ");
+  }
+
+  function buildQuestOutcome(quest) {
+    const location = normalizeTemplateValue(quest.location);
+    const objective = normalizeTemplateValue(quest.objective);
+    const complication = normalizeTemplateValue(quest.complication);
+    const npc = normalizeTemplateValue(quest.npc);
+    const lines = [];
+    lines.push(`${location}에서 ${objective}를 마쳤다.`);
+    if (npc) lines.push(`${npc}의 조언 덕분에 임무가 순조로웠다.`);
+    if (complication) lines.push(`${complication} 속에서도 끝까지 버텼다.`);
+    lines.push(`보상 정리가 끝났다.`);
+    return lines.slice(0, 4);
+  }
+
+  function generateSideQuest(seed, index, forced = {}) {
+    const templates = state.data?.questTemplates ?? {};
+    const rng = createSeededRandom(seed + index);
+    const location = pickRandom(rng, templates.locations ?? []);
+    const objective = pickRandom(rng, templates.objectives ?? []);
+    const enemy = pickRandom(rng, templates.enemies ?? []);
+    const npc = pickRandom(rng, templates.npc_archetypes ?? []);
+    const complication = pickRandom(rng, templates.complications ?? []);
+    const rarity = forced.rarity ?? rollRarity(rng);
+    const reward = forced.reward ?? rollReward(rarity, rng);
+    const typePool = ["event", "explore", "combat"];
+    const type = forced.type ?? pickRandom(rng, typePool);
+    const enemyId = type === "combat" ? (enemy?.id ?? enemy) : null;
+    return {
+      id: `SQ_${seed}_${index}`,
+      title: `${normalizeTemplateValue(location)}의 ${normalizeTemplateValue(objective)}`,
+      summary: `${normalizeTemplateValue(objective)}을(를) 수행하라.`,
+      location,
+      objective,
+      npc,
+      complication,
+      rarity,
+      type,
+      enemyId,
+      reward,
+      difficulty: estimateQuestDifficulty(rarity, enemyId),
+      outcomeText: buildQuestOutcome({ location, objective, npc, complication })
+    };
+  }
+
+  function buildChainQuest(chain, stageIndex) {
+    const stage = chain.stages[stageIndex];
+    const reward = stage.rewards ?? {};
+    return {
+      id: `${chain.chain_id}_${stageIndex + 1}`,
+      title: stage.title,
+      summary: stage.summary ?? stage.objective ?? "",
+      type: stage.type ?? "event",
+      enemyId: stage.enemy_id ?? null,
+      rarity: stage.rarity ?? "uncommon",
+      reward,
+      difficulty: stage.difficulty ?? "보통",
+      chainId: chain.chain_id,
+      chainStageIndex: stageIndex,
+      outcomeText: stage.outcome ?? buildQuestOutcome(stage)
+    };
+  }
+
+  function generateGuildBoard(seed, dayIndex, refreshIndex) {
+    const rng = createSeededRandom(hashSeed(`${seed}-${dayIndex}-${refreshIndex}`));
+    const mainQuests = Array.isArray(state.data?.mainQuests) ? state.data.mainQuests : [];
+    const mainCount = randomBetween(MAIN_QUESTS_MIN, MAIN_QUESTS_MAX);
+    const shuffledMain = [...mainQuests].sort(() => rng() - 0.5);
+    const pickedMain = shuffledMain.slice(0, mainCount);
+    const sideCount = randomBetween(SIDE_QUESTS_MIN, SIDE_QUESTS_MAX);
+    const sideQuests = [];
+    for (let i = 0; i < sideCount; i += 1) {
+      sideQuests.push(generateSideQuest(seed + dayIndex * 1000, i));
+    }
+    const chains = state.data?.questTemplates?.chains ?? [];
+    const chainProgress = state.chainProgress ?? {};
+    chains.forEach((chain) => {
+      const stageIndex = Number(chainProgress[chain.chain_id] ?? 0);
+      if (stageIndex > 0 && stageIndex < chain.stages.length) {
+        sideQuests.unshift(buildChainQuest(chain, stageIndex));
+        return;
+      }
+      if (stageIndex === 0 && rng() < 0.25) {
+        sideQuests.unshift(buildChainQuest(chain, stageIndex));
+      }
+    });
+    ensureGuaranteedRewards(sideQuests, seed + dayIndex * 12);
+    return {
+      dayIndex,
+      refreshIndex,
+      refreshUsed: 0,
+      mainQuests: pickedMain,
+      sideQuests
+    };
+  }
+
+  function ensureGuaranteedRewards(sideQuests, seed) {
+    const rng = createSeededRandom(seed);
+    const hasItem = sideQuests.some((quest) => quest.reward?.items?.length);
+    const hasStat = sideQuests.some((quest) => quest.reward?.statUp);
+    const hasCombat = sideQuests.some((quest) => quest.type === "combat");
+    if (!hasItem && sideQuests.length) {
+      sideQuests[0].reward.items = [pickRandom(rng, getRewardTable("common").items ?? [])].filter(
+        Boolean
+      );
+    }
+    if (!hasStat && sideQuests.length) {
+      sideQuests[sideQuests.length - 1].reward.statUp = { type: "ANY", amount: 1 };
+    }
+    if (!hasCombat && sideQuests.length) {
+      const fallbackEnemy = pickRandom(rng, state.data?.questTemplates?.enemies ?? []);
+      sideQuests[0].type = "combat";
+      sideQuests[0].enemyId = fallbackEnemy?.id ?? fallbackEnemy ?? null;
+      sideQuests[0].difficulty = estimateQuestDifficulty(sideQuests[0].rarity, sideQuests[0].enemyId);
+    }
+  }
+
+  function ensureGuildBoard() {
+    ensureRunSeed();
+    if (!state.guildBoard || state.guildBoard.dayIndex !== state.dayIndex) {
+      state.guildBoard = generateGuildBoard(state.runSeed, state.dayIndex, 0);
+    }
+    return state.guildBoard;
+  }
+
+  function refreshGuildBoard() {
+    const board = ensureGuildBoard();
+    if (board.refreshUsed < 1) {
+      board.refreshUsed += 1;
+    } else {
+      if (state.player.gold < QUEST_REFRESH_COST) {
+        addLog("새로고침에 필요한 골드가 부족합니다.");
+        setToast("골드 부족");
+        return;
+      }
+      state.player.gold -= QUEST_REFRESH_COST;
+    }
+    board.refreshIndex += 1;
+    const refreshed = generateGuildBoard(state.runSeed, state.dayIndex, board.refreshIndex);
+    refreshed.refreshUsed = board.refreshUsed;
+    state.guildBoard = refreshed;
+    saveState();
+    renderGuildBoard();
+  }
+
+  function renderGuildBoard() {
+    const board = ensureGuildBoard();
+    state.phase = "guild";
+    state.nodeId = "HUB_GUILD";
+    setView("explore");
+    setScene("길드 게시판", `오늘(${state.dayIndex}일차) 의뢰를 확인하세요.`);
+    clearChoices();
+    if (!elements.guildBoard) return;
+    elements.guildBoard.hidden = false;
+    elements.guildBoard.innerHTML = "";
+    const header = document.createElement("div");
+    header.className = "guild-board__header";
+    header.innerHTML = `
+      <div>
+        <strong>오늘의 게시판</strong>
+        <p>플레이어 파워: ${calculatePlayerPower()}</p>
+      </div>
+      <div class="guild-board__actions">
+        <button class="btn btn--ghost btn--small" type="button">새로고침</button>
+      </div>
+    `;
+    header.querySelector("button").addEventListener("click", refreshGuildBoard);
+    elements.guildBoard.appendChild(header);
+
+    const mainSection = document.createElement("section");
+    mainSection.className = "guild-section";
+    mainSection.innerHTML = `<h3 class="guild-section__title">오늘의 메인 퀘스트</h3>`;
+    const mainGrid = document.createElement("div");
+    mainGrid.className = "quest-grid";
+    (board.mainQuests ?? []).forEach((quest) => {
+      const card = document.createElement("article");
+      card.className = "quest-card quest-card--main";
+      card.innerHTML = `
+        <div class="quest-card__header">
+          <strong>${quest.title}</strong>
+          <span class="quest-card__tag">보스</span>
+        </div>
+        <p class="quest-card__summary">${quest.intro ?? ""}</p>
+        <div class="quest-card__meta">추천 파워 ${quest.recommended_power}</div>
+        <div class="quest-card__reward">${formatRewardPreview(quest.rewards)}</div>
+      `;
+      const actions = document.createElement("div");
+      actions.className = "quest-card__actions";
+      const acceptButton = document.createElement("button");
+      acceptButton.className = "btn btn--small";
+      acceptButton.textContent =
+        state.acceptedMainQuestId === quest.id ? "준비 중" : "수락/도전";
+      acceptButton.addEventListener("click", () => {
+        openMainQuestModal(quest);
+      });
+      actions.appendChild(acceptButton);
+      card.appendChild(actions);
+      mainGrid.appendChild(card);
+    });
+    mainSection.appendChild(mainGrid);
+    elements.guildBoard.appendChild(mainSection);
+
+    const statusSection = document.createElement("section");
+    statusSection.className = "guild-section";
+    const statusTitle = document.createElement("h3");
+    statusTitle.className = "guild-section__title";
+    statusTitle.textContent = "메인 퀘스트 준비";
+    statusSection.appendChild(statusTitle);
+    const statusText = document.createElement("p");
+    if (state.mainQuestState === "prep") {
+      statusText.textContent = `준비 단계: 남은 서브퀘 ${state.mainQuestPrepRemaining}개`;
+    } else if (state.mainQuestState === "boss") {
+      statusText.textContent = "보스전이 진행 중이다.";
+    } else if (state.mainQuestState === "cleared") {
+      statusText.textContent = "메인 퀘스트를 해결했다. 다음 날 게시판을 열 수 있다.";
+    } else {
+      statusText.textContent = "메인 퀘스트를 수락하면 준비 단계가 시작된다.";
+    }
+    statusSection.appendChild(statusText);
+    if (state.mainQuestState === "prep" && state.acceptedMainQuestId) {
+      const bossButton = document.createElement("button");
+      bossButton.className = "btn btn--ghost btn--small";
+      bossButton.textContent = "보스전 진입";
+      bossButton.disabled = state.mainQuestPrepRemaining > 0;
+      bossButton.addEventListener("click", () => {
+        const quest = board.mainQuests.find((entry) => entry.id === state.acceptedMainQuestId);
+        if (quest) openMainQuestModal(quest, true);
+      });
+      statusSection.appendChild(bossButton);
+    }
+    if (state.mainQuestState === "cleared") {
+      const nextDayButton = document.createElement("button");
+      nextDayButton.className = "btn btn--ghost btn--small";
+      nextDayButton.textContent = "다음 날 게시판 열기";
+      nextDayButton.addEventListener("click", () => {
+        state.dayIndex += 1;
+        state.mainQuestState = "idle";
+        state.acceptedMainQuestId = null;
+        state.mainQuestPrepRemaining = 0;
+        state.guildBoard = null;
+        saveState();
+        renderGuildBoard();
+      });
+      statusSection.appendChild(nextDayButton);
+    }
+    elements.guildBoard.appendChild(statusSection);
+
+    const sideSection = document.createElement("section");
+    sideSection.className = "guild-section";
+    sideSection.innerHTML = `<h3 class="guild-section__title">서브 퀘스트</h3>`;
+    const sideGrid = document.createElement("div");
+    sideGrid.className = "quest-grid";
+    (board.sideQuests ?? []).forEach((quest) => {
+      const card = document.createElement("article");
+      card.className = "quest-card";
+      card.innerHTML = `
+        <div class="quest-card__header">
+          <strong>${quest.title}</strong>
+          <span class="quest-card__tag">${quest.rarity}</span>
+        </div>
+        <p class="quest-card__summary">${quest.summary}</p>
+        <div class="quest-card__meta">난이도 ${quest.difficulty}</div>
+        <div class="quest-card__reward">${formatRewardPreview(quest.reward)}</div>
+      `;
+      const actions = document.createElement("div");
+      actions.className = "quest-card__actions";
+      const startButton = document.createElement("button");
+      startButton.className = "btn btn--small";
+      startButton.textContent = "수행";
+      startButton.disabled = state.mainQuestState === "prep" && state.mainQuestPrepRemaining <= 0;
+      startButton.addEventListener("click", () => {
+        startSideQuest(quest.id);
+      });
+      actions.appendChild(startButton);
+      card.appendChild(actions);
+      sideGrid.appendChild(card);
+    });
+    sideSection.appendChild(sideGrid);
+    elements.guildBoard.appendChild(sideSection);
+
+    const shopSection = document.createElement("section");
+    shopSection.className = "guild-section";
+    shopSection.innerHTML = `<h3 class="guild-section__title">길드 상점</h3>`;
+    const shopButton = document.createElement("button");
+    shopButton.className = "btn btn--ghost btn--small";
+    shopButton.textContent = "상점 방문";
+    shopButton.addEventListener("click", () => {
+      openShop("guild_shop");
+    });
+    shopSection.appendChild(shopButton);
+    elements.guildBoard.appendChild(shopSection);
+
+    const endingButton = document.createElement("button");
+    endingButton.className = "btn btn--ghost btn--small";
+    endingButton.textContent = "오늘 마감 (엔딩 체크)";
+    endingButton.addEventListener("click", () => renderNode("END_CHECK"));
+    elements.guildBoard.appendChild(endingButton);
+  }
+
+  function openMainQuestModal(quest, forceChallenge = false) {
+    if (!elements.mainQuestModal || !elements.modalBackdrop) return;
+    elements.mainQuestTitle.textContent = quest.title;
+    elements.mainQuestDesc.textContent =
+      `${quest.intro ?? ""}\n추천 파워 ${quest.recommended_power}\n보상: ${formatRewardPreview(
+        quest.rewards
+      )}\n정말 도전할까요? 지금 도전하면 되돌아오기 어렵습니다.`;
+    elements.mainQuestModal.hidden = false;
+    elements.modalBackdrop.hidden = false;
+    elements.mainQuestPrepare.onclick = () => {
+      acceptMainQuest(quest);
+      closeMainQuestModal();
+    };
+    elements.mainQuestChallenge.onclick = () => {
+      startMainQuestCombat(quest);
+      closeMainQuestModal();
+    };
+    if (forceChallenge) {
+      elements.mainQuestPrepare.disabled = true;
+    } else {
+      elements.mainQuestPrepare.disabled = false;
+    }
+    elements.mainQuestCancel.onclick = () => closeMainQuestModal();
+  }
+
+  function closeMainQuestModal() {
+    if (elements.mainQuestModal) elements.mainQuestModal.hidden = true;
+    if (elements.modalBackdrop) elements.modalBackdrop.hidden = true;
+  }
+
+  function acceptMainQuest(quest) {
+    state.acceptedMainQuestId = quest.id;
+    state.mainQuestState = "prep";
+    state.mainQuestPrepRemaining = randomBetween(MAIN_QUEST_PREP_MIN, MAIN_QUEST_PREP_MAX);
+    saveState();
+    renderGuildBoard();
+  }
+
+  function startMainQuestCombat(quest) {
+    state.acceptedMainQuestId = quest.id;
+    state.mainQuestState = "boss";
+    state.combatContext = { type: "main", questId: quest.id };
+    startCombat(quest.boss_enemy_id);
+  }
+
+  function startSideQuest(questId) {
+    const board = ensureGuildBoard();
+    const quest = board.sideQuests.find((entry) => entry.id === questId);
+    if (!quest) return;
+    state.activeQuest = quest;
+    state.phase = "quest";
+    setView("explore");
+    setScene(quest.title, quest.summary);
+    clearChoices();
+    addChoiceButton("수행", () => resolveSideQuest(quest));
+    addChoiceButton("취소", () => {
+      state.activeQuest = null;
+      renderGuildBoard();
+    });
+  }
+
+  function resolveSideQuest(quest) {
+    if (quest.type === "combat" && quest.enemyId) {
+      state.combatContext = { type: "side", questId: quest.id };
+      startCombat(quest.enemyId);
+      return;
+    }
+    completeSideQuest(quest);
+  }
+
+  function completeSideQuest(quest) {
+    applyReward(quest.reward);
+    if (quest.chainId) {
+      const nextIndex = Number(quest.chainStageIndex ?? 0) + 1;
+      state.chainProgress[quest.chainId] = nextIndex;
+      const chain = (state.data?.questTemplates?.chains ?? []).find(
+        (entry) => entry.chain_id === quest.chainId
+      );
+      if (chain && nextIndex >= chain.stages.length) {
+        grantChainCompletionReward(chain);
+      }
+    }
+    if (state.mainQuestState === "prep") {
+      state.mainQuestPrepRemaining = Math.max(0, state.mainQuestPrepRemaining - 1);
+    }
+    const board = ensureGuildBoard();
+    board.sideQuests = (board.sideQuests ?? []).filter((entry) => entry.id !== quest.id);
+    state.activeQuest = null;
+    showQuestOutcome(quest);
+  }
+
+  function showQuestOutcome(quest) {
+    const lines = quest.outcomeText ?? buildQuestOutcome(quest);
+    setView("explore");
+    setScene(quest.title, lines.join("\n"));
+    clearChoices();
+    if (quest.reward?.shopVisit) {
+      addChoiceButton("상점 방문", () => openShop("guild_shop"));
+    }
+    addChoiceButton("길드로 돌아간다", () => {
+      renderGuildBoard();
+    });
+    saveState();
+    updateHud();
+  }
+
+  function handleQuestCombatVictory(context) {
+    state.combatContext = null;
+    if (context.type === "side") {
+      const board = ensureGuildBoard();
+      const quest = board.sideQuests.find((entry) => entry.id === context.questId);
+      if (quest) {
+        completeSideQuest(quest);
+        return;
+      }
+    }
+    if (context.type === "main") {
+      const board = ensureGuildBoard();
+      const quest = board.mainQuests.find((entry) => entry.id === context.questId);
+      if (quest) {
+        resolveMainQuestRewards(quest);
+        return;
+      }
+    }
+    renderGuildBoard();
+  }
+
+  function resolveMainQuestRewards(quest) {
+    const reward = quest.rewards ?? {};
+    const rewardPayload = {
+      gold: reward.gold ?? 0,
+      items: [],
+      equipment: [],
+      statUp: reward.stat_up ?? null,
+      shopVisit: false
+    };
+    if (reward.equipment_drop_table) {
+      const table = getEquipmentTable(reward.equipment_drop_table);
+      const pick = pickRandom(Math.random, table);
+      if (pick) rewardPayload.equipment.push(pick);
+    }
+    applyReward(rewardPayload);
+    state.mainQuestState = "cleared";
+    state.acceptedMainQuestId = null;
+    showQuestOutcome({
+      title: quest.title,
+      outcomeText: ["보스전이 끝났다.", "길드가 성과를 인정하며 보상을 전달했다."],
+      reward: rewardPayload
+    });
+  }
+
+  function grantChainCompletionReward(chain) {
+    const rewardTable = getRewardTable("rare");
+    const rewardPayload = {
+      gold: randomBetween(20, 40),
+      items: [],
+      equipment: [],
+      statUp: { type: "ANY", amount: 1 },
+      shopVisit: false
+    };
+    if (rewardTable.equipment?.length) {
+      const equipmentId = pickRandom(Math.random, rewardTable.equipment);
+      if (equipmentId) rewardPayload.equipment.push(equipmentId);
+    }
+    applyReward(rewardPayload);
+    addLog(`${chain.name ?? "연계 퀘스트"} 완료 보상을 획득했다.`);
+  }
+
+  function openShop(shopId) {
+    const shop = (state.data?.shops ?? []).find((entry) => entry.id === shopId);
+    if (!shop) return;
+    state.activeShopId = shopId;
+    state.phase = "shop";
+    renderShop(shop);
+  }
+
+  function renderShop(shop) {
+    setView("explore");
+    setScene(shop.name ?? "상점", shop.description ?? "구매할 물품을 고르세요.");
+    clearChoices();
+    if (!elements.guildBoard) return;
+    elements.guildBoard.hidden = false;
+    elements.guildBoard.innerHTML = "";
+    const grid = document.createElement("div");
+    grid.className = "shop-grid";
+    const items = shop.inventory ?? [];
+    const itemsMap = new Map((state.data?.items ?? []).map((item) => [item.id, item]));
+    const equipmentMap = state.maps?.equipmentMap ?? new Map();
+    items.forEach((entry) => {
+      const card = document.createElement("div");
+      card.className = "shop-card";
+      const data = entry.type === "equipment" ? equipmentMap.get(entry.id) : itemsMap.get(entry.id);
+      const name = data?.name ?? entry.id;
+      card.innerHTML = `
+        <strong>${name}</strong>
+        <span class="shop-card__price">🪙${entry.price}</span>
+        <p>${data?.description ?? ""}</p>
+      `;
+      const button = document.createElement("button");
+      button.className = "btn btn--small";
+      button.textContent = "구매";
+      button.addEventListener("click", () => {
+        if (state.player.gold < entry.price) {
+          setToast("골드 부족");
+          return;
+        }
+        state.player.gold -= entry.price;
+        if (entry.type === "equipment") {
+          addEquipmentToInventory(entry.id);
+        } else {
+          addItemToInventory(entry.id);
+        }
+        updateHud();
+        renderInventorySheet();
+        saveState();
+      });
+      card.appendChild(button);
+      grid.appendChild(card);
+    });
+    elements.guildBoard.appendChild(grid);
+    addChoiceButton("길드로 돌아간다", () => {
+      state.phase = "guild";
+      renderGuildBoard();
+    });
+  }
+
   function restoreState() {
     const saved = loadState();
     if (!saved) {
@@ -1877,6 +2790,16 @@
         : createTravelFlags(state.travelTarget, state.travelCount);
     state.questCount = Number(saved.questCount ?? 0);
     state.questTarget = Number(saved.questTarget ?? randomBetween(QUEST_STEPS_MIN, QUEST_STEPS_MAX));
+    state.runSeed = Number.isFinite(Number(saved.runSeed)) ? Number(saved.runSeed) : null;
+    state.dayIndex = Number(saved.dayIndex ?? 1);
+    state.guildBoard = saved.guildBoard ?? null;
+    state.acceptedMainQuestId = saved.acceptedMainQuestId ?? null;
+    state.mainQuestState = saved.mainQuestState ?? "idle";
+    state.mainQuestPrepRemaining = Number(saved.mainQuestPrepRemaining ?? 0);
+    state.chainProgress = saved.chainProgress ?? {};
+    state.activeQuest = saved.activeQuest ?? null;
+    state.combatContext = saved.combatContext ?? null;
+    state.activeShopId = saved.activeShopId ?? null;
     state.log = Array.isArray(saved.log) ? saved.log : [];
     state.lastSummary = saved.lastSummary ?? "최근 요약: -";
     state.inCombat = Boolean(saved.inCombat);
@@ -2055,7 +2978,10 @@
       elements.sheetBackdrop.addEventListener("click", () => closeSheets());
     }
     if (elements.modalBackdrop) {
-      elements.modalBackdrop.addEventListener("click", () => closeComingSoon());
+      elements.modalBackdrop.addEventListener("click", () => {
+        closeComingSoon();
+        closeMainQuestModal();
+      });
     }
     if (elements.comingSoonClose) {
       elements.comingSoonClose.addEventListener("click", () => closeComingSoon());
@@ -2184,6 +3110,10 @@
       loadJson("nodes"),
       loadJson("events"),
       loadJson("items"),
+      loadJson("equipment"),
+      loadJson("quest_templates"),
+      loadJson("main_quests"),
+      loadJson("shops"),
       loadJson("enemies"),
       loadJson("endings"),
       loadJson("prologues"),
@@ -2212,6 +3142,10 @@
           endings: normalizeEndings(data.endings),
           events: data.events ?? [],
           items: data.items ?? [],
+          equipment: data.equipment ?? [],
+          questTemplates: data.quest_templates ?? {},
+          mainQuests: data.main_quests ?? [],
+          shops: data.shops ?? [],
           prologues: normalizePrologues(data.prologues),
           travelEvents: normalizeTravelEvents(data.travel_events),
           backgroundParts: normalizeBackgroundParts(data.background_parts)

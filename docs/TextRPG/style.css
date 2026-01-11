@@ -1339,3 +1339,194 @@ textarea {
     gap: 14px;
   }
 }
+
+
+.guild-board {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.guild-board__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(12, 17, 27, 0.7);
+}
+
+.guild-board__header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.guild-section {
+  display: grid;
+  gap: 8px;
+}
+
+.guild-section__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.quest-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.quest-card {
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(12, 18, 28, 0.8);
+}
+
+.quest-card--main {
+  border-color: rgba(255, 196, 108, 0.5);
+  background: rgba(34, 22, 10, 0.6);
+}
+
+.quest-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.quest-card__summary {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.quest-card__meta,
+.quest-card__reward {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.quest-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quest-card__tag {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.equipment-panel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.equipment-slots {
+  display: grid;
+  gap: 6px;
+}
+
+.equipment-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(9, 14, 22, 0.7);
+}
+
+.equipment-slot__meta {
+  display: grid;
+  gap: 2px;
+  font-size: 0.75rem;
+}
+
+.equipment-list {
+  display: grid;
+  gap: 6px;
+}
+
+.equipment-item {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(12, 18, 28, 0.65);
+}
+
+.equipment-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.equipment-item__meta,
+.equipment-item__mods {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.rarity-chip {
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.rarity-chip--common {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.rarity-chip--uncommon {
+  background: rgba(120, 214, 255, 0.2);
+}
+
+.rarity-chip--rare {
+  background: rgba(255, 196, 108, 0.25);
+}
+
+.rarity-chip--epic {
+  background: rgba(214, 133, 255, 0.25);
+}
+
+.shop-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.shop-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(9, 14, 22, 0.7);
+  font-size: 0.82rem;
+}
+
+.shop-card__price {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.modal__card--large {
+  max-width: 420px;
+}
+
+.modal__card p {
+  white-space: pre-line;
+}

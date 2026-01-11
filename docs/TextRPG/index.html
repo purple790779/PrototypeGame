@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="./" />
     <title>루카스 어드벤처</title>
-    <link rel="stylesheet" href="style.css?v=0.3.10" />
+    <link rel="stylesheet" href="style.css?v=0.4.0" />
   </head>
   <body>
     <div id="introOverlay" class="intro-overlay" role="dialog" aria-modal="true" aria-label="인트로" tabindex="0">
@@ -230,6 +230,7 @@
                 <button class="btn btn--ghost btn--small" id="btn-hard-reset">긴급 초기화</button>
               </div>
             </div>
+            <div class="guild-board" id="guild-board" hidden></div>
             <div class="event-card__choices" id="choice-list"></div>
           </div>
         </section>
@@ -324,9 +325,10 @@
       <nav class="bottom-dock" id="action-dock" aria-label="하단 도크">
         <button
           class="dock-btn"
-          data-open="coming"
+          data-open="status"
+          data-tab="inventory"
           data-tooltip="장비"
-          data-toast="준비중"
+          data-toast="장비"
           aria-label="장비"
           type="button"
         >
@@ -401,6 +403,10 @@
           <div class="status-list" id="status-list"></div>
         </section>
         <section class="sheet__panel" data-panel="inventory">
+          <div class="equipment-panel">
+            <div class="equipment-slots" id="equipment-slots"></div>
+            <div class="equipment-list" id="equipment-list"></div>
+          </div>
           <div class="inventory-grid" id="inventory-grid"></div>
         </section>
         <section class="sheet__panel" data-panel="settings">
@@ -446,6 +452,10 @@
       </div>
       <div class="sheet__body">
         <div class="sheet__notice" id="inventory-empty">보유 아이템이 없습니다.</div>
+        <div class="equipment-panel">
+          <div class="equipment-slots" id="equipment-sheet-slots"></div>
+          <div class="equipment-list" id="equipment-sheet-list"></div>
+        </div>
         <div class="inventory-grid" id="inventory-sheet-grid"></div>
       </div>
     </div>
@@ -516,6 +526,18 @@
       </div>
     </div>
 
+    <div class="modal" id="main-quest-modal" hidden role="dialog" aria-modal="true" aria-labelledby="main-quest-title">
+      <div class="modal__card modal__card--large">
+        <h3 id="main-quest-title">메인 퀘스트</h3>
+        <p id="main-quest-desc"></p>
+        <div class="modal__actions">
+          <button class="btn btn--ghost btn--small" id="btn-main-quest-prepare">준비 단계로 수락</button>
+          <button class="btn btn--small" id="btn-main-quest-challenge">바로 도전</button>
+          <button class="btn btn--ghost btn--small" id="btn-main-quest-cancel">취소</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-backdrop" id="modal-backdrop" hidden></div>
     <div class="modal" id="coming-soon-modal" hidden role="dialog" aria-modal="true" aria-labelledby="coming-soon-title">
       <div class="modal__card">
@@ -534,6 +556,6 @@
 
     <div class="toast" id="save-toast" role="status" aria-live="polite"></div>
 
-    <script id="appMain" src="main.js?v=0.3.8" defer></script>
+    <script id="appMain" src="main.js?v=0.4.0" defer></script>
   </body>
 </html>

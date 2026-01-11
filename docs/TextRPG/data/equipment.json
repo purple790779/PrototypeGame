@@ -1,0 +1,141 @@
+[
+  {
+    "id": "eq_rusty_sword",
+    "name": "녹슨 장검",
+    "slot": "weapon",
+    "rarity": "common",
+    "price": 12,
+    "mods": {
+      "STR": 1
+    },
+    "description": "기본적인 공격을 돕는 낡은 검."
+  },
+  {
+    "id": "eq_worn_armor",
+    "name": "헤진 갑옷",
+    "slot": "armor",
+    "rarity": "common",
+    "price": 14,
+    "mods": {
+      "CON": 1
+    },
+    "description": "내구는 낮지만 체력을 보완한다."
+  },
+  {
+    "id": "eq_scout_charm",
+    "name": "정찰 부적",
+    "slot": "accessory",
+    "rarity": "common",
+    "price": 16,
+    "mods": {
+      "DEX": 1
+    },
+    "description": "민첩한 움직임을 돕는다."
+  },
+  {
+    "id": "eq_iron_saber",
+    "name": "철제 세이버",
+    "slot": "weapon",
+    "rarity": "uncommon",
+    "price": 32,
+    "mods": {
+      "STR": 2,
+      "DEX": 1
+    },
+    "description": "가벼우면서도 날카로운 검."
+  },
+  {
+    "id": "eq_guard_armor",
+    "name": "수호자의 갑옷",
+    "slot": "armor",
+    "rarity": "uncommon",
+    "price": 34,
+    "mods": {
+      "CON": 2
+    },
+    "description": "견고한 방어구로 체력을 보강한다."
+  },
+  {
+    "id": "eq_focus_talisman",
+    "name": "집중 부적",
+    "slot": "accessory",
+    "rarity": "uncommon",
+    "price": 28,
+    "mods": {
+      "WIS": 1,
+      "INT": 1
+    },
+    "description": "마음의 집중을 끌어올린다."
+  },
+  {
+    "id": "eq_moonblade",
+    "name": "월광검",
+    "slot": "weapon",
+    "rarity": "rare",
+    "price": 60,
+    "mods": {
+      "STR": 2,
+      "LUK": 1
+    },
+    "description": "은빛 오라가 감도는 날카로운 검."
+  },
+  {
+    "id": "eq_void_armor",
+    "name": "공허의 갑옷",
+    "slot": "armor",
+    "rarity": "rare",
+    "price": 64,
+    "mods": {
+      "CON": 2,
+      "WIS": 1
+    },
+    "description": "어둠을 흡수하는 보호구."
+  },
+  {
+    "id": "eq_lucky_charm",
+    "name": "행운의 목걸이",
+    "slot": "accessory",
+    "rarity": "rare",
+    "price": 58,
+    "mods": {
+      "LUK": 2
+    },
+    "description": "행운을 끌어들이는 부적."
+  },
+  {
+    "id": "eq_belltower_blade",
+    "name": "종탑의 검",
+    "slot": "weapon",
+    "rarity": "epic",
+    "price": 120,
+    "mods": {
+      "STR": 3,
+      "CON": 1
+    },
+    "description": "메인 퀘스트 보상급의 강력한 검."
+  },
+  {
+    "id": "eq_sanctum_plate",
+    "name": "성역의 플레이트",
+    "slot": "armor",
+    "rarity": "epic",
+    "price": 130,
+    "mods": {
+      "CON": 3,
+      "WIS": 1
+    },
+    "description": "성역의 권능을 담은 방어구."
+  },
+  {
+    "id": "eq_oracle_orb",
+    "name": "예언자의 구슬",
+    "slot": "accessory",
+    "rarity": "epic",
+    "price": 110,
+    "mods": {
+      "INT": 2,
+      "WIS": 1
+    },
+    "description": "미래를 비추는 고대의 구슬."
+  }
+]
