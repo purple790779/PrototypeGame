@@ -51,6 +51,23 @@
         "text",
         "story"
       ]
+    },
+    {
+      "id": "battle_simul",
+      "title": "스펙트럴 프로젝트",
+      "slug": "battle_simul",
+      "path": "./Spectral_Project/",
+      "icon": "🧭",
+      "version": "v0.1.0",
+      "status": "active",
+      "summary": "전투 시뮬레이션.",
+      "order": 40,
+      "tags": [
+        "mobile",
+        "battle",
+        "simulation",
+        "real_time"
+      ]
     }
   ]
 }
