@@ -1,4 +1,5 @@
-import * as THREE from 'three';
+// ✅ importmap 대신 URL 직접 import
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
 export class RenderSystem {
   constructor(scene, camera, renderer) {
@@ -34,7 +35,7 @@ export class RenderSystem {
       vertexColors: true,
     });
 
-    // ✅ 실제 유닛 수만 생성 (2000 같은 과다 생성 금지)
+    // ✅ 실제 유닛 수만 생성
     this.mesh = new THREE.InstancedMesh(geometry, material, this.unitCount);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.castShadow = true;
@@ -86,7 +87,6 @@ export class RenderSystem {
   }
 
   update(delta) {
-    // 전투 진행 중이면 중앙(x=0)으로 전진(최소 전투 느낌)
     if (this.running) {
       const targetX = 0;
       const stopDist = 1.5;
