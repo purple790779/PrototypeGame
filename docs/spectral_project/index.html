@@ -6,55 +6,42 @@
   <title>Spectral Project (Flat)</title>
 
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      touch-action: none;
-    }
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; touch-action:none; }
+    #app { position: fixed; inset: 0; }
+    #ui-layer { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 
-    #app {
-      position: fixed;
-      inset: 0;
-    }
-
-    #ui-layer {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    .btn {
-      pointer-events: auto;
-      background: rgba(0, 0, 0, 0.55);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.85);
-      padding: 10px 14px;
-      cursor: pointer;
-      border-radius: 10px;
-      font-size: 18px;
+    .btn{
+      pointer-events:auto;
+      background: rgba(0,0,0,.55);
+      color:#fff;
+      border:1px solid rgba(255,255,255,.85);
+      padding:10px 14px;
+      cursor:pointer;
+      border-radius:10px;
+      font-size:18px;
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
     }
-
-    #start-btn {
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-    }
+    #start-btn { position:absolute; bottom:20px; right:20px; }
 
     #debug {
-      position: absolute;
-      left: 12px;
-      bottom: 12px;
-      color: #fff;
-      font: 12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      opacity: 0.9;
-      pointer-events: none;
-      white-space: pre;
+      position:absolute; left:12px; bottom:12px;
+      color:#fff; font:12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      opacity:.95; pointer-events:none; white-space:pre-wrap;
+      max-width: 92vw;
+    }
+    #banner {
+      position:absolute; left:12px; top:12px;
+      background: rgba(255,70,70,.12);
+      border: 1px solid rgba(255,70,70,.35);
+      color: rgba(255,230,230,.95);
+      padding: 10px 12px;
+      border-radius: 12px;
+      pointer-events:none;
+      display:none;
+      max-width: 92vw;
+      white-space:pre-wrap;
+      font: 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
   </style>
 </head>
@@ -64,10 +51,40 @@
 
   <div id="ui-layer">
     <button id="start-btn" class="btn">전투 시작 (Battle Start)</button>
+    <div id="banner"></div>
     <div id="debug">loading...</div>
   </div>
 
-  <!-- ✅ importmap 제거: JS에서 three를 URL로 직접 import -->
+  <script>
+    (function () {
+      const debugEl = document.getElementById('debug');
+      const bannerEl = document.getElementById('banner');
+      const setDebug = (m) => { if (debugEl) debugEl.textContent = m; };
+      const showBanner = (m) => {
+        if (!bannerEl) return;
+        bannerEl.style.display = 'block';
+        bannerEl.textContent = m;
+      };
+
+      // ✅ file://로 열면 거의 100% 여기 걸림
+      if (location.protocol === 'file:') {
+        showBanner(
+          '⚠️ file://로 열면 모듈(ESM) 로딩이 막혀서 검은 화면이 나올 수 있어요.\n' +
+          '✅ 해결: Live Server 또는 python -m http.server로 실행하세요.\n' +
+          '예) http://localhost:8000/docs/spectral_project/'
+        );
+      }
+
+      window.addEventListener('error', (e) => {
+        setDebug('ERROR ❌\n' + (e?.message || e));
+      });
+
+      window.addEventListener('unhandledrejection', (e) => {
+        setDebug('PROMISE ERROR ❌\n' + (e?.reason?.message || e?.reason || e));
+      });
+    })();
+  </script>
+
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
