@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>PrototypeGame Hub</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --card2:#0f1730;
+      --text:#e9ecff; --muted:#a9b3d6; --line:rgba(255,255,255,.12);
+      --accent:#7c5cff; --accent2:#2dd4bf;
+      --shadow: 0 12px 35px rgba(0,0,0,.35);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.35), transparent 60%),
+                  radial-gradient(900px 500px at 90% 10%, rgba(45,212,191,.22), transparent 55%),
+                  linear-gradient(180deg, #070a14, var(--bg));
+      color:var(--text);
+    }
+    header{
+      padding:22px 16px 10px;
+      max-width:1100px; margin:0 auto;
+    }
+    .topbar{
+      display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+    }
+    .logo{
+      width:40px; height:40px; border-radius:14px;
+      background: linear-gradient(135deg, rgba(124,92,255,.95), rgba(45,212,191,.8));
+      box-shadow: var(--shadow);
+    }
+    h1{font-size:18px; margin:0; letter-spacing:.2px}
+    .sub{margin:2px 0 0; color:var(--muted); font-size:13px}
+    .pill{
+      border:1px solid var(--line);
+      padding:6px 10px; border-radius:999px;
+      color:var(--muted); font-size:12px;
+      background: rgba(255,255,255,.04);
+    }
+    .controls{
+      margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;
+    }
+    .input{
+      flex:1 1 260px; min-width:220px;
+      display:flex; align-items:center; gap:10px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      border-radius: 14px;
+      padding:10px 12px;
+      box-shadow: 0 8px 22px rgba(0,0,0,.18);
+    }
+    .input input{
+      width:100%; background:transparent; border:0; outline:0;
+      color:var(--text); font-size:14px;
+    }
+    .btn{
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:14px;
+      cursor:pointer;
+      font-size:14px;
+    }
+    .btn:hover{ border-color: rgba(124,92,255,.6) }
+    main{
+      max-width:1100px; margin:0 auto;
+      padding: 12px 16px 40px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap:14px;
+      margin-top: 14px;
+    }
+    .card{
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex; flex-direction:column;
+      min-height: 170px;
+    }
+    .cardHead{
+      padding:14px 14px 10px;
+      display:flex; gap:12px; align-items:flex-start;
+      background: linear-gradient(180deg, rgba(18,26,51,.55), rgba(18,26,51,0));
+    }
+    .icon{
+      width:44px; height:44px; border-radius:16px;
+      background: rgba(124,92,255,.18);
+      border:1px solid rgba(124,92,255,.35);
+      display:flex; align-items:center; justify-content:center;
+      font-size:22px;
+      flex:0 0 auto;
+    }
+    .title{ margin:0; font-size:16px; line-height:1.2 }
+    .meta{ margin-top:6px; color:var(--muted); font-size:12px; display:flex; gap:8px; flex-wrap:wrap }
+    .desc{ padding: 0 14px 12px; color: rgba(233,236,255,.88); font-size:13px; line-height:1.4; min-height: 44px }
+    .tags{ padding: 0 14px 12px; display:flex; gap:6px; flex-wrap:wrap }
+    .tag{
+      font-size:11px; color:var(--muted);
+      border:1px solid var(--line);
+      padding:4px 8px; border-radius:999px;
+      background: rgba(255,255,255,.04);
+    }
+    .cardFoot{
+      margin-top:auto;
+      display:flex; gap:10px; justify-content:flex-end;
+      padding: 12px 14px 14px;
+      border-top:1px solid rgba(255,255,255,.08);
+      background: rgba(15,23,48,.35);
+    }
+    a.play{
+      text-decoration:none;
+      padding:10px 12px; border-radius:14px;
+      background: linear-gradient(135deg, rgba(124,92,255,.95), rgba(45,212,191,.85));
+      color:#071018;
+      font-weight:700;
+    }
+    a.play:hover{ filter: brightness(1.06) }
+    a.link{
+      text-decoration:none;
+      padding:10px 12px; border-radius:14px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color:var(--text);
+    }
+    .note{
+      margin-top:16px; color:var(--muted); font-size:12px;
+      border:1px dashed rgba(255,255,255,.16);
+      padding:12px 14px; border-radius:16px;
+      background: rgba(255,255,255,.03);
+    }
+    .error{
+      border:1px solid rgba(255,80,80,.35);
+      background: rgba(255,80,80,.08);
+      color: rgba(255,230,230,.92);
+      padding: 12px 14px;
+      border-radius: 16px;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>PrototypeGame Hub</h1>
+          <div class="sub">docs/GAMES.json 기반 자동 게임 목록</div>
+        </div>
+      </div>
+      <div class="pill" id="ver">Hub v0.2.1 (index 복구)</div>
+    </div>
+
+    <div class="controls">
+      <div class="input" title="게임 이름/설명 검색">
+        <span aria-hidden="true">🔎</span>
+        <input id="q" placeholder="검색: 예) TextRPG, castle, spectral..." />
+      </div>
+      <button class="btn" id="reload">새로고침</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="status" class="note">
+      팁: GitHub Pages 소스가 <b>/docs</b>라면 이 페이지가 루트로 열립니다. 게임 경로는 보통 <b>./gdc/</b> 같은 상대경로가 맞아요.
+    </div>
+    <div id="error" style="display:none" class="error"></div>
+    <section class="grid" id="grid"></section>
+  </main>
+
+  <script>
+    const $grid = document.getElementById('grid');
+    const $q = document.getElementById('q');
+    const $error = document.getElementById('error');
+    const $reload = document.getElementById('reload');
+
+    function normalizeGames(json){
+      // 허용: {games:[...]} / [...] / {id:{...}, ...}
+      if (Array.isArray(json)) return json;
+      if (json && Array.isArray(json.games)) return json.games;
+      if (json && typeof json === 'object') {
+        const vals = Object.values(json);
+        if (vals.every(v => typeof v === 'object')) return vals;
+      }
+      return [];
+    }
+
+    function safeText(v, fallback=""){
+      return (v === undefined || v === null) ? fallback : String(v);
+    }
+
+    function toHref(game){
+      // 다양한 키를 허용
+      const raw = game.path || game.href || game.url || game.link || "";
+      if (!raw) return "";
+      // docs가 루트인 Pages 기준 상대경로 권장
+      if (/^https?:\/\//i.test(raw)) return raw;
+      // './' 보정
+      let h = raw.startsWith("./") || raw.startsWith("/") ? raw : ("./" + raw);
+      // 폴더면 trailing slash 붙이기
+      if (!h.includes(".") && !h.endsWith("/")) h += "/";
+      // 시작이 '/'면 Pages 루트 기준이 될 수 있어 상대경로로 바꿈
+      if (h.startsWith("/")) h = "." + h;
+      return h;
+    }
+
+    function render(games){
+      const query = $q.value.trim().toLowerCase();
+      const filtered = games.filter(g => {
+        const title = safeText(g.title || g.name || g.id).toLowerCase();
+        const desc = safeText(g.description || g.desc).toLowerCase();
+        const tags = Array.isArray(g.tags) ? g.tags.join(" ").toLowerCase() : safeText(g.tags).toLowerCase();
+        return !query || (title + " " + desc + " " + tags).includes(query);
+      });
+
+      $grid.innerHTML = filtered.map(g => {
+        const title = safeText(g.title || g.name || g.id || "Untitled");
+        const desc = safeText(g.description || g.desc || "설명이 없습니다.");
+        const version = safeText(g.version || g.ver || "");
+        const updated = safeText(g.updated || g.date || "");
+        const icon = safeText(g.icon || g.emoji || "🎮");
+        const href = toHref(g);
+        const repo = safeText(g.repo || g.readme || "");
+
+        const tagList = Array.isArray(g.tags) ? g.tags : (g.tags ? [g.tags] : []);
+        const tagsHtml = tagList.slice(0, 6).map(t => `<span class="tag">${safeText(t)}</span>`).join("");
+
+        const metaBits = [
+          version ? `버전: ${version}` : "",
+          updated ? `업데이트: ${updated}` : ""
+        ].filter(Boolean).map(x => `<span>${x}</span>`).join("<span>•</span>");
+
+        const playBtn = href
+          ? `<a class="play" href="${href}">플레이</a>`
+          : `<span class="tag">경로 없음</span>`;
+
+        const moreBtn = repo
+          ? `<a class="link" href="${repo}">설명</a>`
+          : "";
+
+        return `
+          <article class="card">
+            <div class="cardHead">
+              <div class="icon" aria-hidden="true">${icon}</div>
+              <div>
+                <h2 class="title">${title}</h2>
+                <div class="meta">${metaBits || `<span>등록됨</span>`}</div>
+              </div>
+            </div>
+            <div class="desc">${desc}</div>
+            <div class="tags">${tagsHtml}</div>
+            <div class="cardFoot">
+              ${moreBtn}
+              ${playBtn}
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      if (!filtered.length){
+        $grid.innerHTML = `<div class="note">검색 결과가 없어요. (GAMES.json 항목/검색어를 확인해 주세요)</div>`;
+      }
+    }
+
+    async function load(){
+      $error.style.display = "none";
+      $error.textContent = "";
+      $grid.innerHTML = `<div class="note">GAMES.json 로딩 중...</div>`;
+
+      try{
+        const res = await fetch("./GAMES.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`GAMES.json fetch 실패 (HTTP ${res.status})`);
+        const json = await res.json();
+        const games = normalizeGames(json);
+
+        // 기본 정렬: order → title
+        games.sort((a,b) => {
+          const ao = (a.order ?? a.sort ?? 9999);
+          const bo = (b.order ?? b.sort ?? 9999);
+          if (ao !== bo) return ao - bo;
+          const at = safeText(a.title || a.name || a.id).toLowerCase();
+          const bt = safeText(b.title || b.name || b.id).toLowerCase();
+          return at.localeCompare(bt);
+        });
+
+        render(games);
+
+        // 검색 이벤트
+        $q.oninput = () => render(games);
+      }catch(err){
+        $grid.innerHTML = "";
+        $error.style.display = "block";
+        $error.textContent =
+          "허브 로딩에 실패했어요. 보통은 docs/GAMES.json 경로 문제거나 JSON 문법 오류입니다.\n\n" +
+          String(err);
+      }
+    }
+
+    $reload.addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>
