@@ -56,7 +56,7 @@
       "id": "battle_simul",
       "title": "스펙트럴 프로젝트",
       "slug": "battle_simul",
-      "path": "./Spectral_Project/",
+      "path": "./spectral_project/",
       "icon": "🧭",
       "version": "v0.1.0",
       "status": "active",
