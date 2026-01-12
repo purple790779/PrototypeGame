@@ -112,6 +112,43 @@
       padding:4px 8px; border-radius:999px;
       background: rgba(255,255,255,.04);
     }
+
+    .badge{
+      font-size:11px; color:var(--muted);
+      border:1px solid var(--line);
+      padding:4px 8px; border-radius:999px;
+      background: rgba(255,255,255,.04);
+      white-space:nowrap;
+    }
+    .badge.active{
+      border-color: rgba(45,212,191,.35);
+      background: rgba(45,212,191,.10);
+      color: rgba(200,255,245,.95);
+    }
+    .badge.beta{
+      border-color: rgba(124,92,255,.45);
+      background: rgba(124,92,255,.12);
+      color: rgba(232,228,255,.95);
+    }
+    .badge.wip{
+      border-color: rgba(255,206,86,.35);
+      background: rgba(255,206,86,.10);
+      color: rgba(255,245,215,.95);
+    }
+    .badge.paused{
+      border-color: rgba(255,125,60,.35);
+      background: rgba(255,125,60,.10);
+      color: rgba(255,235,225,.95);
+    }
+    .badge.archived{
+      border-color: rgba(170,180,210,.25);
+      background: rgba(170,180,210,.08);
+      color: rgba(220,225,240,.92);
+    }
+    .titleRow{
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    }
+
     .cardFoot{
       margin-top:auto;
       display:flex; gap:10px; justify-content:flex-end;
@@ -147,6 +184,7 @@
       padding: 12px 14px;
       border-radius: 16px;
       margin-top: 14px;
+      white-space:pre-wrap;
     }
   </style>
 </head>
@@ -161,11 +199,11 @@
           <div class="sub">docs/GAMES.json 기반 자동 게임 목록</div>
         </div>
       </div>
-      <div class="pill" id="ver">Hub v0.2.1 (index 복구)</div>
+      <div class="pill" id="ver">Hub v0.2.2 (summary+status)</div>
     </div>
 
     <div class="controls">
-      <div class="input" title="게임 이름/설명 검색">
+      <div class="input" title="게임 이름/설명(=summary)/태그 검색">
         <span aria-hidden="true">🔎</span>
         <input id="q" placeholder="검색: 예) TextRPG, castle, spectral..." />
       </div>
@@ -206,14 +244,14 @@
       // 다양한 키를 허용
       const raw = game.path || game.href || game.url || game.link || "";
       if (!raw) return "";
-      // docs가 루트인 Pages 기준 상대경로 권장
       if (/^https?:\/\//i.test(raw)) return raw;
-      // './' 보정
+
       let h = raw.startsWith("./") || raw.startsWith("/") ? raw : ("./" + raw);
-      // 폴더면 trailing slash 붙이기
+
       if (!h.includes(".") && !h.endsWith("/")) h += "/";
-      // 시작이 '/'면 Pages 루트 기준이 될 수 있어 상대경로로 바꿈
+
       if (h.startsWith("/")) h = "." + h;
+
       return h;
     }
 
@@ -221,24 +259,38 @@
       const query = $q.value.trim().toLowerCase();
       const filtered = games.filter(g => {
         const title = safeText(g.title || g.name || g.id).toLowerCase();
-        const desc = safeText(g.description || g.desc).toLowerCase();
+        // ✅ v0.2.2: summary(=설명)도 검색에 포함
+        const desc = safeText(g.summary || g.description || g.desc).toLowerCase();
         const tags = Array.isArray(g.tags) ? g.tags.join(" ").toLowerCase() : safeText(g.tags).toLowerCase();
         return !query || (title + " " + desc + " " + tags).includes(query);
       });
 
       $grid.innerHTML = filtered.map(g => {
         const title = safeText(g.title || g.name || g.id || "Untitled");
-        const desc = safeText(g.description || g.desc || "설명이 없습니다.");
+        // ✅ v0.2.2: summary를 카드 설명으로 우선 사용
+        const desc = safeText(g.summary || g.description || g.desc || "설명이 없습니다.");
         const version = safeText(g.version || g.ver || "");
-        const updated = safeText(g.updated || g.date || "");
+        const updated = safeText(g.updated || g.date || g.updatedAt || "");
         const icon = safeText(g.icon || g.emoji || "🎮");
         const href = toHref(g);
         const repo = safeText(g.repo || g.readme || "");
+
+        const status = safeText(g.status || "");
+        const statusMap = {
+          active: "활성",
+          beta: "베타",
+          wip: "개발중",
+          paused: "일시중단",
+          archived: "보관"
+        };
+        const statusLabel = status ? (statusMap[status] || status) : "";
+        const statusBadge = status ? `<span class="badge ${status}">${statusLabel}</span>` : "";
 
         const tagList = Array.isArray(g.tags) ? g.tags : (g.tags ? [g.tags] : []);
         const tagsHtml = tagList.slice(0, 6).map(t => `<span class="tag">${safeText(t)}</span>`).join("");
 
         const metaBits = [
+          statusLabel ? `상태: ${statusLabel}` : "",
           version ? `버전: ${version}` : "",
           updated ? `업데이트: ${updated}` : ""
         ].filter(Boolean).map(x => `<span>${x}</span>`).join("<span>•</span>");
@@ -256,7 +308,7 @@
             <div class="cardHead">
               <div class="icon" aria-hidden="true">${icon}</div>
               <div>
-                <h2 class="title">${title}</h2>
+                <div class="titleRow"><h2 class="title">${title}</h2>${statusBadge}</div>
                 <div class="meta">${metaBits || `<span>등록됨</span>`}</div>
               </div>
             </div>
@@ -286,7 +338,6 @@
         const json = await res.json();
         const games = normalizeGames(json);
 
-        // 기본 정렬: order → title
         games.sort((a,b) => {
           const ao = (a.order ?? a.sort ?? 9999);
           const bo = (b.order ?? b.sort ?? 9999);
@@ -298,7 +349,6 @@
 
         render(games);
 
-        // 검색 이벤트
         $q.oninput = () => render(games);
       }catch(err){
         $grid.innerHTML = "";
