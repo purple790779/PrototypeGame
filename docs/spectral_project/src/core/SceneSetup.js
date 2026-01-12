@@ -1,38 +1,60 @@
 import * as THREE from 'three';
 
 export class SceneSetup {
-    constructor(container) {
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87CEEB); 
+  constructor(container) {
+    this.container = container;
 
-        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.set(0, 40, 60);
-        this.camera.lookAt(0, 0, 0);
+    // Scene
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x87ceeb);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
-        container.appendChild(this.renderer.domElement);
+    // Camera
+    const { w, h } = this.#getSize();
+    this.camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 2000);
+    this.camera.position.set(0, 40, 60);
+    this.camera.lookAt(0, 0, 0);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
-        
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(50, 100, 50);
-        dirLight.castShadow = true;
-        this.scene.add(dirLight);
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(w, h);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.shadowMap.enabled = true;
 
-        const planeGeo = new THREE.PlaneGeometry(200, 200);
-        const planeMat = new THREE.MeshStandardMaterial({ color: 0x33aa33 });
-        const plane = new THREE.Mesh(planeGeo, planeMat);
-        plane.rotation.x = -Math.PI / 2;
-        plane.receiveShadow = true;
-        this.scene.add(plane);
+    container.appendChild(this.renderer.domElement);
 
-        window.addEventListener('resize', () => {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    }
+    // Lights
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    this.scene.add(ambient);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+    dir.position.set(50, 100, 50);
+    dir.castShadow = true;
+    this.scene.add(dir);
+
+    // Ground
+    const planeGeo = new THREE.PlaneGeometry(200, 200);
+    const planeMat = new THREE.MeshStandardMaterial({ color: 0x33aa33 });
+    const plane = new THREE.Mesh(planeGeo, planeMat);
+    plane.rotation.x = -Math.PI / 2;
+    plane.receiveShadow = true;
+    this.scene.add(plane);
+
+    // Resize
+    window.addEventListener('resize', () => this.#onResize());
+  }
+
+  #getSize() {
+    const w = this.container?.clientWidth || window.innerWidth;
+    const h = this.container?.clientHeight || window.innerHeight;
+    return { w, h };
+  }
+
+  #onResize() {
+    const { w, h } = this.#getSize();
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+
+    this.renderer.setSize(w, h);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  }
 }
