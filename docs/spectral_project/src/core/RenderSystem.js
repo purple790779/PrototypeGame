@@ -1,5 +1,4 @@
-// ✅ importmap 대신 URL 직접 import
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
 export class RenderSystem {
   constructor(scene, camera, renderer) {
@@ -8,13 +7,10 @@ export class RenderSystem {
     this.renderer = renderer;
 
     this.running = false;
-
-    // 유닛 수(양측 100씩 = 200)
     this.unitCount = 200;
 
-    // 간단 전투용 데이터
     this.pos = new Float32Array(this.unitCount * 3);
-    this.side = new Uint8Array(this.unitCount);   // 0=Blue, 1=Red
+    this.side = new Uint8Array(this.unitCount);
     this.speed = new Float32Array(this.unitCount);
 
     this._dummy = new THREE.Object3D();
@@ -28,23 +24,15 @@ export class RenderSystem {
 
   initInstancedMeshes() {
     const geometry = new THREE.BoxGeometry(1, 2, 1);
+    const material = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true });
 
-    // ✅ 인스턴스 색상 보이게
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      vertexColors: true,
-    });
-
-    // ✅ 실제 유닛 수만 생성
     this.mesh = new THREE.InstancedMesh(geometry, material, this.unitCount);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.castShadow = true;
-
     this.scene.add(this.mesh);
 
     let index = 0;
 
-    // Blue 100 (왼쪽)
     for (let i = 0; i < 100; i++) {
       const x = -50 + (i % 10) * 3;
       const z = -20 + Math.floor(i / 10) * 3;
@@ -63,7 +51,6 @@ export class RenderSystem {
       index++;
     }
 
-    // Red 100 (오른쪽)
     for (let i = 0; i < 100; i++) {
       const x = 50 - (i % 10) * 3;
       const z = -20 + Math.floor(i / 10) * 3;
@@ -108,7 +95,6 @@ export class RenderSystem {
         this._dummy.updateMatrix();
         this.mesh.setMatrixAt(i, this._dummy.matrix);
       }
-
       this.mesh.instanceMatrix.needsUpdate = true;
     }
 
