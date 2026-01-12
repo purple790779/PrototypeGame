@@ -1,28 +1,69 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spectral Project (Flat)</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .btn { pointer-events: auto; background: rgba(0,0,0,0.5); color: white; border: 1px solid #fff; padding: 10px; cursor: pointer; }
-        #start-btn { position: absolute; bottom: 20px; right: 20px; font-size: 20px; z-index: 10; }
-    </style>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-            }
-        }
-    </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectral Project (Flat)</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      touch-action: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    #ui-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .btn {
+      pointer-events: auto;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      padding: 10px 14px;
+      cursor: pointer;
+      border-radius: 10px;
+      font-size: 18px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    #start-btn {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
 </head>
+
 <body>
-    <div id="app"></div>
-    <div id="ui-layer">
-        <button id="start-btn" class="btn">전투 시작 (Battle Start)</button>
-    </div>
-    <script type="module" src="./main.js"></script>
+  <div id="app"></div>
+
+  <div id="ui-layer">
+    <button id="start-btn" class="btn">전투 시작 (Battle Start)</button>
+  </div>
+
+  <!-- ✅ main.js가 src로 이동 -->
+  <script type="module" src="./src/main.js"></script>
 </body>
 </html>
