@@ -33,15 +33,13 @@ try {
         hud.setBattleButton(true);
       }
     },
-    onSelectBox: ({ side, label, selected }) => {
-      status.selection = `선택된 박스: ${side} / ${label} (${selected ? '선택' : '해제'})`;
-      hud.setDebug(formatDebug());
-    },
   });
 
   setDebug = hud.setDebug;
   status.system = 'scene ready ✅\nrender loop...';
   setDebug(formatDebug());
+
+  let hudTimer = 0;
 
   // requestAnimationFrame 루프
   let last = performance.now();
@@ -50,7 +48,14 @@ try {
     const delta = Math.min((now - last) / 1000, 0.05);
     last = now;
     renderSystem.update(delta);
+
+    hudTimer += delta;
+    if (hudTimer >= 0.1) {
+      hud.updateStats(renderSystem.getStats());
+      hudTimer = 0;
+    }
   }
+  hud.updateStats(renderSystem.getStats());
   requestAnimationFrame(animate);
 } catch (e) {
   console.error(e);
