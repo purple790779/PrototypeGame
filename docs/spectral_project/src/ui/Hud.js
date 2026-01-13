@@ -8,6 +8,7 @@ const buildFormationRow = (formation) => {
   row.innerHTML = `
     <div>
       <div class="formation-name">${formation.name}</div>
+      <div class="formation-meta">${formation.typeLabel} · ${formation.stanceLabel}</div>
       <div class="formation-meta">${formation.alive}/${formation.initial} 병력</div>
     </div>
     <div class="formation-status">${formation.status || 'READY'}</div>
@@ -30,6 +31,9 @@ export function initHud({ onToggleBattle } = {}) {
   const enemyHpCount = document.getElementById('enemy-hp-count');
   const allyHpStatus = document.getElementById('ally-hp-status');
   const enemyHpStatus = document.getElementById('enemy-hp-status');
+
+  const allyCommanderHp = document.getElementById('ally-commander-hp');
+  const enemyCommanderHp = document.getElementById('enemy-commander-hp');
 
   if (!allyList || !enemyList) {
     throw new Error('HUD 부대 리스트를 찾지 못했습니다.');
@@ -83,8 +87,14 @@ export function initHud({ onToggleBattle } = {}) {
     const percent = clampPercent(data.percent);
     elements.fill.style.width = `${percent}%`;
     elements.percent.textContent = `${percent}%`;
-    elements.count.textContent = `${label} ${data.alive}/${data.initial} (${percent}%)`;
-    elements.status.textContent = percent === 0 ? 'DOWN' : 'ENGAGED';
+    elements.count.textContent = `${label} ${data.aliveUnits}/${data.totalUnits}`;
+    elements.status.textContent = percent === 0 ? 'DOWN' : 'ACTIVE';
+  };
+
+  const updateCommanderPanel = (data, element) => {
+    if (!element || !data?.commander) return;
+    const percent = clampPercent(data.commander.percent);
+    element.textContent = `HP ${percent}%`;
   };
 
   const updateStats = (stats) => {
@@ -106,6 +116,9 @@ export function initHud({ onToggleBattle } = {}) {
       count: enemyHpCount,
       status: enemyHpStatus,
     }, '적군');
+
+    updateCommanderPanel(stats.ally, allyCommanderHp);
+    updateCommanderPanel(stats.enemy, enemyCommanderHp);
   };
 
   return { setDebug, setBattleButton, setBanner, updateStats };
