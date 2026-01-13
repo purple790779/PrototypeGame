@@ -58,7 +58,7 @@
       "slug": "battle_simul",
       "path": "./spectral_project/",
       "icon": "🧭",
-      "version": "v0.1.7",
+      "version": "v0.1.9",
       "status": "active",
       "summary": "전투 시뮬레이션.",
       "order": 40,
