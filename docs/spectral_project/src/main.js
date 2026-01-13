@@ -1,21 +1,47 @@
 import { SceneSetup } from './core/SceneSetup.js';
 import { RenderSystem } from './core/RenderSystem.js';
+import { initHud } from './ui/Hud.js';
 
 const debugEl = document.getElementById('debug');
-function setDebug(msg) {
+const fallbackSetDebug = (msg) => {
   if (debugEl) debugEl.textContent = msg;
-}
+};
 
 try {
   const container = document.getElementById('app');
   if (!container) throw new Error('#app 컨테이너를 찾지 못했습니다.');
 
-  setDebug('main.js loaded ✅\nscene init...');
+  const status = {
+    system: 'main.js loaded ✅\nscene init...',
+    selection: '',
+  };
+  const formatDebug = () => [status.system, status.selection].filter(Boolean).join('\n');
+  let setDebug = fallbackSetDebug;
+
+  setDebug(formatDebug());
 
   const sceneSetup = new SceneSetup(container);
   const renderSystem = new RenderSystem(sceneSetup.scene, sceneSetup.camera, sceneSetup.renderer);
 
-  setDebug('scene ready ✅\nrender loop...');
+  const hud = initHud({
+    onToggleBattle: () => {
+      if (renderSystem.running) {
+        renderSystem.pauseBattle();
+        hud.setBattleButton(false);
+      } else {
+        renderSystem.startBattle();
+        hud.setBattleButton(true);
+      }
+    },
+    onSelectBox: ({ side, label, selected }) => {
+      status.selection = `선택된 박스: ${side} / ${label} (${selected ? '선택' : '해제'})`;
+      hud.setDebug(formatDebug());
+    },
+  });
+
+  setDebug = hud.setDebug;
+  status.system = 'scene ready ✅\nrender loop...';
+  setDebug(formatDebug());
 
   // requestAnimationFrame 루프
   let last = performance.now();
@@ -26,20 +52,7 @@ try {
     renderSystem.update(delta);
   }
   requestAnimationFrame(animate);
-
-  const startBtn = document.getElementById('start-btn');
-  if (!startBtn) throw new Error('#start-btn을 찾지 못했습니다.');
-
-  startBtn.addEventListener('click', () => {
-    if (renderSystem.running) {
-      renderSystem.pauseBattle();
-      startBtn.textContent = '전투 시작 (Battle Start)';
-    } else {
-      renderSystem.startBattle();
-      startBtn.textContent = '일시정지 (Pause)';
-    }
-  });
 } catch (e) {
   console.error(e);
-  setDebug(`ERROR ❌\n${e?.message || e}`);
+  fallbackSetDebug(`ERROR ❌\n${e?.message || e}`);
 }

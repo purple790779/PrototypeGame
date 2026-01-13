@@ -8,7 +8,7 @@
   <style>
     html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; touch-action:none; }
     #app { position: fixed; inset: 0; }
-    #ui-layer { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 
     .btn{
       pointer-events:auto;
@@ -22,16 +22,24 @@
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
     }
-    #start-btn { position:absolute; bottom:20px; right:20px; }
+    #start-btn {
+      position:absolute;
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      right: calc(20px + env(safe-area-inset-right));
+    }
 
     #debug {
-      position:absolute; left:12px; bottom:12px;
+      position:absolute;
+      left: calc(12px + env(safe-area-inset-left));
+      bottom: calc(12px + env(safe-area-inset-bottom));
       color:#fff; font:12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       opacity:.95; pointer-events:none; white-space:pre-wrap;
       max-width: 92vw;
     }
     #banner {
-      position:absolute; left:12px; top:12px;
+      position:absolute;
+      left: calc(12px + env(safe-area-inset-left));
+      top: calc(12px + env(safe-area-inset-top));
       background: rgba(255,70,70,.12);
       border: 1px solid rgba(255,70,70,.35);
       color: rgba(255,230,230,.95);
@@ -43,13 +51,89 @@
       white-space:pre-wrap;
       font: 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
+
+    .side-panel {
+      position:absolute;
+      top: calc(16px + env(safe-area-inset-top));
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      width: clamp(110px, 18vw, 200px);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap: clamp(8px, 1.6vh, 16px);
+    }
+    #left-panel { left: calc(14px + env(safe-area-inset-left)); }
+    #right-panel { right: calc(14px + env(safe-area-inset-right)); }
+
+    .panel-title {
+      color: rgba(255,255,255,.92);
+      font: 15px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      letter-spacing: 0.08em;
+      text-shadow: 0 2px 6px rgba(0,0,0,.4);
+      text-transform: uppercase;
+    }
+    .panel-stack {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: clamp(10px, 2vh, 18px);
+    }
+    .hud-card {
+      pointer-events: auto;
+      width: clamp(80px, 14vw, 150px);
+      aspect-ratio: 1 / 1;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.55);
+      background: rgba(12,12,18,.45);
+      color: #f5f7ff;
+      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    }
+    .hud-card:hover {
+      border-color: rgba(255,255,255,.9);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0,0,0,.35);
+    }
+    .hud-card.is-selected {
+      border-color: #7ee8ff;
+      box-shadow: 0 0 0 2px rgba(126,232,255,.5), 0 10px 30px rgba(0,0,0,.4);
+    }
+    #center-label {
+      position:absolute;
+      top: calc(12px + env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,.95);
+      font: 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      letter-spacing: 0.2em;
+      text-shadow: 0 4px 12px rgba(0,0,0,.5);
+    }
   </style>
 </head>
 
 <body>
   <div id="app"></div>
 
-  <div id="ui-layer">
+  <div id="hud">
+    <div id="left-panel" class="side-panel">
+      <div class="panel-title">지휘관</div>
+      <div id="left-stack" class="panel-stack"></div>
+    </div>
+    <div id="right-panel" class="side-panel">
+      <div class="panel-title">적지휘관</div>
+      <div id="right-stack" class="panel-stack"></div>
+    </div>
+    <div id="center-label">전장</div>
     <button id="start-btn" class="btn">전투 시작 (Battle Start)</button>
     <div id="banner"></div>
     <div id="debug">loading...</div>
