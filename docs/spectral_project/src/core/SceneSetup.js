@@ -10,12 +10,13 @@ export class SceneSetup {
 
     // ===== Camera (아이소메트릭 느낌: Orthographic) =====
     const { w, h } = this.#getSize();
-    this.viewSize = 120; // 화면 줌/시야 크기(값이 커질수록 더 넓게 보임)
+    this.viewSize = 150; // 화면 줌/시야 크기(값이 커질수록 더 넓게 보임)
     this.camera = this.#createOrthoCamera(w, h);
 
     // 아이소메트릭 각도(대각 + 위에서)
-    this.camera.position.set(140, 140, 140);
+    this.camera.position.set(0, 180, 180);
     this.camera.lookAt(0, 0, 0);
+    this.camera.up.set(0, 1, 0);
 
     // ===== Renderer =====
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -66,9 +67,9 @@ export class SceneSetup {
   }
 
   #addParallelogramBattlefield() {
-    const W = 260;    // 전장 가로(월드)
-    const H = 200;    // 전장 세로(월드)
-    const SKEW = 90;  // 윗변을 옆으로 민 정도(평행사변형 기울기)
+    const W = 320;    // 전장 가로(월드)
+    const H = 160;    // 전장 세로(월드)
+    const SKEW = 80;  // 윗변을 옆으로 민 정도(평행사변형 기울기)
 
     const shape = new THREE.Shape();
     shape.moveTo(-W / 2, -H / 2);
