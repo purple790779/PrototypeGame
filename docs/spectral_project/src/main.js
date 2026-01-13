@@ -25,13 +25,21 @@ try {
 
   const hud = initHud({
     onToggleBattle: () => {
+      if (renderSystem.isBattleOver()) {
+        renderSystem.resetBattle();
+        renderSystem.startBattle();
+        hud.setBattleButton('running');
+        hud.setBanner('');
+        return;
+      }
       if (renderSystem.running) {
         renderSystem.pauseBattle();
-        hud.setBattleButton(false);
-      } else {
-        renderSystem.startBattle();
-        hud.setBattleButton(true);
+        hud.setBattleButton('paused');
+        return;
       }
+      renderSystem.startBattle();
+      hud.setBattleButton('running');
+      hud.setBanner('');
     },
   });
 
@@ -40,6 +48,8 @@ try {
   setDebug(formatDebug());
 
   let hudTimer = 0;
+  let lastBattleStatus = renderSystem.getBattleState().status;
+  hud.setBattleButton('idle');
 
   // requestAnimationFrame 루프
   let last = performance.now();
@@ -48,6 +58,24 @@ try {
     const delta = Math.min((now - last) / 1000, 0.05);
     last = now;
     renderSystem.update(delta);
+
+    const battleState = renderSystem.getBattleState();
+    if (battleState.status !== lastBattleStatus) {
+      if (battleState.status === 'ended') {
+        const message = battleState.winner === 'ally'
+          ? '아군 승리! 전투 종료'
+          : battleState.winner === 'enemy'
+            ? '적군 승리! 전투 종료'
+            : '무승부! 전투 종료';
+        hud.setBanner(message);
+        hud.setBattleButton('ended');
+      } else if (battleState.status === 'running') {
+        hud.setBattleButton('running');
+      } else {
+        hud.setBattleButton('idle');
+      }
+      lastBattleStatus = battleState.status;
+    }
 
     hudTimer += delta;
     if (hudTimer >= 0.1) {

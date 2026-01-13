@@ -20,6 +20,7 @@ export function initHud({ onToggleBattle } = {}) {
   const enemyList = document.getElementById('enemy-formations');
   const startBtn = document.getElementById('start-btn');
   const debugEl = document.getElementById('debug');
+  const bannerEl = document.getElementById('banner');
 
   const allyHpFill = document.getElementById('ally-hp-fill');
   const enemyHpFill = document.getElementById('enemy-hp-fill');
@@ -48,8 +49,27 @@ export function initHud({ onToggleBattle } = {}) {
     if (debugEl) debugEl.textContent = text;
   };
 
-  const setBattleButton = (isRunning) => {
-    startBtn.textContent = isRunning ? '일시정지 (Pause)' : '전투 시작 (Battle Start)';
+  const setBanner = (text) => {
+    if (!bannerEl) return;
+    if (!text) {
+      bannerEl.style.display = 'none';
+      bannerEl.textContent = '';
+      return;
+    }
+    bannerEl.style.display = 'block';
+    bannerEl.textContent = text;
+  };
+
+  const setBattleButton = (state) => {
+    if (state === 'running') {
+      startBtn.textContent = '일시정지 (Pause)';
+      return;
+    }
+    if (state === 'ended') {
+      startBtn.textContent = '전투 재시작 (Restart)';
+      return;
+    }
+    startBtn.textContent = '전투 시작 (Battle Start)';
   };
 
   const updateFormationList = (container, formations) => {
@@ -59,11 +79,11 @@ export function initHud({ onToggleBattle } = {}) {
     });
   };
 
-  const updateHpPanel = (data, elements) => {
+  const updateHpPanel = (data, elements, label) => {
     const percent = clampPercent(data.percent);
     elements.fill.style.width = `${percent}%`;
     elements.percent.textContent = `${percent}%`;
-    elements.count.textContent = `${data.alive}/${data.initial}`;
+    elements.count.textContent = `${label} ${data.alive}/${data.initial} (${percent}%)`;
     elements.status.textContent = percent === 0 ? 'DOWN' : 'ENGAGED';
   };
 
@@ -78,15 +98,15 @@ export function initHud({ onToggleBattle } = {}) {
       percent: allyHpPercent,
       count: allyHpCount,
       status: allyHpStatus,
-    });
+    }, '아군');
 
     updateHpPanel(stats.enemy, {
       fill: enemyHpFill,
       percent: enemyHpPercent,
       count: enemyHpCount,
       status: enemyHpStatus,
-    });
+    }, '적군');
   };
 
-  return { setDebug, setBattleButton, updateStats };
+  return { setDebug, setBattleButton, setBanner, updateStats };
 }
