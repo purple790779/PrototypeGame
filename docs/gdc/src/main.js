@@ -1,9 +1,10 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
-import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades } from './storage.js';
+import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades, getSettings, setSettings } from './storage.js';
 import { $ } from './dom.js';
 import { createUiLocker } from './modals.js';
 import { createDevTools } from './devTools.js';
 import { createMetaUpgradesUi } from './metaUpgradesUi.js';
+import { createFx } from './fx.js';
 
 document.addEventListener('DOMContentLoaded', () => {
         const canvas = $('gameCanvas');
@@ -29,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let orientationOverlayDismissed = false;
         let savedData = { clearData: { 'NORMAL': [1], 'HARD': [] }, resources: { fragments: 0, cores: 0 } };
         let tempResources = { fragments: 0, cores: 0 };
+        const settings = getSettings();
+        const fx = createFx();
 
         let player = null;
         let enemies = [];
@@ -129,6 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             setupOverlayActions();
+            bindSettingsUi();
+            syncSettingsUi();
             updateLobbyUI();
             requestAnimationFrame(loop);
         }
@@ -168,6 +173,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const indicator = document.getElementById('test-mode-indicator');
             if (indicator) {
                 indicator.classList.toggle('hidden', !enabled);
+            }
+        }
+
+        function syncSettingsUi() {
+            const shakeToggle = document.getElementById('opt-shake');
+            const dmgToggle = document.getElementById('opt-dmgtext');
+            if (shakeToggle) shakeToggle.checked = !!settings.shake;
+            if (dmgToggle) dmgToggle.checked = !!settings.dmgText;
+        }
+
+        function bindSettingsUi() {
+            const shakeToggle = document.getElementById('opt-shake');
+            const dmgToggle = document.getElementById('opt-dmgtext');
+            if (shakeToggle) {
+                shakeToggle.addEventListener('change', (event) => {
+                    settings.shake = event.target.checked;
+                    setSettings(settings);
+                });
+            }
+            if (dmgToggle) {
+                dmgToggle.addEventListener('change', (event) => {
+                    settings.dmgText = event.target.checked;
+                    setSettings(settings);
+                });
             }
         }
 
@@ -244,6 +273,42 @@ document.addEventListener('DOMContentLoaded', () => {
             updateIngameResources();
         }
 
+        function registerEnemyHit(enemy, damage, options = {}) {
+            if (!enemy) return;
+            const hitTime = options.hitTime ?? 0.1;
+            enemy.hitTimer = Math.max(enemy.hitTimer || 0, hitTime);
+            if (settings.dmgText) {
+                const value = Math.max(1, Math.floor(damage));
+                fx.damageText.spawn(enemy.x, enemy.y - 6, value);
+            }
+            if (options.burst !== false) {
+                const burst = options.burst || {};
+                fx.particles.spawnBurst(
+                    enemy.x,
+                    enemy.y,
+                    burst.count ?? 5,
+                    burst.speed ?? 70,
+                    burst.life ?? 0.4,
+                    burst.sizeRange ?? [1, 2.4],
+                    burst.color ?? 'rgba(200,255,255,0.9)'
+                );
+            }
+        }
+
+        function registerEnemyDeath(enemy, options = {}) {
+            if (!enemy) return;
+            const burst = options.burst || {};
+            fx.particles.spawnBurst(
+                enemy.x,
+                enemy.y,
+                burst.count ?? 12,
+                burst.speed ?? 120,
+                burst.life ?? 0.6,
+                burst.sizeRange ?? [1.6, 3.4],
+                burst.color ?? 'rgba(200,255,255,0.95)'
+            );
+        }
+
         function updateOrientationOverlay() {
             const overlay = document.getElementById('rotate-overlay');
             if (!overlay) return;
@@ -301,6 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
             enemies = []; bullets = []; particles = []; drops = []; texts = []; 
             missiles = []; gravityOrbs = []; electroBarriers = [];
             tempResources = { fragments: 0, cores: 0 };
+            fx.reset();
         }
 
         function applyTestModeToPlayer(playerData) {
@@ -435,10 +501,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 백그라운드 복귀/렉 대비 dt 클램프
             dt = Math.min(dt, 0.05);
+            fx.update(dt);
 
             try {
                 ctx.fillStyle = '#050505';
                 ctx.fillRect(0, 0, width, height);
+                const shakeOffset = settings.shake ? fx.shake.getOffset() : { x: 0, y: 0 };
+                ctx.save();
+                ctx.translate(shakeOffset.x, shakeOffset.y);
                 drawGrid();
 
                 if (gameState === 'PLAYING') {
@@ -447,6 +517,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (['UPGRADE', 'CLEAR', 'PAUSED', 'GAMEOVER', 'READY'].includes(gameState)) {
                     drawGame();
                 }
+                ctx.restore();
+                fx.vignette.drawOverlay(ctx, width, height);
             } catch (e) {
                 console.error("Game Loop Error:", e);
                 gameState = 'PAUSED';
@@ -494,7 +566,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 enemies.forEach(e => {
                     const dist = pointToLineDistance(e.x, e.y, p1.x, p1.y, p2.x, p2.y);
                     if (dist < e.size + 10) {
-                        if (e.stunTimer <= 0) { e.hp -= 2; e.stunTimer = 1.0; createParticles(e.x, e.y, '#ffff00', 1); if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; } }
+                        if (e.stunTimer <= 0) {
+                            e.hp -= 2;
+                            e.stunTimer = 1.0;
+                            registerEnemyHit(e, 2, { hitTime: 0.08, burst: { count: 3, speed: 50, life: 0.3, sizeRange: [1, 2], color: 'rgba(210,255,255,0.9)' } });
+                            if (e.hp <= 0) { registerEnemyDeath(e); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; }
+                        }
                     }
                 });
                 if (b.life <= 0) electroBarriers.splice(i, 1);
@@ -510,8 +587,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         createExplosion(g.x, g.y, '#8800ff', 20);
                         enemies.forEach(e => {
                             if (Math.hypot(g.x - e.x, g.y - e.y) < g.pullRange) {
-                                e.hp -= 80; texts.push({ x: e.x, y: e.y - 15, text: "CRUSH!", life: 1.0, color: '#8800ff' });
-                                if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(50); e.dead = true; }
+                                e.hp -= 80;
+                                texts.push({ x: e.x, y: e.y - 15, text: "CRUSH!", life: 1.0, color: '#8800ff' });
+                                registerEnemyHit(e, 80, { hitTime: 0.12, burst: { count: 6, speed: 90, life: 0.45, sizeRange: [1.2, 2.6], color: 'rgba(200,240,255,0.9)' } });
+                                if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 16, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(50); e.dead = true; }
                             }
                         });
                         gravityOrbs.splice(i, 1); continue;
@@ -523,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (dist < g.pullRange) {
                             const angle = Math.atan2(g.y - e.y, g.x - e.x); e.x += Math.cos(angle) * g.pullForce * dt; e.y += Math.sin(angle) * g.pullForce * dt; e.hp -= g.dotDmg * dt;
                             if (Math.random() < 0.1) texts.push({ x: e.x, y: e.y - 10, text: "1", life: 0.3, color: '#aa55ff' });
-                            if (e.hp <= 0 && !e.dead) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; }
+                            if (e.hp <= 0 && !e.dead) { registerEnemyDeath(e); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; }
                         }
                     });
                 }
@@ -562,7 +641,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const e = enemies[i];
                 if (e.stunTimer > 0) { e.stunTimer -= dt; if (Math.random() < 0.2) createParticles(e.x, e.y, '#ffff00', 1); } 
                 else { if (e.hitTimer > 0) e.hitTimer -= dt; const angle = Math.atan2(player.y - e.y, player.x - e.x); e.x += Math.cos(angle) * e.speed * dt; e.y += Math.sin(angle) * e.speed * dt; }
-                if (player.visible && Math.hypot(player.x - e.x, player.y - e.y) < 15) { gameInfo.hp -= 10; createParticles(e.x, e.y, '#ff0000', 10); enemies.splice(i, 1); updateIngameUI(); if(gameInfo.hp <= 0) gameOver(); }
+                if (player.visible && Math.hypot(player.x - e.x, player.y - e.y) < 15) {
+                    gameInfo.hp -= 10;
+                    createParticles(e.x, e.y, '#ff0000', 10);
+                    if (settings.shake) fx.shake.start(8, 0.22);
+                    fx.vignette.trigger(1, 0.3);
+                    enemies.splice(i, 1);
+                    updateIngameUI();
+                    if(gameInfo.hp <= 0) gameOver();
+                }
             }
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i]; b.x += Math.cos(b.rot) * b.speed * dt; b.y += Math.sin(b.rot) * b.speed * dt;
@@ -570,9 +657,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let j = enemies.length - 1; j >= 0; j--) {
                     const e = enemies[j];
                     if (Math.hypot(b.x - e.x, b.y - e.y) < (e.size + b.size)) {
-                        e.hp -= player.atk; e.hitTimer = 0.1; texts.push({ x: e.x, y: e.y - 10, text: Math.floor(player.atk), life: 0.5, color: '#fff' });
-                        createParticles(e.x, e.y, e.color, 2); bullets.splice(i, 1);
-                        if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(20); e.dead = true; }
+                        e.hp -= player.atk;
+                        registerEnemyHit(e, player.atk, { hitTime: 0.1, burst: { count: 5, speed: 80, life: 0.4, sizeRange: [1, 2.2] } });
+                        bullets.splice(i, 1);
+                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(20); e.dead = true; }
                         break;
                     }
                 }
@@ -584,8 +672,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 m.x += Math.cos(m.rot) * m.speed * dt; m.y += Math.sin(m.rot) * m.speed * dt; m.life -= dt; m.trailTimer -= dt;
                 if (m.trailTimer <= 0) { particles.push({x: m.x, y: m.y, vx: 0, vy: 0, life: 0.5, color: '#ffaa00', size: 2}); m.trailTimer = 0.05; }
                 if (m.target && Math.hypot(m.x - m.target.x, m.y - m.target.y) < (m.target.size + 5)) {
-                    m.target.hp -= player.missileDmg; m.target.hitTimer = 0.2; texts.push({ x: m.target.x, y: m.target.y - 15, text: "BOOM!", life: 0.8, color: '#ffaa00' }); createExplosion(m.x, m.y, '#ffaa00', 5);
-                    if (m.target.hp <= 0) { createExplosion(m.target.x, m.target.y, m.target.color); spawnDrop(m.target.x, m.target.y, m.target.rank); gainExp(40); m.target.dead = true; }
+                    m.target.hp -= player.missileDmg;
+                    registerEnemyHit(m.target, player.missileDmg, { hitTime: 0.16, burst: { count: 6, speed: 90, life: 0.45, sizeRange: [1.2, 2.6] } });
+                    texts.push({ x: m.target.x, y: m.target.y - 15, text: "BOOM!", life: 0.8, color: '#ffaa00' });
+                    createExplosion(m.x, m.y, '#ffaa00', 5);
+                    if (m.target.hp <= 0) { registerEnemyDeath(m.target, { burst: { count: 16, speed: 150, life: 0.7 } }); createExplosion(m.target.x, m.target.y, m.target.color); spawnDrop(m.target.x, m.target.y, m.target.rank); gainExp(40); m.target.dead = true; }
                     missiles.splice(i, 1); continue;
                 }
                 if (m.life <= 1) missiles.splice(i, 1);
@@ -714,9 +805,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             ctx.globalAlpha = 1;
 
+            fx.particles.draw(ctx);
+
             if (player.visible) {
                 ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.rotation); ctx.shadowBlur = 15; ctx.shadowColor = color; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(20, 0); ctx.stroke(); ctx.fillStyle = '#333'; ctx.fillRect(0, -18, 10, 6); ctx.fillRect(0, 12, 10, 6); ctx.fillStyle = '#ffaa00'; if (player.missileTimer >= player.missileInterval) { ctx.fillRect(2, -16, 6, 2); ctx.fillRect(2, 14, 6, 2); } if (player.activeWeapons.gravity && player.gravityTimer >= player.gravityInterval) { ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fillStyle = '#8800ff'; ctx.fill(); } ctx.restore(); ctx.shadowBlur = 0;
             }
+
+            fx.damageText.draw(ctx);
         }
         
         // --- Helper & Management ---
@@ -785,6 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
             devTools?.closeTestConfig?.();
             saveGameData(); 
             updateLobbyUI();
+            syncSettingsUi();
         }
 
         function setupOverlayActions() {
@@ -910,9 +1006,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 enemies.forEach(e => {
                     const dist = pointToLineDistance(e.x, e.y, lx, ly, ex, ey);
                     if (dist < e.size + 5) {
-                        e.hp -= player.laserDmg; e.hitTimer = 0.2; texts.push({ x: e.x, y: e.y - 15, text: "LASER!", life: 0.8, color: '#ff00ff' });
+                        e.hp -= player.laserDmg;
+                        registerEnemyHit(e, player.laserDmg, { hitTime: 0.12, burst: { count: 4, speed: 80, life: 0.4, sizeRange: [1, 2.2], color: 'rgba(230,210,255,0.9)' } });
+                        texts.push({ x: e.x, y: e.y - 15, text: "LASER!", life: 0.8, color: '#ff00ff' });
                         createParticles(e.x, e.y, '#ff00ff', 3);
-                        if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(25); e.dead = true; }
+                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(25); e.dead = true; }
                     }
                 });
                 for(let i=enemies.length-1; i>=0; i--) { if(enemies[i].dead) enemies.splice(i, 1); }
@@ -930,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function updateDroplet(dt) { 
             const d = player.droplet;
             if (d.state === 'ORBIT') { d.orbitAngle += dt; d.x = player.x + Math.cos(d.orbitAngle) * 35; d.y = player.y + Math.sin(d.orbitAngle) * 35; if (d.cooldown > 0) d.cooldown -= dt; else { let closest = null; let minDist = 300; enemies.forEach(e => { const dist = Math.hypot(e.x - player.x, e.y - player.y); if (dist < minDist) { minDist = dist; closest = e; } }); if (closest) { d.target = closest; d.state = 'ATTACK'; d.chainCount = 1; d.hitList = []; const angle = Math.atan2(closest.y - d.y, closest.x - d.x); d.velocity.x = Math.cos(angle) * d.speed; d.velocity.y = Math.sin(angle) * d.speed; } } } 
-            else if (d.state === 'ATTACK') { d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; particles.push({x: d.x, y: d.y, vx: 0, vy: 0, life: 0.3, color: '#00ffff', size: 3}); enemies.forEach(e => { if (!d.hitList.includes(e) && Math.hypot(d.x - e.x, d.y - e.y) < 15) { d.hitList.push(e); const dmg = (e === d.target) ? d.dmg : (d.dmg * 0.5); e.hp -= dmg; e.hitTimer = 0.2; texts.push({ x: e.x, y: e.y - 15, text: "PIERCE", life: 0.5, color: '#00ffff' }); createExplosion(e.x, e.y, '#00ffff', 3); if (e.hp <= 0) { createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(30); e.dead = true; } if (e === d.target) { d.state = 'OVERSHOOT'; d.waitTimer = 0.15; } } }); } 
+            else if (d.state === 'ATTACK') { d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; particles.push({x: d.x, y: d.y, vx: 0, vy: 0, life: 0.3, color: '#00ffff', size: 3}); enemies.forEach(e => { if (!d.hitList.includes(e) && Math.hypot(d.x - e.x, d.y - e.y) < 15) { d.hitList.push(e); const dmg = (e === d.target) ? d.dmg : (d.dmg * 0.5); e.hp -= dmg; registerEnemyHit(e, dmg, { hitTime: 0.12, burst: { count: 4, speed: 80, life: 0.4, sizeRange: [1, 2.2], color: 'rgba(200,255,255,0.9)' } }); texts.push({ x: e.x, y: e.y - 15, text: "PIERCE", life: 0.5, color: '#00ffff' }); createExplosion(e.x, e.y, '#00ffff', 3); if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(30); e.dead = true; } if (e === d.target) { d.state = 'OVERSHOOT'; d.waitTimer = 0.15; } } }); } 
             else if (d.state === 'OVERSHOOT') { d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; d.waitTimer -= dt; if (d.waitTimer <= 0) { d.state = 'STOPPED'; d.waitTimer = 0; } } 
             else if (d.state === 'STOPPED') { let nextTarget = null; let minDist = 200; enemies.forEach(e => { if (e.dead) return; const dist = Math.hypot(d.x - e.x, d.y - e.y); if (dist > 200) { if (!nextTarget || dist < Math.hypot(d.x - nextTarget.x, d.y - nextTarget.y)) { nextTarget = e; } } }); if (nextTarget && d.chainCount < d.maxChains) { d.target = nextTarget; d.state = 'AIMING'; d.waitTimer = 0; } else { d.state = 'RETURNING'; } } 
             else if (d.state === 'AIMING') { d.waitTimer += dt; d.rot = Math.atan2(d.target.y - d.y, d.target.x - d.x); if (d.waitTimer >= d.aimDuration) { d.state = 'ATTACK'; d.chainCount++; d.hitList = []; d.velocity.x = Math.cos(d.rot) * d.speed; d.velocity.y = Math.sin(d.rot) * d.speed; } } 
