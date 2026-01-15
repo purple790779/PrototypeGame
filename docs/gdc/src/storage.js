@@ -4,6 +4,7 @@ export const keys = {
   save: `${STORAGE_PREFIX}:save`,
   meta: `${STORAGE_PREFIX}:meta`,
   metaUpgrades: `${STORAGE_PREFIX}:metaUpgrades`,
+  settings: `${STORAGE_PREFIX}:settings`,
 };
 
 const legacySaveKeys = [
@@ -87,4 +88,25 @@ export const getMetaUpgrades = () => {
 
 export const setMetaUpgrades = (payload) => {
   return writeStorage(keys.metaUpgrades, JSON.stringify(payload));
+};
+
+const defaultSettings = {
+  shake: true,
+  dmgText: true,
+};
+
+export const getSettings = () => {
+  const raw = readStorage(keys.settings);
+  if (!raw) {
+    return { ...defaultSettings };
+  }
+  try {
+    return { ...defaultSettings, ...JSON.parse(raw) };
+  } catch (error) {
+    return { ...defaultSettings };
+  }
+};
+
+export const setSettings = (payload) => {
+  return writeStorage(keys.settings, JSON.stringify({ ...defaultSettings, ...payload }));
 };
