@@ -15,6 +15,16 @@
 ### Removed
 -
 
+## v37.3.0 - 2026-01-15
+### Added
+-
+### Changed
+- Refactor: split UI/dev/meta modules
+### Fixed
+-
+### Removed
+-
+
 ## v37.2.2 - 2026-01-15
 ### Added
 - 버전 기반 main.js 부트스트랩 로더로 캐시 영향 완화
