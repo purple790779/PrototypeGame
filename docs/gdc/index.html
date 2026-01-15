@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>지오메트리 캐논 - v37.2.1</title>
+    <title>지오메트리 캐논 - v37.2.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -44,6 +44,10 @@
         canvas { display: block; width: 100%; height: 100%; }
         .ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
         .interactive { pointer-events: auto; }
+        #game-container.ui-locked #lobby-ui .interactive,
+        #game-container.ui-locked #ingame-ui .pointer-events-auto {
+            pointer-events: none !important;
+        }
         #hub-link { position: static; }
         .glow-text { text-shadow: 0 0 10px rgba(0, 255, 255, 0.6); }
         .btn-main { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%); color: black; font-weight: 800; }
@@ -85,9 +89,9 @@
         body.modal-open { overflow: hidden; }
         #dev-panel-overlay,
         #test-config-overlay {
-            position: fixed;
+            position: absolute;
             inset: 0;
-            z-index: 9999;
+            z-index: 1000;
             display: flex;
             align-items: flex-end;
             justify-content: center;
@@ -141,9 +145,9 @@
             transform:scale(.98); filter:brightness(1.08);
         }
         #btn-upgr { pointer-events: auto; }
-        .meta-upgrade-overlay { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; }
+        .meta-upgrade-overlay { position: absolute; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 18px; pointer-events: auto; }
         .meta-upgrade-overlay.hidden { display: none; }
-        .meta-upgrade-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7); }
+        .meta-upgrade-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7); pointer-events: auto; }
         .meta-upgrade-sheet { position: relative; width: min(96%, 480px); max-height: 85dvh; border-radius: 20px; border: 1px solid var(--border); background: rgba(6, 6, 6, 0.95); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
         .meta-upgrade-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
         .meta-upgrade-title { font-size: 14px; font-weight: 800; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(103, 232, 249, 0.9); }
@@ -179,7 +183,7 @@
                 <div class="title-block">
                     <h1 class="italic glow-text">GEOMETRY<br>CANNON</h1>
                     <button id="version-toggle" class="version-toggle tap-target" type="button" aria-label="버전 5회 탭 시 DEV 패널">
-                    <span id="version-text">v37.2.1</span>
+                    <span id="version-text">v37.2.2</span>
                     </button>
                 </div>
                 <div class="resource-stack">
@@ -221,7 +225,7 @@
 
             <div class="bottom-bar interactive mt-auto">
                 <button class="btn-sub nav-btn tap-target" aria-label="설정">⚙️</button>
-                <button id="btn-upgr" class="btn-sub nav-btn tap-target" aria-label="업그레이드">
+                <button id="btn-upgr" class="btn-sub nav-btn tap-target" aria-label="업그레이드" onclick="openMetaUpgradeModal()">
                     <span class="nav-label">UPGR</span>
                     ⚔️
                 </button>
@@ -393,7 +397,13 @@
             }
         });
     </script>
-    <script type="module" src="./src/main.js"></script>
+    <script type="module">
+        import { VERSION } from './src/version.js';
+        const s = document.createElement('script');
+        s.type = 'module';
+        s.src = `./src/main.js?v=${encodeURIComponent(VERSION)}`;
+        document.currentScript.after(s);
+    </script>
 </body>
 
 </html>

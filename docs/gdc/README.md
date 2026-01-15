@@ -12,7 +12,9 @@
 - 스테이지 선택과 업그레이드는 화면 UI 버튼을 사용합니다.
 
 ## 저장
-- localStorage key: `GEO_DEFENSE_V37_1`
+- primary: `gdc:save`
+- meta upgrades: `gdc:metaUpgrades`
+- legacy migration: `GEO_DEFENSE_V37_1` (있으면 자동 이전)
 
 ## 개발 규칙
 - 모바일 세로 기준

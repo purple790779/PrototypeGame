@@ -15,6 +15,16 @@
 ### Removed
 -
 
+## v37.2.2 - 2026-01-15
+### Added
+- 버전 기반 main.js 부트스트랩 로더로 캐시 영향 완화
+### Changed
+- DEV/TEST 패널 오버레이를 game-container 기준 absolute로 고정해 모바일 클릭 관통 대응
+- DEV 패널 활성화 조건을 URL/로컬스토리지 플래그 기반으로 개선
+### Fixed
+- DEV/TEST/UPGR 모달이 열려 있는 동안 로비/인게임 클릭이 통과되지 않도록 UI 락 추가
+- UPGR 모달 호출 안정화를 위해 글로벌 핸들러/경고 로그 추가
+
 ## v37.2.1 - 2026-01-07
 ### Fixed
 - DEV 패널 오픈 시 하단 UI(UPGR 등) 클릭이 관통되던 문제(pointer-events/backdrop)
@@ -63,15 +73,5 @@
 - localStorage 키를 gdc prefix로 통일하고 기존 저장 데이터를 자동 마이그레이션.
 ### Fixed
 - 모바일 세로 뷰포트/세이프 에어리어 및 캔버스 리사이즈 안정화.
-### Removed
--
-
-## v37.2 - 2026-01-07
-### Added
--
-### Changed
--
-### Fixed
--
 ### Removed
 -
