@@ -1,7 +1,9 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
 import { getMetaUpgrades, loadSavedData, saveMeta, saveSavedData, setMetaUpgrades } from './storage.js';
 
-const DEV_TOOLS_ENABLED = true;
+const DEV_FLAG_KEY = `${STORAGE_PREFIX}:dev`;
+const params = new URLSearchParams(location.search);
+const DEV_TOOLS_ENABLED = params.get('dev') === '1' || localStorage.getItem(DEV_FLAG_KEY) === '1';
 
 document.addEventListener('DOMContentLoaded', () => {
         const canvas = document.getElementById('gameCanvas');
@@ -40,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 60 };
         let devTapCount = 0;
         let devTapTimer = null;
+        let modalDepth = 0;
         let metaUpgrades = getMetaUpgrades();
 
         const STAGE_COUNT = 50;
@@ -143,6 +146,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        function setUiLocked(locked) {
+            const gc = document.getElementById('game-container');
+            if (gc) {
+                gc.classList.toggle('ui-locked', locked);
+            }
+            document.body.classList.toggle('modal-open', locked);
+        }
+
+        function pushModalLock() {
+            modalDepth += 1;
+            setUiLocked(modalDepth > 0);
+        }
+
+        function popModalLock() {
+            modalDepth = Math.max(0, modalDepth - 1);
+            setUiLocked(modalDepth > 0);
+        }
+
         function populateTestWeaponSelect() {
             if (!testWeaponSelect) return;
             const keys = getSpecialWeaponKeys();
@@ -164,24 +185,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function openDevPanel() {
             if (!DEV_TOOLS_ENABLED || !devPanel) return;
+            if (!devPanel.classList.contains('hidden')) return;
             devPanel.classList.remove('hidden');
             versionToggle?.setAttribute('aria-expanded', 'true');
-            document.body.classList.add('modal-open');
+            pushModalLock();
         }
 
         function closeDevPanel() {
             if (!devPanel) return;
+            if (devPanel.classList.contains('hidden')) return;
             devPanel.classList.add('hidden');
             versionToggle?.setAttribute('aria-expanded', 'false');
-            document.body.classList.remove('modal-open');
+            popModalLock();
         }
 
         function setupDevPanelToggle() {
-            if (!versionToggle || !devPanel) return;
-            if (!DEV_TOOLS_ENABLED) {
+            if (!versionToggle) return;
+            if (!DEV_TOOLS_ENABLED && devPanel) {
                 devPanel.classList.add('hidden');
                 versionToggle.setAttribute('aria-expanded', 'false');
-                return;
             }
 
             const resetDevTap = () => {
@@ -202,9 +224,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 devTapCount += 1;
                 if (devTapCount >= 5) {
-                    if (devPanel.classList.contains('hidden')) {
+                    if (!DEV_TOOLS_ENABLED) {
+                        localStorage.setItem(DEV_FLAG_KEY, '1');
+                        alert('DEV MODE enabled. Reloading...');
+                        location.reload();
+                        return;
+                    }
+                    if (devPanel?.classList.contains('hidden')) {
                         openDevPanel();
-                    } else {
+                    } else if (devPanel) {
                         closeDevPanel();
                     }
                     resetDevTap();
@@ -382,7 +410,8 @@ document.addEventListener('DOMContentLoaded', () => {
             gameState = 'READY';
             closeDevPanel();
             closeTestConfig();
-            ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'meta-upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            closeMetaUpgradeModal();
+            ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById('ingame-ui').classList.remove('hidden');
             
             resetGameData();
@@ -811,6 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function nextStage() { currentStage++; if(currentStage > STAGE_COUNT) currentStage = 1; prepareGame(isTestStage); }
         function openTestConfig() {
             if (!testConfigOverlay) return;
+            if (!testConfigOverlay.classList.contains('hidden')) return;
             const optionCount = populateTestWeaponSelect();
             if (!optionCount) {
                 alert('특수 무기 목록을 찾을 수 없습니다.');
@@ -818,13 +848,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             closeDevPanel();
             testConfigOverlay.classList.remove('hidden');
-            document.body.classList.add('modal-open');
+            pushModalLock();
         }
 
         function closeTestConfig() {
             if (!testConfigOverlay) return;
+            if (testConfigOverlay.classList.contains('hidden')) return;
             testConfigOverlay.classList.add('hidden');
-            document.body.classList.remove('modal-open');
+            popModalLock();
         }
 
         function applyTestConfig() {
@@ -844,7 +875,8 @@ document.addEventListener('DOMContentLoaded', () => {
             gameState = 'LOBBY';
             document.getElementById('ingame-ui').classList.add('hidden');
             document.getElementById('lobby-ui').classList.remove('hidden');
-            ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay', 'meta-upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            closeMetaUpgradeModal();
+            ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
             closeDevPanel();
             closeTestConfig();
             saveGameData(); 
@@ -867,9 +899,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (devGodButton) {
                 devGodButton.addEventListener('click', activateGodMode);
+            } else {
+                console.warn('[DEV] GOD MODE 버튼을 찾을 수 없습니다.');
             }
             if (devTestButton) {
                 devTestButton.addEventListener('click', openTestConfig);
+            } else {
+                console.warn('[DEV] TEST STAGE 버튼을 찾을 수 없습니다.');
             }
             if (devSheet) {
                 devSheet.addEventListener('click', (event) => {
@@ -878,6 +914,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (upgrButton) {
                 upgrButton.addEventListener('click', openMetaUpgradeModal);
+            } else {
+                console.warn('[UPGR] 버튼을 찾을 수 없습니다.');
             }
             if (metaBackdrop) {
                 metaBackdrop.addEventListener('click', closeMetaUpgradeModal);
@@ -899,15 +937,19 @@ document.addEventListener('DOMContentLoaded', () => {
         function openMetaUpgradeModal() {
             const overlay = document.getElementById('meta-upgrade-overlay');
             if (!overlay) return;
+            if (!overlay.classList.contains('hidden')) return;
             metaUpgrades = getMetaUpgrades();
             overlay.classList.remove('hidden');
             renderMetaUpgradeList();
+            pushModalLock();
         }
 
         function closeMetaUpgradeModal() {
             const overlay = document.getElementById('meta-upgrade-overlay');
             if (!overlay) return;
+            if (overlay.classList.contains('hidden')) return;
             overlay.classList.add('hidden');
+            popModalLock();
         }
 
         function renderMetaUpgradeList() {
@@ -1104,6 +1146,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.activateGodMode = activateGodMode;
         window.openTestConfig = openTestConfig;
+        window.openMetaUpgradeModal = openMetaUpgradeModal;
         window.setDifficulty = setDifficulty;
         window.changeStage = changeStage;
         window.prepareGame = prepareGame;
