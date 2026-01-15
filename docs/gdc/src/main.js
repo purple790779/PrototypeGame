@@ -1,23 +1,23 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
-import { getMetaUpgrades, loadSavedData, saveMeta, saveSavedData, setMetaUpgrades } from './storage.js';
-
-const DEV_FLAG_KEY = `${STORAGE_PREFIX}:dev`;
-const params = new URLSearchParams(location.search);
-const DEV_TOOLS_ENABLED = params.get('dev') === '1' || localStorage.getItem(DEV_FLAG_KEY) === '1';
+import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades } from './storage.js';
+import { $ } from './dom.js';
+import { createUiLocker } from './modals.js';
+import { createDevTools } from './devTools.js';
+import { createMetaUpgradesUi } from './metaUpgradesUi.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-        const canvas = document.getElementById('gameCanvas');
-        const container = document.getElementById('game-container');
+        const canvas = $('gameCanvas');
+        const container = $('game-container');
         const ctx = canvas.getContext('2d');
-        const versionToggle = document.getElementById('version-toggle');
-        const devPanel = document.getElementById('dev-panel-overlay');
-        const devBackdrop = document.getElementById('dev-panel-backdrop');
+        const versionToggle = $('version-toggle');
+        const devPanel = $('dev-panel-overlay');
+        const devBackdrop = $('dev-panel-backdrop');
         const devSheet = devPanel?.querySelector('.dev-sheet');
-        const testConfigOverlay = document.getElementById('test-config-overlay');
-        const testConfigBackdrop = document.getElementById('test-config-backdrop');
-        const testConfigClose = document.getElementById('test-config-close');
-        const testWeaponSelect = document.getElementById('test-weapon-select');
-        const testApplyButton = document.getElementById('test-apply-btn');
+        const testConfigOverlay = $('test-config-overlay');
+        const testConfigBackdrop = $('test-config-backdrop');
+        const testConfigClose = $('test-config-close');
+        const testWeaponSelect = $('test-weapon-select');
+        const testApplyButton = $('test-apply-btn');
 
         let gameState = 'LOBBY';
         let width, height;
@@ -40,26 +40,17 @@ document.addEventListener('DOMContentLoaded', () => {
         let gravityOrbs = [];
         let electroBarriers = [];
         let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 60 };
-        let devTapCount = 0;
-        let devTapTimer = null;
-        let modalDepth = 0;
         let metaUpgrades = getMetaUpgrades();
+        const uiLocker = createUiLocker(container);
+        let devTools = null;
+        let metaUpgradesUi = null;
 
         const STAGE_COUNT = 50;
         const STAGE_NAMES = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];
         const TEST_MODE_ENABLED_KEY = `${STORAGE_PREFIX}:testModeEnabled`;
         const TEST_WEAPON_KEY = `${STORAGE_PREFIX}:testWeaponKey`;
 
-        const META_UPGRADES = [
-            { key: 'atk', name: 'WEAPON POWER', desc: '공격력 +2%/lv', max: 20, base: 50, growth: 1.22, currency: 'fragments' },
-            { key: 'fireRate', name: 'FIRE RATE', desc: '공격 속도 +2%/lv', max: 15, base: 60, growth: 1.22, currency: 'fragments' },
-            { key: 'range', name: 'RADAR RANGE', desc: '인식 범위 +2%/lv', max: 10, base: 40, growth: 1.22, currency: 'fragments' },
-            { key: 'maxHp', name: 'SHIELD CAPACITY', desc: '최대 체력 +3%/lv', max: 10, base: 70, growth: 1.22, currency: 'fragments' },
-            { key: 'pickup', name: 'RESOURCE PICKUP', desc: '획득량 +2%/lv', max: 10, base: 80, growth: 1.22, currency: 'fragments' },
-            { key: 'startLevel', name: 'START LEVEL', desc: '시작 레벨 +1/lv', max: 3, base: 2, growth: 1.35, currency: 'cores' },
-            { key: 'startChoices', name: 'START CHOICES', desc: '시작 선택지 +1/lv', max: 2, base: 3, growth: 1.35, currency: 'cores' },
-            { key: 'rerolls', name: 'REROLL', desc: '리롤 +1/lv', max: 3, base: 2, growth: 1.35, currency: 'cores' },
-        ];
+        const getSpecialWeaponLabel = (key) => SPECIAL_WEAPON_LABELS[key] || key;
 
         const SKILL_POOL = [
             { id: 'atk', name: 'WEAPON DAMAGE', desc: '공격력 +25%', icon: '⚔️', type: 'stat', effect: () => { player.atk *= 1.25; } },
@@ -102,7 +93,41 @@ document.addEventListener('DOMContentLoaded', () => {
             metaUpgrades = getMetaUpgrades();
             resize();
             window.addEventListener('resize', resize);
-            setupDevPanelToggle();
+            devTools = createDevTools({
+                storagePrefix: STORAGE_PREFIX,
+                versionToggle,
+                devPanel,
+                devBackdrop,
+                devSheet,
+                devGodButton: document.getElementById('dev-god-btn'),
+                devTestButton: document.getElementById('dev-test-btn'),
+                testConfigOverlay,
+                testConfigBackdrop,
+                testConfigClose,
+                testWeaponSelect,
+                testApplyButton,
+                uiLocker,
+                getSpecialWeaponKeys,
+                getSpecialWeaponLabel,
+                getTestModeState,
+                setTestModeState,
+                setTestModeIndicator,
+                onActivateGodMode: activateGodMode
+            });
+            metaUpgradesUi = createMetaUpgradesUi({
+                overlay: document.getElementById('meta-upgrade-overlay'),
+                listEl: document.getElementById('meta-upgrade-list'),
+                fragmentsEl: document.getElementById('meta-upgrade-fragments'),
+                coresEl: document.getElementById('meta-upgrade-cores'),
+                closeButton: document.getElementById('meta-upgrade-close'),
+                backdrop: document.getElementById('meta-upgrade-backdrop'),
+                uiLocker,
+                getSavedData: () => savedData,
+                saveGameData,
+                onMetaUpgradesChange: (upgrades) => {
+                    metaUpgrades = upgrades;
+                }
+            });
             setupOverlayActions();
             updateLobbyUI();
             requestAnimationFrame(loop);
@@ -146,106 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        function setUiLocked(locked) {
-            const gc = document.getElementById('game-container');
-            if (gc) {
-                gc.classList.toggle('ui-locked', locked);
-            }
-            document.body.classList.toggle('modal-open', locked);
-        }
-
-        function pushModalLock() {
-            modalDepth += 1;
-            setUiLocked(modalDepth > 0);
-        }
-
-        function popModalLock() {
-            modalDepth = Math.max(0, modalDepth - 1);
-            setUiLocked(modalDepth > 0);
-        }
-
-        function populateTestWeaponSelect() {
-            if (!testWeaponSelect) return;
-            const keys = getSpecialWeaponKeys();
-            testWeaponSelect.innerHTML = '';
-            keys.forEach((key) => {
-                const option = document.createElement('option');
-                option.value = key;
-                option.textContent = SPECIAL_WEAPON_LABELS[key] || key;
-                testWeaponSelect.appendChild(option);
-            });
-            const saved = getTestModeState().weaponKey;
-            if (saved && keys.includes(saved)) {
-                testWeaponSelect.value = saved;
-            } else if (keys.length > 0) {
-                testWeaponSelect.value = keys[0];
-            }
-            return keys.length;
-        }
-
-        function openDevPanel() {
-            if (!DEV_TOOLS_ENABLED || !devPanel) return;
-            if (!devPanel.classList.contains('hidden')) return;
-            devPanel.classList.remove('hidden');
-            versionToggle?.setAttribute('aria-expanded', 'true');
-            pushModalLock();
-        }
-
-        function closeDevPanel() {
-            if (!devPanel) return;
-            if (devPanel.classList.contains('hidden')) return;
-            devPanel.classList.add('hidden');
-            versionToggle?.setAttribute('aria-expanded', 'false');
-            popModalLock();
-        }
-
-        function setupDevPanelToggle() {
-            if (!versionToggle) return;
-            if (!DEV_TOOLS_ENABLED && devPanel) {
-                devPanel.classList.add('hidden');
-                versionToggle.setAttribute('aria-expanded', 'false');
-            }
-
-            const resetDevTap = () => {
-                devTapCount = 0;
-                if (devTapTimer) {
-                    clearTimeout(devTapTimer);
-                    devTapTimer = null;
-                }
-            };
-
-            if (versionToggle.getAttribute('aria-expanded') === null) {
-                versionToggle.setAttribute('aria-expanded', String(!devPanel.classList.contains('hidden')));
-            }
-
-            versionToggle.addEventListener('click', () => {
-                if (devTapCount === 0) {
-                    devTapTimer = setTimeout(resetDevTap, 1500);
-                }
-                devTapCount += 1;
-                if (devTapCount >= 5) {
-                    if (!DEV_TOOLS_ENABLED) {
-                        localStorage.setItem(DEV_FLAG_KEY, '1');
-                        alert('DEV MODE enabled. Reloading...');
-                        location.reload();
-                        return;
-                    }
-                    if (devPanel?.classList.contains('hidden')) {
-                        openDevPanel();
-                    } else if (devPanel) {
-                        closeDevPanel();
-                    }
-                    resetDevTap();
-                }
-            });
-
-            if (devBackdrop) {
-                devBackdrop.addEventListener('click', () => {
-                    closeDevPanel();
-                    resetDevTap();
-                });
-            }
-        }
         function getValidSkills() {
             return SKILL_POOL.filter(skill => {
                 if (skill.type === 'stat') return true;
@@ -408,9 +333,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             gameState = 'READY';
-            closeDevPanel();
-            closeTestConfig();
-            closeMetaUpgradeModal();
+            devTools?.closeDevPanel?.();
+            devTools?.closeTestConfig?.();
+            metaUpgradesUi?.close?.();
             ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById('ingame-ui').classList.remove('hidden');
             
@@ -839,176 +764,47 @@ document.addEventListener('DOMContentLoaded', () => {
         function cancelQuit() { gameState = 'PLAYING'; document.getElementById('quit-overlay').classList.add('hidden'); }
         function nextStage() { currentStage++; if(currentStage > STAGE_COUNT) currentStage = 1; prepareGame(isTestStage); }
         function openTestConfig() {
-            if (!testConfigOverlay) return;
-            if (!testConfigOverlay.classList.contains('hidden')) return;
-            const optionCount = populateTestWeaponSelect();
-            if (!optionCount) {
-                alert('특수 무기 목록을 찾을 수 없습니다.');
-                return;
-            }
-            closeDevPanel();
-            testConfigOverlay.classList.remove('hidden');
-            pushModalLock();
+            devTools?.openTestConfig?.();
         }
 
         function closeTestConfig() {
-            if (!testConfigOverlay) return;
-            if (testConfigOverlay.classList.contains('hidden')) return;
-            testConfigOverlay.classList.add('hidden');
-            popModalLock();
+            devTools?.closeTestConfig?.();
         }
 
-        function applyTestConfig() {
-            if (!testWeaponSelect) return;
-            const weaponKey = testWeaponSelect.value;
-            if (!weaponKey) {
-                alert('특수 무기를 선택하세요.');
-                return;
-            }
-            setTestModeState(true, weaponKey);
-            closeTestConfig();
-            closeDevPanel();
-            alert('적용됨. START를 눌러 전투에서 확인하세요.');
+        function openMetaUpgradeModal() {
+            metaUpgradesUi?.open?.();
         }
 
         function returnToLobby() {
             gameState = 'LOBBY';
             document.getElementById('ingame-ui').classList.add('hidden');
             document.getElementById('lobby-ui').classList.remove('hidden');
-            closeMetaUpgradeModal();
+            metaUpgradesUi?.close?.();
             ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            closeDevPanel();
-            closeTestConfig();
+            devTools?.closeDevPanel?.();
+            devTools?.closeTestConfig?.();
             saveGameData(); 
             updateLobbyUI();
         }
 
         function setupOverlayActions() {
             const rotateContinue = document.getElementById('rotate-continue');
-            const devGodButton = document.getElementById('dev-god-btn');
-            const devTestButton = document.getElementById('dev-test-btn');
             const upgrButton = document.getElementById('btn-upgr');
-            const metaBackdrop = document.getElementById('meta-upgrade-backdrop');
-            const metaClose = document.getElementById('meta-upgrade-close');
-
             if (rotateContinue) {
                 rotateContinue.addEventListener('click', () => {
                     orientationOverlayDismissed = true;
                     updateOrientationOverlay();
                 });
             }
-            if (devGodButton) {
-                devGodButton.addEventListener('click', activateGodMode);
-            } else {
-                console.warn('[DEV] GOD MODE 버튼을 찾을 수 없습니다.');
-            }
-            if (devTestButton) {
-                devTestButton.addEventListener('click', openTestConfig);
-            } else {
-                console.warn('[DEV] TEST STAGE 버튼을 찾을 수 없습니다.');
-            }
-            if (devSheet) {
-                devSheet.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                });
-            }
             if (upgrButton) {
-                upgrButton.addEventListener('click', openMetaUpgradeModal);
+                upgrButton.addEventListener('click', () => metaUpgradesUi?.open?.());
             } else {
                 console.warn('[UPGR] 버튼을 찾을 수 없습니다.');
             }
-            if (metaBackdrop) {
-                metaBackdrop.addEventListener('click', closeMetaUpgradeModal);
-            }
-            if (metaClose) {
-                metaClose.addEventListener('click', closeMetaUpgradeModal);
-            }
-            if (testConfigBackdrop) {
-                testConfigBackdrop.addEventListener('click', closeTestConfig);
-            }
-            if (testConfigClose) {
-                testConfigClose.addEventListener('click', closeTestConfig);
-            }
-            if (testApplyButton) {
-                testApplyButton.addEventListener('click', applyTestConfig);
-            }
-        }
-
-        function openMetaUpgradeModal() {
-            const overlay = document.getElementById('meta-upgrade-overlay');
-            if (!overlay) return;
-            if (!overlay.classList.contains('hidden')) return;
-            metaUpgrades = getMetaUpgrades();
-            overlay.classList.remove('hidden');
-            renderMetaUpgradeList();
-            pushModalLock();
-        }
-
-        function closeMetaUpgradeModal() {
-            const overlay = document.getElementById('meta-upgrade-overlay');
-            if (!overlay) return;
-            if (overlay.classList.contains('hidden')) return;
-            overlay.classList.add('hidden');
-            popModalLock();
-        }
-
-        function renderMetaUpgradeList() {
-            const list = document.getElementById('meta-upgrade-list');
-            if (!list) return;
-            const fragmentEl = document.getElementById('meta-upgrade-fragments');
-            const coreEl = document.getElementById('meta-upgrade-cores');
-            if (fragmentEl) fragmentEl.innerText = savedData.resources.fragments;
-            if (coreEl) coreEl.innerText = savedData.resources.cores;
-            list.innerHTML = '';
-            META_UPGRADES.forEach((meta) => {
-                const level = metaUpgrades[meta.key] || 0;
-                const isMax = level >= meta.max;
-                const cost = Math.round(meta.base * Math.pow(meta.growth, level));
-                const hasResource = meta.currency === 'fragments'
-                    ? savedData.resources.fragments >= cost
-                    : savedData.resources.cores >= cost;
-
-                const item = document.createElement('div');
-                item.className = 'meta-upgrade-item';
-                item.innerHTML = `
-                    <div>
-                        <h4>${meta.name} <span class="text-xs text-cyan-200">LV ${level}/${meta.max}</span></h4>
-                        <p>${meta.desc}</p>
-                        <p>${meta.currency === 'fragments' ? '◆' : '⬢'} ${isMax ? 'MAX' : cost}</p>
-                    </div>
-                `;
-
-                const button = document.createElement('button');
-                button.className = 'meta-upgrade-buy';
-                button.type = 'button';
-                button.disabled = isMax || !hasResource;
-                button.innerText = isMax ? 'MAX' : 'BUY';
-                button.addEventListener('click', () => tryBuyMetaUpgrade(meta.key));
-                item.appendChild(button);
-                list.appendChild(item);
-            });
-        }
-
-        function tryBuyMetaUpgrade(key) {
-            const meta = META_UPGRADES.find(item => item.key === key);
-            if (!meta) return;
-            const currentLevel = metaUpgrades[key] || 0;
-            if (currentLevel >= meta.max) return;
-            const cost = Math.round(meta.base * Math.pow(meta.growth, currentLevel));
-            if (meta.currency === 'fragments') {
-                if (savedData.resources.fragments < cost) return;
-                savedData.resources.fragments -= cost;
-            } else {
-                if (savedData.resources.cores < cost) return;
-                savedData.resources.cores -= cost;
-            }
-            metaUpgrades[key] = currentLevel + 1;
-            setMetaUpgrades(metaUpgrades);
-            saveGameData();
-            renderMetaUpgradeList();
         }
 
         function applyMetaUpgrades() {
+            metaUpgrades = getMetaUpgrades();
             const meta = metaUpgrades;
             if (!meta || !player || !gameInfo) return;
             if (meta.atk) player.atk *= (1 + 0.02 * meta.atk);
