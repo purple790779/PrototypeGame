@@ -70,15 +70,17 @@ export function createMetaUpgradesUi({
         if (!overlay.classList.contains('hidden')) return;
         metaUpgrades = getMetaUpgrades();
         onMetaUpgradesChange?.(metaUpgrades);
-        overlay.classList.remove('hidden');
-        renderMetaUpgradeList();
         uiLocker?.lock?.();
+        overlay.classList.remove('hidden');
+        overlay.hidden = false;
+        renderMetaUpgradeList();
     };
 
     const close = () => {
         if (!overlay) return;
         if (overlay.classList.contains('hidden')) return;
         overlay.classList.add('hidden');
+        overlay.hidden = true;
         uiLocker?.unlock?.();
     };
 
