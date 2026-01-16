@@ -410,23 +410,7 @@
             }
         });
     </script>
-    <script type="module">
-        import { VERSION } from './src/version.js';
-        const s = document.createElement('script');
-        s.type = 'module';
-        s.src = `./src/main.js?v=${encodeURIComponent(VERSION)}`;
-        s.addEventListener('error', () => {
-            const st = document.getElementById('debug-save-status');
-            if (st) st.textContent = 'JS LOAD ERROR';
-            console.error('[bootstrap] main.js load failed:', s.src);
-        });
-        const anchor = document.currentScript;
-        if (anchor && anchor.parentNode) {
-            anchor.after(s);
-        } else {
-            (document.body || document.documentElement).appendChild(s);
-        }
-    </script>
+    <script type="module" src="./src/main.js?v=1.0.0"></script>
 </body>
 
 </html>

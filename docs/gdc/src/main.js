@@ -6,7 +6,7 @@ import { createDevTools } from './devTools.js';
 import { createMetaUpgradesUi } from './metaUpgradesUi.js';
 import { createFx } from './fx.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+const boot = () => {
         const statusEl = document.getElementById('debug-save-status');
         if (statusEl) statusEl.innerText = 'Loaded';
         const canvas = $('gameCanvas');
@@ -1063,4 +1063,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (statusEl) statusEl.innerText = 'ERROR';
             console.error('[init] Failed to initialize', error);
         }
-});
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+} else {
+    boot();
+}
