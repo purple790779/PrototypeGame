@@ -1,4 +1,5 @@
 import { getMetaUpgrades, setMetaUpgrades } from './storage.js';
+import { bindModal } from './modals.js';
 
 export const META_UPGRADES = [
     { key: 'atk', name: 'WEAPON POWER', desc: '공격력 +2%/lv', max: 20, base: 50, growth: 1.22, currency: 'fragments' },
@@ -65,24 +66,17 @@ export function createMetaUpgradesUi({
         });
     };
 
-    const open = () => {
-        if (!overlay) return;
-        if (!overlay.classList.contains('hidden')) return;
-        metaUpgrades = getMetaUpgrades();
-        onMetaUpgradesChange?.(metaUpgrades);
-        uiLocker?.lock?.();
-        overlay.classList.remove('hidden');
-        overlay.hidden = false;
-        renderMetaUpgradeList();
-    };
-
-    const close = () => {
-        if (!overlay) return;
-        if (overlay.classList.contains('hidden')) return;
-        overlay.classList.add('hidden');
-        overlay.hidden = true;
-        uiLocker?.unlock?.();
-    };
+    const modal = bindModal({
+        overlayEl: overlay,
+        closeBtnEl: closeButton,
+        backdropEl: backdrop,
+        uiLocker,
+        onOpen: () => {
+            metaUpgrades = getMetaUpgrades();
+            onMetaUpgradesChange?.(metaUpgrades);
+            renderMetaUpgradeList();
+        }
+    });
 
     const tryBuyMetaUpgrade = (key) => {
         const meta = META_UPGRADES.find(item => item.key === key);
@@ -106,16 +100,9 @@ export function createMetaUpgradesUi({
         renderMetaUpgradeList();
     };
 
-    if (backdrop) {
-        backdrop.addEventListener('click', close);
-    }
-    if (closeButton) {
-        closeButton.addEventListener('click', close);
-    }
-
     return {
-        open,
-        close,
+        open: modal.open,
+        close: modal.close,
         renderMetaUpgradeList,
         tryBuyMetaUpgrade
     };
