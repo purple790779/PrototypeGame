@@ -1,5 +1,5 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
-import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades, getSettings, setSettings, resetMetaUpgrades } from './storage.js';
+import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades, getSettings, setSettings, resetMetaUpgrades, getMetaSpent, resetMetaSpent } from './storage.js';
 import { $ } from './dom.js';
 import { createUiLocker } from './uiLocker.js';
 import { bindModal } from './modals.js';
@@ -1019,17 +1019,27 @@ const boot = () => {
             const resetButton = document.getElementById('btn-reset-meta');
             if (!resetButton) return;
             resetButton.addEventListener('click', () => {
-                if (!confirm('메타 업그레이드를 리셋할까요? (자원은 유지됩니다)')) return;
+                if (!confirm('메타 업그레이드를 리셋할까요? (자원은 환불됩니다)')) return;
                 if (!confirm('정말 리셋할까요? 되돌릴 수 없습니다.')) return;
+                const savedData = getSavedData?.() || {};
+                if (!savedData.resources) {
+                    savedData.resources = { fragments: 0, cores: 0 };
+                }
+                const spent = getMetaSpent();
+                savedData.resources.fragments += spent?.fragments || 0;
+                savedData.resources.cores += spent?.cores || 0;
                 const ok = resetMetaUpgrades();
-                if (!ok) {
+                const spentResetOk = resetMetaSpent();
+                if (!ok || !spentResetOk) {
                     alert('리셋에 실패했습니다. 다시 시도해 주세요.');
                     return;
                 }
+                saveGameData?.();
+                metaUpgradesUi?.syncMetaUpgrades?.();
                 metaUpgrades = getMetaUpgrades();
                 metaUpgradesUi?.renderMetaUpgradeList?.();
                 updateLobbyUI();
-                alert('메타 업그레이드가 리셋되었습니다.');
+                alert(`환불 완료: 파편 +${spent?.fragments || 0}, 코어 +${spent?.cores || 0}`);
             });
         }
 
