@@ -1,15 +1,15 @@
-import { getMetaUpgrades, setMetaUpgrades } from './storage.js';
+import { getMetaUpgrades, setMetaUpgrades, addMetaSpent } from './storage.js';
 import { bindModal } from './modals.js';
 
 export const META_UPGRADES = [
-    { key: 'atk', name: 'WEAPON POWER', desc: '공격력 +2%/lv', max: 20, base: 50, growth: 1.22, currency: 'fragments' },
-    { key: 'fireRate', name: 'FIRE RATE', desc: '공격 속도 +2%/lv', max: 15, base: 60, growth: 1.22, currency: 'fragments' },
-    { key: 'range', name: 'RADAR RANGE', desc: '인식 범위 +2%/lv', max: 10, base: 40, growth: 1.22, currency: 'fragments' },
-    { key: 'maxHp', name: 'SHIELD CAPACITY', desc: '최대 체력 +3%/lv', max: 10, base: 70, growth: 1.22, currency: 'fragments' },
-    { key: 'pickup', name: 'RESOURCE PICKUP', desc: '획득량 +2%/lv', max: 10, base: 80, growth: 1.22, currency: 'fragments' },
-    { key: 'startLevel', name: 'START LEVEL', desc: '시작 레벨 +1/lv', max: 3, base: 2, growth: 1.35, currency: 'cores' },
-    { key: 'startChoices', name: 'START CHOICES', desc: '시작 선택지 +1/lv', max: 2, base: 3, growth: 1.35, currency: 'cores' },
-    { key: 'rerolls', name: 'REROLL', desc: '리롤 +1/lv', max: 3, base: 2, growth: 1.35, currency: 'cores' },
+    { key: 'atk', name: 'WEAPON POWER', desc: '공격력 +2%/lv', max: 99, base: 50, growth: 1.35, currency: 'fragments' },
+    { key: 'fireRate', name: 'FIRE RATE', desc: '공격 속도 +2%/lv', max: 99, base: 60, growth: 1.35, currency: 'fragments' },
+    { key: 'range', name: 'RADAR RANGE', desc: '인식 범위 +2%/lv', max: 99, base: 40, growth: 1.35, currency: 'fragments' },
+    { key: 'maxHp', name: 'SHIELD CAPACITY', desc: '최대 체력 +3%/lv', max: 99, base: 70, growth: 1.35, currency: 'fragments' },
+    { key: 'pickup', name: 'RESOURCE PICKUP', desc: '획득량 +2%/lv', max: 99, base: 80, growth: 1.35, currency: 'fragments' },
+    { key: 'startLevel', name: 'START LEVEL', desc: '시작 레벨 +1/lv', max: 99, base: 2, growth: 1.60, currency: 'cores' },
+    { key: 'startChoices', name: 'START CHOICES', desc: '시작 선택지 +1/lv', max: 99, base: 3, growth: 1.60, currency: 'cores' },
+    { key: 'rerolls', name: 'REROLL', desc: '리롤 +1/lv', max: 99, base: 2, growth: 1.60, currency: 'cores' },
 ];
 
 export function createMetaUpgradesUi({
@@ -25,6 +25,11 @@ export function createMetaUpgradesUi({
     onMetaUpgradesChange
 }) {
     let metaUpgrades = getMetaUpgrades();
+
+    const syncMetaUpgrades = () => {
+        metaUpgrades = getMetaUpgrades();
+        onMetaUpgradesChange?.(metaUpgrades);
+    };
 
     const updateResources = () => {
         const savedData = getSavedData?.();
@@ -72,8 +77,7 @@ export function createMetaUpgradesUi({
         backdropEl: backdrop,
         uiLocker,
         onOpen: () => {
-            metaUpgrades = getMetaUpgrades();
-            onMetaUpgradesChange?.(metaUpgrades);
+            syncMetaUpgrades();
             renderMetaUpgradeList();
         }
     });
@@ -93,6 +97,7 @@ export function createMetaUpgradesUi({
             if (savedData.resources.cores < cost) return;
             savedData.resources.cores -= cost;
         }
+        addMetaSpent(meta.currency, cost);
         metaUpgrades[key] = currentLevel + 1;
         setMetaUpgrades(metaUpgrades);
         onMetaUpgradesChange?.(metaUpgrades);
@@ -103,6 +108,7 @@ export function createMetaUpgradesUi({
     return {
         open: modal.open,
         close: modal.close,
+        syncMetaUpgrades,
         renderMetaUpgradeList,
         tryBuyMetaUpgrade
     };

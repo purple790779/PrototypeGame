@@ -4,6 +4,7 @@ export const keys = {
   save: `${STORAGE_PREFIX}:save`,
   meta: `${STORAGE_PREFIX}:meta`,
   metaUpgrades: `${STORAGE_PREFIX}:metaUpgrades`,
+  metaSpent: `${STORAGE_PREFIX}:metaSpent`,
   settings: `${STORAGE_PREFIX}:settings`,
 };
 
@@ -74,6 +75,39 @@ const defaultMetaUpgrades = {
   rerolls: 0,
 };
 
+const defaultMetaSpent = {
+  fragments: 0,
+  cores: 0,
+};
+
+const LEGACY_META_UPGRADES = [
+  { key: 'atk', base: 50, growth: 1.22, currency: 'fragments' },
+  { key: 'fireRate', base: 60, growth: 1.22, currency: 'fragments' },
+  { key: 'range', base: 40, growth: 1.22, currency: 'fragments' },
+  { key: 'maxHp', base: 70, growth: 1.22, currency: 'fragments' },
+  { key: 'pickup', base: 80, growth: 1.22, currency: 'fragments' },
+  { key: 'startLevel', base: 2, growth: 1.35, currency: 'cores' },
+  { key: 'startChoices', base: 3, growth: 1.35, currency: 'cores' },
+  { key: 'rerolls', base: 2, growth: 1.35, currency: 'cores' },
+];
+
+const calcLegacySpent = (metaUpgrades) => {
+  let fragments = 0;
+  let cores = 0;
+  LEGACY_META_UPGRADES.forEach((def) => {
+    const level = metaUpgrades?.[def.key] || 0;
+    for (let i = 0; i < level; i += 1) {
+      const cost = Math.round(def.base * Math.pow(def.growth, i));
+      if (def.currency === 'fragments') {
+        fragments += cost;
+      } else {
+        cores += cost;
+      }
+    }
+  });
+  return { fragments, cores };
+};
+
 export const getMetaUpgrades = () => {
   const raw = readStorage(keys.metaUpgrades);
   if (!raw) {
@@ -93,6 +127,55 @@ export const setMetaUpgrades = (payload) => {
 export const resetMetaUpgrades = () => {
   try {
     localStorage.removeItem(keys.metaUpgrades);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+export const getMetaSpent = () => {
+  const raw = readStorage(keys.metaSpent);
+  if (raw) {
+    try {
+      return { ...defaultMetaSpent, ...JSON.parse(raw) };
+    } catch (error) {
+      return { ...defaultMetaSpent };
+    }
+  }
+
+  const metaRaw = readStorage(keys.metaUpgrades);
+  if (!metaRaw) {
+    return { ...defaultMetaSpent };
+  }
+
+  try {
+    const metaUpgrades = { ...defaultMetaUpgrades, ...JSON.parse(metaRaw) };
+    const hasLegacyUpgrades = Object.values(metaUpgrades).some((value) => value > 0);
+    if (!hasLegacyUpgrades) {
+      return { ...defaultMetaSpent };
+    }
+    const spent = calcLegacySpent(metaUpgrades);
+    writeStorage(keys.metaSpent, JSON.stringify(spent));
+    return spent;
+  } catch (error) {
+    return { ...defaultMetaSpent };
+  }
+};
+
+export const addMetaSpent = (currency, amount) => {
+  if (!currency || !Number.isFinite(amount)) return false;
+  const current = getMetaSpent();
+  const next = {
+    ...defaultMetaSpent,
+    ...current,
+    [currency]: (current[currency] || 0) + amount,
+  };
+  return writeStorage(keys.metaSpent, JSON.stringify(next));
+};
+
+export const resetMetaSpent = () => {
+  try {
+    localStorage.removeItem(keys.metaSpent);
     return true;
   } catch (error) {
     return false;
