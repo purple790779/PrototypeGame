@@ -50,6 +50,7 @@ const boot = () => {
         let player = null;
         let enemies = [];
         let bullets = [];
+        let enemyBullets = [];
         let particles = [];
         let drops = []; 
         let texts = [];
@@ -186,6 +187,32 @@ const boot = () => {
         const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
         function isOnScreen(x, y, pad = 16) {
             return x >= -pad && x <= canvas.width + pad && y >= -pad && y <= canvas.height + pad;
+        }
+
+        function getStageConfig(stage, difficultyLevel) {
+            if (difficultyLevel === 'HARD') {
+                return {
+                    duration: 60,
+                    spawnInterval: clamp(0.75 - stage * 0.012, 0.28, 0.75),
+                    maxOnField: Math.round(clamp(28 + stage * 1.3, 28, 85)),
+                    hpMul: 1.05 + stage * 0.06,
+                    speedMul: 1.0 + stage * 0.012,
+                    eliteChance: clamp(0.1 + stage * 0.003, 0.1, 0.22),
+                    fastChance: clamp(0.22 + stage * 0.004, 0.22, 0.35),
+                    siegeChance: stage < 4 ? 0.02 : clamp(0.05 + (stage - 4) * 0.003, 0.05, 0.14)
+                };
+            }
+
+            return {
+                duration: 60,
+                spawnInterval: clamp(0.9 - stage * 0.01, 0.35, 0.9),
+                maxOnField: Math.round(clamp(22 + stage * 1, 22, 70)),
+                hpMul: 0.9 + stage * 0.05,
+                speedMul: 0.95 + stage * 0.01,
+                eliteChance: clamp(0.08 + stage * 0.002, 0.08, 0.18),
+                fastChance: clamp(0.18 + stage * 0.003, 0.18, 0.3),
+                siegeChance: stage < 6 ? 0 : clamp(0.03 + (stage - 6) * 0.002, 0.03, 0.1)
+            };
         }
 
         function getSpecialWeaponKeys() {
@@ -476,7 +503,7 @@ const boot = () => {
         }
 
         function resetGameData() {
-            enemies = []; bullets = []; particles = []; drops = []; texts = []; 
+            enemies = []; bullets = []; enemyBullets = []; particles = []; drops = []; texts = []; 
             missiles = []; gravityOrbs = []; electroBarriers = [];
             tempResources = { fragments: 0, cores: 0 };
             fx.reset();
@@ -522,7 +549,7 @@ const boot = () => {
             resetGameData();
             updateIngameResources();
 
-            let stageTime = 60;
+            let stageTime = getStageConfig(currentStage, difficulty).duration;
             if (isGodMode) stageTime = 10;
             if (isTestStage) stageTime = 300;
 
@@ -607,7 +634,11 @@ const boot = () => {
             overlay.classList.remove('hidden');
         }
 
-        function startGame() { gameState = 'PLAYING'; spawnEnemy(); }
+        function startGame() {
+            gameState = 'PLAYING';
+            const cfg = getStageConfig(currentStage, difficulty);
+            spawnEnemy(cfg);
+        }
 
         function loop(timestamp) {
             if (!lastTime) lastTime = timestamp; // 첫 프레임 안정화
@@ -654,11 +685,19 @@ const boot = () => {
 
             if (gameInfo.timeLeft <= 0 && enemies.length === 0) { stageClear(); return; }
 
-            let spawnRate = 0.8;
-            if (isTestStage) spawnRate = 0.4; 
+            const cfg = getStageConfig(currentStage, difficulty);
+            let spawnRate = isTestStage ? 0.4 : cfg.spawnInterval;
             if (gameInfo.timeLeft > 3) {
                 gameInfo.spawnTimer += dt;
-                if (gameInfo.spawnTimer > spawnRate) { spawnEnemy(); gameInfo.spawnTimer = 0; }
+                if (gameInfo.spawnTimer > spawnRate) {
+                    if (enemies.length < cfg.maxOnField) {
+                        spawnEnemy(cfg);
+                    }
+                    if (Math.random() < 0.1 && enemies.length < cfg.maxOnField - 1) {
+                        spawnEnemy(cfg);
+                    }
+                    gameInfo.spawnTimer = 0;
+                }
             }
 
             if (player.visible) {
@@ -758,8 +797,38 @@ const boot = () => {
 
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const e = enemies[i];
-                if (e.stunTimer > 0) { e.stunTimer -= dt; if (Math.random() < 0.2) createParticles(e.x, e.y, '#ffff00', 1); } 
-                else { if (e.hitTimer > 0) e.hitTimer -= dt; const angle = Math.atan2(player.y - e.y, player.x - e.x); e.x += Math.cos(angle) * e.speed * dt; e.y += Math.sin(angle) * e.speed * dt; }
+                if (e.stunTimer > 0) {
+                    e.stunTimer -= dt;
+                    if (Math.random() < 0.2) createParticles(e.x, e.y, '#ffff00', 1);
+                } else {
+                    if (e.hitTimer > 0) e.hitTimer -= dt;
+                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    const dist = Math.hypot(player.x - e.x, player.y - e.y);
+                    if (e.type === 'siege' && dist <= e.nearRange) {
+                        e.x += Math.cos(angle) * e.speed * 0.25 * dt;
+                        e.y += Math.sin(angle) * e.speed * 0.25 * dt;
+                        e.shootCooldown -= dt;
+                        if (e.shootCooldown <= 0) {
+                            const bulletAngle = Math.atan2(player.y - e.y, player.x - e.x);
+                            if (enemyBullets.length >= 120) {
+                                enemyBullets.shift();
+                            }
+                            enemyBullets.push({
+                                x: e.x,
+                                y: e.y,
+                                vx: Math.cos(bulletAngle) * e.projectileSpeed,
+                                vy: Math.sin(bulletAngle) * e.projectileSpeed,
+                                life: 3.0,
+                                dmg: e.projectileDamage,
+                                r: 2.2
+                            });
+                            e.shootCooldown = e.shootInterval;
+                        }
+                    } else {
+                        e.x += Math.cos(angle) * e.speed * dt;
+                        e.y += Math.sin(angle) * e.speed * dt;
+                    }
+                }
                 if (player.visible && Math.hypot(player.x - e.x, player.y - e.y) < 15) {
                     gameInfo.hp -= 10;
                     createParticles(e.x, e.y, '#ff0000', 10);
@@ -768,6 +837,25 @@ const boot = () => {
                     enemies.splice(i, 1);
                     updateIngameUI();
                     if(gameInfo.hp <= 0) gameOver();
+                }
+            }
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const b = enemyBullets[i];
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+                b.life -= dt;
+                if (!isOnScreen(b.x, b.y, 24) || b.life <= 0) {
+                    enemyBullets.splice(i, 1);
+                    continue;
+                }
+                if (player.visible && Math.hypot(b.x - player.x, b.y - player.y) < (b.r + 10)) {
+                    gameInfo.hp -= b.dmg;
+                    createParticles(b.x, b.y, '#ff8855', 6);
+                    if (settings.shake) fx.shake.start(3, 0.15);
+                    fx.vignette.trigger(0.6, 0.2);
+                    enemyBullets.splice(i, 1);
+                    updateIngameUI();
+                    if (gameInfo.hp <= 0) gameOver();
                 }
             }
             for (let i = bullets.length - 1; i >= 0; i--) {
@@ -915,6 +1003,8 @@ const boot = () => {
 
             ctx.fillStyle = color;
             bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill(); });
+            ctx.fillStyle = 'rgba(255, 120, 80, 0.9)';
+            enemyBullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); });
 
             missiles.forEach(m => {
                 ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.rot); ctx.fillStyle = '#ffaa00';
@@ -1125,15 +1215,71 @@ const boot = () => {
             overlay.classList.remove('hidden');
         }
 
-        function spawnEnemy() {
+        function spawnEnemy(cfg) {
+            if (!cfg) {
+                cfg = getStageConfig(currentStage, difficulty);
+            }
             const isVertical = Math.random() < 0.7; const buffer = 50;
             let x, y;
             if (isVertical) { x = Math.random() * width; y = (Math.random() < 0.5) ? -buffer : height + buffer; } 
             else { y = Math.random() * height; x = (Math.random() < 0.5) ? -buffer : width + buffer; }
-            const isFast = Math.random() > 0.8; const isElite = Math.random() < 0.1; 
-            let rank = 1; let size = isFast ? 5.5 : 8; let hp = 10; 
-            if (isFast) hp = 6.6; if (isElite) { rank = 2; size = 12; hp = 30; }
-            enemies.push({ x: x, y: y, speed: isFast ? 64 : 32, size: size, type: isFast ? 'fast' : 'normal', rank: rank, color: isElite ? '#ffaa00' : (isFast ? '#ff3366' : '#ffffff'), hp: hp, maxHp: hp, hitTimer: 0, stunTimer: 0 });
+            const isElite = Math.random() < cfg.eliteChance;
+            const isSiege = Math.random() < cfg.siegeChance;
+            const isFast = !isSiege && Math.random() < cfg.fastChance;
+            let rank = 1;
+            let type = 'normal';
+            let size = 8;
+            let hp = 10;
+            let speed = 32;
+            let color = '#ffffff';
+
+            if (isFast) {
+                type = 'fast';
+                size = 5.5;
+                hp = 6.6;
+                speed = 64;
+                color = '#ff3366';
+            } else if (isSiege) {
+                type = 'siege';
+                size = 9;
+                hp = 14;
+                speed = 26;
+                color = '#ff8855';
+            }
+
+            if (isElite) {
+                rank = 2;
+                size = 12;
+                hp = 30;
+                color = '#ffaa00';
+            }
+
+            hp *= cfg.hpMul;
+            speed *= cfg.speedMul;
+
+            const enemy = {
+                x: x,
+                y: y,
+                speed: speed,
+                size: size,
+                type: type,
+                rank: rank,
+                color: color,
+                hp: hp,
+                maxHp: hp,
+                hitTimer: 0,
+                stunTimer: 0
+            };
+
+            if (type === 'siege') {
+                enemy.shootCooldown = 0;
+                enemy.shootInterval = difficulty === 'HARD' ? 1.15 : 1.35;
+                enemy.nearRange = 140;
+                enemy.projectileSpeed = 220;
+                enemy.projectileDamage = difficulty === 'HARD' ? 8 : 6;
+            }
+
+            enemies.push(enemy);
         }
         function shoot() {
             const spread = 0.1;
