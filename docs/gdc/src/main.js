@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const testConfigClose = $('test-config-close');
         const testWeaponSelect = $('test-weapon-select');
         const testApplyButton = $('test-apply-btn');
+        const retryBtn = document.getElementById('btn-retry');
 
         let gameState = 'LOBBY';
         let width, height;
@@ -49,6 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const uiLocker = createUiLocker(container);
         let devTools = null;
         let metaUpgradesUi = null;
+
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => prepareGame(isTestStage));
+        }
 
         const STAGE_COUNT = 50;
         const STAGE_NAMES = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];

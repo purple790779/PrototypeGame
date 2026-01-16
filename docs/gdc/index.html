@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>지오메트리 캐논 - v37.4.0</title>
+    <title>지오메트리 캐논 - v1.0.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -186,7 +186,7 @@
                 <div class="title-block">
                     <h1 class="italic glow-text">GEOMETRY<br>CANNON</h1>
                     <button id="version-toggle" class="version-toggle tap-target" type="button" aria-label="버전 5회 탭 시 DEV 패널">
-                    <span id="version-text">v37.4.0</span>
+                    <span id="version-text">v1.0.0</span>
                     </button>
                 </div>
                 <div class="resource-stack">
@@ -372,7 +372,7 @@
             <div id="gameover-popup" class="hidden absolute inset-0 bg-red-900/40 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-50">
                 <h2 class="text-4xl font-black italic text-red-500 mb-2 glow-text">SYSTEM DESTROYED</h2>
                 <div class="flex gap-4">
-                    <button id="btn-retry" class="bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-red-400" onclick="prepareGame(isTestStage)">재도전</button>
+                    <button id="btn-retry" class="bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-red-400">재도전</button>
                     <button id="btn-fail-lobby" class="bg-black/50 border border-white/20 text-white px-6 py-3 rounded-full font-bold hover:bg-white/10" onclick="returnToLobby()">메인으로</button>
                 </div>
             </div>
@@ -415,7 +415,17 @@
         const s = document.createElement('script');
         s.type = 'module';
         s.src = `./src/main.js?v=${encodeURIComponent(VERSION)}`;
-        document.currentScript.after(s);
+        s.addEventListener('error', () => {
+            const st = document.getElementById('debug-save-status');
+            if (st) st.textContent = 'JS LOAD ERROR';
+            console.error('[bootstrap] main.js load failed:', s.src);
+        });
+        const anchor = document.currentScript;
+        if (anchor && anchor.parentNode) {
+            anchor.after(s);
+        } else {
+            (document.body || document.documentElement).appendChild(s);
+        }
     </script>
 </body>
 

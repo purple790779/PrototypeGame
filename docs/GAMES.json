@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "hubVersion": "v0.2.0",
-  "updatedAt": "2026-02-01",
+  "hubVersion": "v1.0.0",
+  "updatedAt": "2026-01-16",
   "games": [
     {
       "id": "gdc",
@@ -9,7 +9,7 @@
       "slug": "gdc",
       "path": "./gdc/",
       "icon": "🧿",
-      "version": "v37.2",
+      "version": "v1.0.0",
       "status": "active",
       "summary": "자동 조준/자동 발사 기반의 생존형 디펜스 프로토타입.",
       "order": 10,
