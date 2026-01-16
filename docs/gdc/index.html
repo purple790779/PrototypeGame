@@ -246,6 +246,10 @@
                         <input id="opt-dmgtext" type="checkbox">
                         <span>데미지 숫자</span>
                     </label>
+                    <label class="option-toggle tap-target" for="opt-sfx">
+                        <input id="opt-sfx" type="checkbox">
+                        <span>사운드(SFX)</span>
+                    </label>
                     <button id="btn-reset-meta" class="reset-meta-btn tap-target" type="button">
                         메타 업그레이드 리셋
                     </button>
@@ -282,6 +286,7 @@
                 <div class="dev-sheet-actions">
                     <button id="dev-god-btn" class="dev-btn bg-red-900/80 border border-red-500/50 text-red-200 hover:bg-red-600 transition-colors" type="button">GOD MODE</button>
                     <button id="dev-test-btn" class="dev-btn bg-orange-600 border border-orange-400 text-white hover:bg-orange-500 transition-colors shadow-[0_0_10px_orange]" type="button">TEST STAGE</button>
+                    <button id="dev-test-off-btn" class="dev-btn bg-slate-700 border border-slate-500 text-slate-100 hover:bg-slate-500 transition-colors" type="button">TEST OFF</button>
                 </div>
             </div>
         </div>
@@ -293,6 +298,7 @@
                 <select id="test-weapon-select"></select>
                 <div class="test-sheet-actions">
                     <button id="test-config-close" class="btn-sub" type="button">닫기</button>
+                    <button id="test-off-btn" class="btn-sub" type="button">해제</button>
                     <button id="test-apply-btn" class="btn-main" type="button">적용</button>
                 </div>
             </div>
@@ -427,7 +433,7 @@
             }
         });
     </script>
-    <script type="module" src="./src/main.js?v=1.0.0"></script>
+    <script type="module" src="./src/main.js?v=1.0.5"></script>
 </body>
 
 </html>

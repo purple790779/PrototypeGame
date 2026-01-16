@@ -15,6 +15,15 @@
 ### Removed
 -
 
+## v1.0.5 - 2026-01-16
+### Fixed
+- Droplet 무기 화면 밖 이탈/미복귀 방지(타겟 상실/오버슈트 안전 처리)
+### Added
+- TEST MODE 해제 버튼(DEV 패널/TEST 설정창)
+- 무기 발사 사운드(SFX) + 설정 토글
+### Changed
+- 허브(GAMES.json) 내 gdc 버전/업데이트 날짜 동기화
+
 ## v1.1.0 - 2026-01-20
 ### Added
 - 새 적 타입: siege(기지 근처 원거리 공격)

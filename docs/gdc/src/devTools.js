@@ -4,7 +4,13 @@ export function createDevTools({
     uiLocker,
     onGodMode,
     onOpenTestConfig,
-    onToggleDevPanel
+    onToggleDevPanel,
+    devTestOffButton,
+    testOffButton,
+    setTestModeState,
+    setTestModeIndicator,
+    closeTestConfig,
+    closeDevPanel
 }) {
     const DEV_FLAG_KEY = `${storagePrefix}:dev`;
     const params = new URLSearchParams(location.search);
@@ -42,6 +48,22 @@ export function createDevTools({
             versionEl.setAttribute('aria-expanded', 'false');
         }
         versionEl.addEventListener('click', handleVersionTap);
+    }
+
+    const disableTestMode = () => {
+        setTestModeState?.(false, '');
+        setTestModeIndicator?.(false);
+        closeTestConfig?.();
+        closeDevPanel?.();
+        alert('TEST MODE 해제됨.');
+    };
+
+    if (testOffButton) {
+        testOffButton.addEventListener('click', disableTestMode);
+    }
+
+    if (devTestOffButton) {
+        devTestOffButton.addEventListener('click', disableTestMode);
     }
 
     return {

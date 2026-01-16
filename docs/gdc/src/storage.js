@@ -185,6 +185,7 @@ export const resetMetaSpent = () => {
 const defaultSettings = {
   shake: true,
   dmgText: true,
+  sfx: true,
 };
 
 export const getSettings = () => {
