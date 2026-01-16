@@ -7,6 +7,7 @@ import { bindSettingsUI } from './settings.js';
 import { createDevTools } from './devTools.js';
 import { createMetaUpgradesUi } from './metaUpgradesUi.js';
 import { createFx } from './fx.js';
+import { bindAudioUnlock, playSfx } from './audio.js';
 
 const boot = () => {
         const statusEl = document.getElementById('debug-save-status');
@@ -25,9 +26,12 @@ const boot = () => {
         const testApplyButton = $('test-apply-btn');
         const devGodButton = $('dev-god-btn');
         const devTestButton = $('dev-test-btn');
+        const devTestOffButton = $('dev-test-off-btn');
         const optShakeEl = $('opt-shake');
         const optDmgTextEl = $('opt-dmgtext');
+        const optSfxEl = $('opt-sfx');
         const retryBtn = document.getElementById('btn-retry');
+        const testOffButton = $('test-off-btn');
 
         let gameState = 'LOBBY';
         let width, height;
@@ -42,10 +46,19 @@ const boot = () => {
         const { settings, sync: syncSettingsUi } = bindSettingsUI({
             optShakeEl,
             optDmgTextEl,
+            optSfxEl,
             getSettings,
             setSettings
         });
         const fx = createFx();
+        const lastSfxTime = {
+            cannon: 0,
+            missile: 0,
+            laser: 0,
+            gravity: 0,
+            barrier: 0,
+            droplet: 0
+        };
 
         let player = null;
         let enemies = [];
@@ -113,6 +126,7 @@ const boot = () => {
             }
             document.title = `지오메트리 캐논 - ${VERSION}`;
             document.body.dataset.storagePrefix = STORAGE_PREFIX;
+            bindAudioUnlock();
             saveMeta({ version: VERSION, updatedAt: Date.now() });
             loadGameData();
             metaUpgrades = getMetaUpgrades();
@@ -146,7 +160,13 @@ const boot = () => {
                 uiLocker,
                 onGodMode: activateGodMode,
                 onOpenTestConfig: openTestConfig,
-                onToggleDevPanel: toggleDevPanel
+                onToggleDevPanel: toggleDevPanel,
+                devTestOffButton,
+                testOffButton,
+                setTestModeState,
+                setTestModeIndicator,
+                closeTestConfig,
+                closeDevPanel: () => devPanelModal?.close?.()
             });
             if (devGodButton) {
                 devGodButton.addEventListener('click', activateGodMode);
@@ -184,9 +204,19 @@ const boot = () => {
         }
 
         // --- Helper Functions ---
-        const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-        function isOnScreen(x, y, pad = 16) {
-            return x >= -pad && x <= canvas.width + pad && y >= -pad && y <= canvas.height + pad;
+        const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+        const playWeaponSfx = (name, cooldownMs = 80, volume = 1) => {
+            if (!settings?.sfx) return;
+            const now = performance.now();
+            if (now - (lastSfxTime[name] || 0) < cooldownMs) return;
+            lastSfxTime[name] = now;
+            playSfx(name, volume, settings.sfx);
+        };
+        function isOnScreen(x, y, pad = 24) {
+            return x >= -pad && x <= width + pad && y >= -pad && y <= height + pad;
+        }
+        function isTargetableEnemy(enemy) {
+            return !!enemy && !enemy.dead && isOnScreen(enemy.x, enemy.y, 24);
         }
 
         function getStageConfig(stage, difficultyLevel) {
@@ -568,7 +598,7 @@ const boot = () => {
                 laserTimer: 0, laserInterval: 3.0, laserDmg: 8, laserOrbitRot: 0, laserDuration: 0.2, laserActive: false, laserTargetPos: null,
                 gravityTimer: 0, gravityInterval: 8.0,
                 barrierTimer: 0, barrierInterval: 6.0,
-                droplet: { active: true, state: 'ORBIT', x: 0, y: 0, rot: 0, orbitAngle: 0, chainCount: 0, maxChains: 5, target: null, waitTimer: 0, aimDuration: 1.0, cooldown: 0, maxCooldown: 5.0, hitList: [], velocity: {x:0, y:0}, dmg: 50, speed: 1200 }
+                droplet: { active: true, state: 'ORBIT', x: 0, y: 0, rot: 0, orbitAngle: 0, chainCount: 0, maxChains: 5, target: null, waitTimer: 0, aimDuration: 1.0, cooldown: 0, maxCooldown: 5.0, hitList: [], velocity: {x:0, y:0}, dmg: 50, speed: 1200, oobTimer: 0 }
             };
 
             activeSpecialWeapons = new Set();
@@ -780,7 +810,7 @@ const boot = () => {
 
             let closest = null; let minDist = Infinity;
             enemies.forEach(e => {
-                if (!isOnScreen(e.x, e.y, 24)) return;
+                if (!isTargetableEnemy(e)) return;
                 const d = Math.hypot(e.x - player.x, e.y - player.y);
                 if (d <= player.range && d < minDist) { minDist = d; closest = e; }
             });
@@ -874,10 +904,10 @@ const boot = () => {
             }
             for (let i = missiles.length - 1; i >= 0; i--) {
                 const m = missiles[i];
-                if (!m.target || !enemies.includes(m.target) || !isOnScreen(m.target.x, m.target.y, 24)) {
+                if (!m.target || !enemies.includes(m.target) || !isTargetableEnemy(m.target)) {
                     let newTarget = null; let maxHp = -1;
                     enemies.forEach(e => {
-                        if (!isOnScreen(e.x, e.y, 24)) return;
+                        if (!isTargetableEnemy(e)) return;
                         if (e.hp > maxHp) { maxHp = e.hp; newTarget = e; }
                     });
                     m.target = newTarget;
@@ -1287,6 +1317,7 @@ const boot = () => {
                 const angleOffset = (player.multishot > 1) ? (i - (player.multishot-1)/2) * spread : 0;
                 bullets.push({ x: player.x, y: player.y, rot: player.rotation + angleOffset, speed: player.bulletSpeed, size: player.bulletSize });
             }
+            playWeaponSfx('cannon', 50, 0.9);
         }
         function createParticles(x, y, color, count) {
             for(let i=0; i<count; i++) { const a = Math.random() * Math.PI * 2; const s = Math.random() * 30 + 10; particles.push({x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 1, color}); }
@@ -1294,19 +1325,20 @@ const boot = () => {
         function fireMissile() {
             let target = null; let maxHp = -1;
             enemies.forEach(e => {
-                if (!isOnScreen(e.x, e.y, 24)) return;
+                if (!isTargetableEnemy(e)) return;
                 if (e.hp > maxHp) { maxHp = e.hp; target = e; }
             });
             if (target) {
                 const offset = 15;
                 const spawnPoints = [{ x: player.x + Math.cos(player.rotation - Math.PI/2) * offset, y: player.y + Math.sin(player.rotation - Math.PI/2) * offset }, { x: player.x + Math.cos(player.rotation + Math.PI/2) * offset, y: player.y + Math.sin(player.rotation + Math.PI/2) * offset }];
                 spawnPoints.forEach(p => { missiles.push({ x: p.x, y: p.y, rot: player.rotation, speed: 300, target: target, life: 3.0, trailTimer: 0 }); });
+                playWeaponSfx('missile', 140, 0.9);
             }
         }
         function fireLaser() {
             let closest = null; let minDist = Infinity;
             enemies.forEach(e => {
-                if (!isOnScreen(e.x, e.y, 24)) return;
+                if (!isTargetableEnemy(e)) return;
                 const d = Math.hypot(e.x - player.x, e.y - player.y);
                 if (d < minDist) { minDist = d; closest = e; }
             });
@@ -1327,30 +1359,35 @@ const boot = () => {
                     }
                 });
                 for(let i=enemies.length-1; i>=0; i--) { if(enemies[i].dead) enemies.splice(i, 1); }
+                playWeaponSfx('laser', 160, 0.9);
             }
         }
         function fireGravity() {
             let target = null; let maxHp = -1;
             enemies.forEach(e => {
-                if (!isOnScreen(e.x, e.y, 24)) return;
+                if (!isTargetableEnemy(e)) return;
                 if (e.hp > maxHp) { maxHp = e.hp; target = e; }
             });
             const angle = target ? Math.atan2(target.y - player.y, target.x - player.x) : Math.random() * Math.PI * 2;
             gravityOrbs.push({ x: player.x, y: player.y, vx: Math.cos(angle) * 40, vy: Math.sin(angle) * 40, life: 2.0, state: 'move', maxDist: 300, traveled: 0, pullRange: 50, pullForce: 50, dotDmg: 10, scale: 1.0 });
+            playWeaponSfx('gravity', 220, 0.9);
         }
         function fireBarrier() {
             const speed = 150; const width = 120; 
             electroBarriers.push({ x: player.x, y: player.y, vx: Math.cos(player.rotation) * speed, vy: Math.sin(player.rotation) * speed, rot: player.rotation, width: width, life: 3.0 });
+            playWeaponSfx('barrier', 180, 0.85);
         }
         function updateDroplet(dt) { 
             const d = player.droplet;
-            if (d.target && !isOnScreen(d.target.x, d.target.y, 24)) {
+            if (d.target && !isTargetableEnemy(d.target)) {
                 d.target = null;
                 if (d.state !== 'ORBIT') {
                     d.state = 'RETURNING';
+                    d.oobTimer = 0;
                 }
             }
             if (d.state === 'ORBIT') {
+                d.oobTimer = 0;
                 d.orbitAngle += dt;
                 d.x = player.x + Math.cos(d.orbitAngle) * 35;
                 d.y = player.y + Math.sin(d.orbitAngle) * 35;
@@ -1358,17 +1395,24 @@ const boot = () => {
                 else {
                     let closest = null; let minDist = 300;
                     enemies.forEach(e => {
-                        if (!isOnScreen(e.x, e.y, 24)) return;
+                        if (!isTargetableEnemy(e)) return;
                         const dist = Math.hypot(e.x - player.x, e.y - player.y);
                         if (dist < minDist) { minDist = dist; closest = e; }
                     });
                     if (closest) {
                         d.target = closest; d.state = 'ATTACK'; d.chainCount = 1; d.hitList = [];
+                        d.oobTimer = 0;
                         const angle = Math.atan2(closest.y - d.y, closest.x - d.x);
                         d.velocity.x = Math.cos(angle) * d.speed; d.velocity.y = Math.sin(angle) * d.speed;
+                        playWeaponSfx('droplet', 140, 0.85);
                     }
                 }
             } else if (d.state === 'ATTACK') {
+                if (!d.target || !isTargetableEnemy(d.target) || !isOnScreen(d.x, d.y, 60)) {
+                    d.state = 'RETURNING';
+                    d.target = null;
+                    d.oobTimer = 0;
+                } else {
                 d.x += d.velocity.x * dt; d.y += d.velocity.y * dt;
                 particles.push({x: d.x, y: d.y, vx: 0, vy: 0, life: 0.3, color: '#00ffff', size: 3});
                 enemies.forEach(e => {
@@ -1383,30 +1427,77 @@ const boot = () => {
                         if (e === d.target) { d.state = 'OVERSHOOT'; d.waitTimer = 0.15; }
                     }
                 });
+                }
             } else if (d.state === 'OVERSHOOT') {
+                if (!isOnScreen(d.x, d.y, 60) || (d.target && !isTargetableEnemy(d.target))) {
+                    d.state = 'RETURNING';
+                    d.target = null;
+                    d.oobTimer = 0;
+                } else {
                 d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; d.waitTimer -= dt;
                 if (d.waitTimer <= 0) { d.state = 'STOPPED'; d.waitTimer = 0; }
+                }
             } else if (d.state === 'STOPPED') {
-                let nextTarget = null; let minDist = 200;
+                const chainRange = 220;
+                let nextTarget = null; let minDist = chainRange;
                 enemies.forEach(e => {
-                    if (e.dead) return;
-                    if (!isOnScreen(e.x, e.y, 24)) return;
+                    if (!isTargetableEnemy(e)) return;
+                    if (d.hitList.includes(e)) return;
                     const dist = Math.hypot(d.x - e.x, d.y - e.y);
-                    if (dist > 200) {
-                        if (!nextTarget || dist < Math.hypot(d.x - nextTarget.x, d.y - nextTarget.y)) { nextTarget = e; }
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nextTarget = e;
                     }
                 });
-                if (nextTarget && d.chainCount < d.maxChains) { d.target = nextTarget; d.state = 'AIMING'; d.waitTimer = 0; } else { d.state = 'RETURNING'; }
+                if (nextTarget && d.chainCount < d.maxChains) {
+                    d.target = nextTarget;
+                    d.state = 'AIMING';
+                    d.waitTimer = 0;
+                    d.oobTimer = 0;
+                } else {
+                    d.state = 'RETURNING';
+                    d.target = null;
+                    d.oobTimer = 0;
+                }
             } else if (d.state === 'AIMING') {
-                d.waitTimer += dt; d.rot = Math.atan2(d.target.y - d.y, d.target.x - d.x);
-                if (d.waitTimer >= d.aimDuration) { d.state = 'ATTACK'; d.chainCount++; d.hitList = []; d.velocity.x = Math.cos(d.rot) * d.speed; d.velocity.y = Math.sin(d.rot) * d.speed; }
+                if (!d.target || !isTargetableEnemy(d.target)) {
+                    d.state = 'RETURNING';
+                    d.target = null;
+                    d.oobTimer = 0;
+                } else {
+                    d.waitTimer += dt; d.rot = Math.atan2(d.target.y - d.y, d.target.x - d.x);
+                    if (d.waitTimer >= d.aimDuration) {
+                        d.state = 'ATTACK';
+                        d.chainCount++;
+                        d.hitList = [];
+                        d.oobTimer = 0;
+                        d.velocity.x = Math.cos(d.rot) * d.speed; d.velocity.y = Math.sin(d.rot) * d.speed;
+                    }
+                }
             } else if (d.state === 'RETURNING') {
                 const angle = Math.atan2(player.y - d.y, player.x - d.x);
                 d.x += Math.cos(angle) * d.speed * dt; d.y += Math.sin(angle) * d.speed * dt;
-                if (Math.hypot(player.x - d.x, player.y - d.y) < 20) { d.state = 'ORBIT'; d.cooldown = d.maxCooldown; }
+                d.x = clamp(d.x, 0, width);
+                d.y = clamp(d.y, 0, height);
+                if (!isOnScreen(d.x, d.y, 60)) {
+                    d.oobTimer += dt;
+                } else {
+                    d.oobTimer = 0;
+                }
+                if (d.oobTimer > 0.35) {
+                    d.x = player.x;
+                    d.y = player.y;
+                    d.state = 'ORBIT';
+                    d.cooldown = d.maxCooldown;
+                    d.oobTimer = 0;
+                } else if (Math.hypot(player.x - d.x, player.y - d.y) < 20) {
+                    d.state = 'ORBIT';
+                    d.cooldown = d.maxCooldown;
+                    d.oobTimer = 0;
+                }
             }
-            d.x = clamp(d.x, 0, canvas.width);
-            d.y = clamp(d.y, 0, canvas.height);
+            d.x = clamp(d.x, 0, width);
+            d.y = clamp(d.y, 0, height);
         }
         function pointToLineDistance(px, py, x1, y1, x2, y2) { const A = px - x1; const B = py - y1; const C = x2 - x1; const D = y2 - y1; const dot = A * C + B * D; const len_sq = C * C + D * D; let param = -1; if (len_sq != 0) param = dot / len_sq; let xx, yy; if (param < 0) { xx = x1; yy = y1; } else if (param > 1) { xx = x2; yy = y2; } else { xx = x1 + param * C; yy = y1 + param * D; } const dx = px - xx; const dy = py - yy; return Math.sqrt(dx * dx + dy * dy); }
         function spawnDrop(x, y, rank) { if (difficulty === 'NORMAL') { const baseVal = Math.floor(Math.random() * 6) + 5; const val = Math.floor(baseVal * (1 + currentStage * 0.1)); drops.push({ x, y, type: 'fragment', val, life: 1.0, state: 'wait' }); } else { if (rank >= 2 || Math.random() < 0.05) { const val = (rank >= 2) ? Math.floor(Math.random() * 3) + 2 : 1; drops.push({ x, y, type: 'core', val, life: 1.0, state: 'wait' }); } } }

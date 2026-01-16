@@ -1,6 +1,7 @@
 export function bindSettingsUI({
     optShakeEl,
     optDmgTextEl,
+    optSfxEl,
     getSettings,
     setSettings,
     onChange
@@ -10,6 +11,7 @@ export function bindSettingsUI({
     const sync = () => {
         if (optShakeEl) optShakeEl.checked = !!settings.shake;
         if (optDmgTextEl) optDmgTextEl.checked = !!settings.dmgText;
+        if (optSfxEl) optSfxEl.checked = !!settings.sfx;
     };
 
     const updateSetting = (key, value) => {
@@ -27,6 +29,12 @@ export function bindSettingsUI({
     if (optDmgTextEl) {
         optDmgTextEl.addEventListener('change', (event) => {
             updateSetting('dmgText', !!event.target.checked);
+        });
+    }
+
+    if (optSfxEl) {
+        optSfxEl.addEventListener('change', (event) => {
+            updateSetting('sfx', !!event.target.checked);
         });
     }
 
