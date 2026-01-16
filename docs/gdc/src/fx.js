@@ -1,5 +1,5 @@
 class ParticlePool {
-  constructor(size = 220) {
+  constructor(size = 200) {
     this.size = size;
     this.pool = Array.from({ length: size }, () => ({
       active: false,
@@ -83,7 +83,7 @@ class ParticlePool {
 }
 
 class DamageTextPool {
-  constructor(size = 70) {
+  constructor(size = 80) {
     this.size = size;
     this.pool = Array.from({ length: size }, () => ({
       active: false,
@@ -228,8 +228,8 @@ class VignetteHit {
 }
 
 export const createFx = () => {
-  const particles = new ParticlePool(240);
-  const damageText = new DamageTextPool(70);
+  const particles = new ParticlePool(200);
+  const damageText = new DamageTextPool(80);
   const shake = new ScreenShake();
   const vignette = new VignetteHit();
 

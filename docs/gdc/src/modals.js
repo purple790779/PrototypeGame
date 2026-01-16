@@ -1,25 +1,32 @@
 export function createUiLocker(containerEl) {
-    let openCount = 0;
+    let depth = 0;
 
-    const syncState = () => {
-        const locked = openCount > 0;
+    const apply = () => {
+        const locked = depth > 0;
         if (containerEl) {
             containerEl.classList.toggle('ui-locked', locked);
         }
-        document.body.classList.toggle('modal-open', locked);
+        const lobby = document.getElementById('lobby-ui');
+        if (lobby) lobby.style.pointerEvents = locked ? 'none' : '';
+        const ingame = document.getElementById('ingame-ui');
+        if (ingame) ingame.style.pointerEvents = locked ? 'none' : '';
     };
 
     return {
         lock() {
-            openCount += 1;
-            syncState();
+            depth += 1;
+            apply();
         },
         unlock() {
-            openCount = Math.max(0, openCount - 1);
-            syncState();
+            depth = Math.max(0, depth - 1);
+            apply();
         },
-        get openCount() {
-            return openCount;
+        forceUnlock() {
+            depth = 0;
+            apply();
+        },
+        isLocked() {
+            return depth > 0;
         }
     };
 }

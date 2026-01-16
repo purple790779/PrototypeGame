@@ -7,6 +7,8 @@ import { createMetaUpgradesUi } from './metaUpgradesUi.js';
 import { createFx } from './fx.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+        const statusEl = document.getElementById('debug-save-status');
+        if (statusEl) statusEl.innerText = 'Loaded';
         const canvas = $('gameCanvas');
         const container = $('game-container');
         const ctx = canvas.getContext('2d');
@@ -1050,5 +1052,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.nextStage = nextStage;
         window.returnToLobby = returnToLobby;
 
-        init();
+        try {
+            init();
+        } catch (error) {
+            if (statusEl) statusEl.innerText = 'ERROR';
+            console.error('[init] Failed to initialize', error);
+        }
 });

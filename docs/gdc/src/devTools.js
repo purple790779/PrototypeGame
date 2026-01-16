@@ -96,6 +96,7 @@ export function createDevTools({
             return;
         }
         setTestModeState?.(true, weaponKey);
+        setTestModeIndicator?.(true);
         closeTestConfig();
         closeDevPanel();
         alert('적용됨. START를 눌러 전투에서 확인하세요.');
@@ -104,6 +105,11 @@ export function createDevTools({
     if (!devToolsEnabled && devPanel) {
         devPanel.classList.add('hidden');
         versionToggle?.setAttribute('aria-expanded', 'false');
+    }
+
+    const initialTestState = getTestModeState?.();
+    if (initialTestState) {
+        setTestModeIndicator?.(initialTestState.enabled);
     }
 
     if (versionToggle) {
