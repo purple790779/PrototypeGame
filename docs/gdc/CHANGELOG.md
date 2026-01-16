@@ -19,7 +19,7 @@
 ### Changed
 - 허브/GAMES.json/게임 내 버전 표기 v1.0.0으로 리셋 및 동기화
 ### Fixed
-- gdc 로비 무반응 원인 수정(main.js 로더 안정화)
+- gdc 로비 무반응 원인 수정(정적 main.js 로딩 + DOMContentLoaded 부트 가드)
 - 게임오버 재도전 버튼 버그 수정(isTestStage 전역참조 제거)
 
 ## v37.4.1 - 2026-01-15
