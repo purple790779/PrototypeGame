@@ -183,6 +183,11 @@ const boot = () => {
         }
 
         // --- Helper Functions ---
+        const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+        function isOnScreen(x, y, pad = 16) {
+            return x >= -pad && x <= canvas.width + pad && y >= -pad && y <= canvas.height + pad;
+        }
+
         function getSpecialWeaponKeys() {
             const keys = new Set();
             SKILL_POOL.forEach((skill) => {
@@ -735,7 +740,11 @@ const boot = () => {
             for (let i = texts.length - 1; i >= 0; i--) { const t = texts[i]; t.y -= 20 * dt; t.life -= dt; if (t.life <= 0) texts.splice(i, 1); }
 
             let closest = null; let minDist = Infinity;
-            enemies.forEach(e => { const d = Math.hypot(e.x - player.x, e.y - player.y); if(d <= player.range && d < minDist) { minDist = d; closest = e; } });
+            enemies.forEach(e => {
+                if (!isOnScreen(e.x, e.y, 24)) return;
+                const d = Math.hypot(e.x - player.x, e.y - player.y);
+                if (d <= player.range && d < minDist) { minDist = d; closest = e; }
+            });
 
             if (closest && player.visible) {
                 const targetAngle = Math.atan2(closest.y - player.y, closest.x - player.x);
@@ -777,7 +786,14 @@ const boot = () => {
             }
             for (let i = missiles.length - 1; i >= 0; i--) {
                 const m = missiles[i];
-                if (!m.target || !enemies.includes(m.target)) { let newTarget = null; let maxHp = -1; enemies.forEach(e => { if(e.hp > maxHp) { maxHp = e.hp; newTarget = e; } }); m.target = newTarget; }
+                if (!m.target || !enemies.includes(m.target) || !isOnScreen(m.target.x, m.target.y, 24)) {
+                    let newTarget = null; let maxHp = -1;
+                    enemies.forEach(e => {
+                        if (!isOnScreen(e.x, e.y, 24)) return;
+                        if (e.hp > maxHp) { maxHp = e.hp; newTarget = e; }
+                    });
+                    m.target = newTarget;
+                }
                 if (m.target) { const targetAngle = Math.atan2(m.target.y - m.y, m.target.x - m.x); let diff = targetAngle - m.rot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; m.rot += Math.sign(diff) * Math.min(Math.abs(diff), 3.0 * dt); }
                 m.x += Math.cos(m.rot) * m.speed * dt; m.y += Math.sin(m.rot) * m.speed * dt; m.life -= dt; m.trailTimer -= dt;
                 if (m.trailTimer <= 0) { particles.push({x: m.x, y: m.y, vx: 0, vy: 0, life: 0.5, color: '#ffaa00', size: 2}); m.trailTimer = 0.05; }
@@ -1130,7 +1146,11 @@ const boot = () => {
             for(let i=0; i<count; i++) { const a = Math.random() * Math.PI * 2; const s = Math.random() * 30 + 10; particles.push({x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 1, color}); }
         }
         function fireMissile() {
-            let target = null; let maxHp = -1; enemies.forEach(e => { if (e.hp > maxHp) { maxHp = e.hp; target = e; } });
+            let target = null; let maxHp = -1;
+            enemies.forEach(e => {
+                if (!isOnScreen(e.x, e.y, 24)) return;
+                if (e.hp > maxHp) { maxHp = e.hp; target = e; }
+            });
             if (target) {
                 const offset = 15;
                 const spawnPoints = [{ x: player.x + Math.cos(player.rotation - Math.PI/2) * offset, y: player.y + Math.sin(player.rotation - Math.PI/2) * offset }, { x: player.x + Math.cos(player.rotation + Math.PI/2) * offset, y: player.y + Math.sin(player.rotation + Math.PI/2) * offset }];
@@ -1139,7 +1159,11 @@ const boot = () => {
         }
         function fireLaser() {
             let closest = null; let minDist = Infinity;
-            enemies.forEach(e => { const d = Math.hypot(e.x - player.x, e.y - player.y); if(d < minDist) { minDist = d; closest = e; } });
+            enemies.forEach(e => {
+                if (!isOnScreen(e.x, e.y, 24)) return;
+                const d = Math.hypot(e.x - player.x, e.y - player.y);
+                if (d < minDist) { minDist = d; closest = e; }
+            });
             if (closest) {
                 player.laserActive = true; player.laserTimer = 0; 
                 const orbitR = 30; const lx = player.x + Math.cos(player.laserOrbitRot) * orbitR; const ly = player.y + Math.sin(player.laserOrbitRot) * orbitR;
@@ -1160,7 +1184,11 @@ const boot = () => {
             }
         }
         function fireGravity() {
-            let target = null; let maxHp = -1; enemies.forEach(e => { if (e.hp > maxHp) { maxHp = e.hp; target = e; } });
+            let target = null; let maxHp = -1;
+            enemies.forEach(e => {
+                if (!isOnScreen(e.x, e.y, 24)) return;
+                if (e.hp > maxHp) { maxHp = e.hp; target = e; }
+            });
             const angle = target ? Math.atan2(target.y - player.y, target.x - player.x) : Math.random() * Math.PI * 2;
             gravityOrbs.push({ x: player.x, y: player.y, vx: Math.cos(angle) * 40, vy: Math.sin(angle) * 40, life: 2.0, state: 'move', maxDist: 300, traveled: 0, pullRange: 50, pullForce: 50, dotDmg: 10, scale: 1.0 });
         }
@@ -1170,12 +1198,69 @@ const boot = () => {
         }
         function updateDroplet(dt) { 
             const d = player.droplet;
-            if (d.state === 'ORBIT') { d.orbitAngle += dt; d.x = player.x + Math.cos(d.orbitAngle) * 35; d.y = player.y + Math.sin(d.orbitAngle) * 35; if (d.cooldown > 0) d.cooldown -= dt; else { let closest = null; let minDist = 300; enemies.forEach(e => { const dist = Math.hypot(e.x - player.x, e.y - player.y); if (dist < minDist) { minDist = dist; closest = e; } }); if (closest) { d.target = closest; d.state = 'ATTACK'; d.chainCount = 1; d.hitList = []; const angle = Math.atan2(closest.y - d.y, closest.x - d.x); d.velocity.x = Math.cos(angle) * d.speed; d.velocity.y = Math.sin(angle) * d.speed; } } } 
-            else if (d.state === 'ATTACK') { d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; particles.push({x: d.x, y: d.y, vx: 0, vy: 0, life: 0.3, color: '#00ffff', size: 3}); enemies.forEach(e => { if (!d.hitList.includes(e) && Math.hypot(d.x - e.x, d.y - e.y) < 15) { d.hitList.push(e); const dmg = (e === d.target) ? d.dmg : (d.dmg * 0.5); e.hp -= dmg; registerEnemyHit(e, dmg, { hitTime: 0.12, burst: { count: 4, speed: 80, life: 0.4, sizeRange: [1, 2.2], color: 'rgba(200,255,255,0.9)' } }); texts.push({ x: e.x, y: e.y - 15, text: "PIERCE", life: 0.5, color: '#00ffff' }); createExplosion(e.x, e.y, '#00ffff', 3); if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(30); e.dead = true; } if (e === d.target) { d.state = 'OVERSHOOT'; d.waitTimer = 0.15; } } }); } 
-            else if (d.state === 'OVERSHOOT') { d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; d.waitTimer -= dt; if (d.waitTimer <= 0) { d.state = 'STOPPED'; d.waitTimer = 0; } } 
-            else if (d.state === 'STOPPED') { let nextTarget = null; let minDist = 200; enemies.forEach(e => { if (e.dead) return; const dist = Math.hypot(d.x - e.x, d.y - e.y); if (dist > 200) { if (!nextTarget || dist < Math.hypot(d.x - nextTarget.x, d.y - nextTarget.y)) { nextTarget = e; } } }); if (nextTarget && d.chainCount < d.maxChains) { d.target = nextTarget; d.state = 'AIMING'; d.waitTimer = 0; } else { d.state = 'RETURNING'; } } 
-            else if (d.state === 'AIMING') { d.waitTimer += dt; d.rot = Math.atan2(d.target.y - d.y, d.target.x - d.x); if (d.waitTimer >= d.aimDuration) { d.state = 'ATTACK'; d.chainCount++; d.hitList = []; d.velocity.x = Math.cos(d.rot) * d.speed; d.velocity.y = Math.sin(d.rot) * d.speed; } } 
-            else if (d.state === 'RETURNING') { const angle = Math.atan2(player.y - d.y, player.x - d.x); d.x += Math.cos(angle) * d.speed * dt; d.y += Math.sin(angle) * d.speed * dt; if (Math.hypot(player.x - d.x, player.y - d.y) < 20) { d.state = 'ORBIT'; d.cooldown = d.maxCooldown; } }
+            if (d.target && !isOnScreen(d.target.x, d.target.y, 24)) {
+                d.target = null;
+                if (d.state !== 'ORBIT') {
+                    d.state = 'RETURNING';
+                }
+            }
+            if (d.state === 'ORBIT') {
+                d.orbitAngle += dt;
+                d.x = player.x + Math.cos(d.orbitAngle) * 35;
+                d.y = player.y + Math.sin(d.orbitAngle) * 35;
+                if (d.cooldown > 0) d.cooldown -= dt;
+                else {
+                    let closest = null; let minDist = 300;
+                    enemies.forEach(e => {
+                        if (!isOnScreen(e.x, e.y, 24)) return;
+                        const dist = Math.hypot(e.x - player.x, e.y - player.y);
+                        if (dist < minDist) { minDist = dist; closest = e; }
+                    });
+                    if (closest) {
+                        d.target = closest; d.state = 'ATTACK'; d.chainCount = 1; d.hitList = [];
+                        const angle = Math.atan2(closest.y - d.y, closest.x - d.x);
+                        d.velocity.x = Math.cos(angle) * d.speed; d.velocity.y = Math.sin(angle) * d.speed;
+                    }
+                }
+            } else if (d.state === 'ATTACK') {
+                d.x += d.velocity.x * dt; d.y += d.velocity.y * dt;
+                particles.push({x: d.x, y: d.y, vx: 0, vy: 0, life: 0.3, color: '#00ffff', size: 3});
+                enemies.forEach(e => {
+                    if (!d.hitList.includes(e) && Math.hypot(d.x - e.x, d.y - e.y) < 15) {
+                        d.hitList.push(e);
+                        const dmg = (e === d.target) ? d.dmg : (d.dmg * 0.5);
+                        e.hp -= dmg;
+                        registerEnemyHit(e, dmg, { hitTime: 0.12, burst: { count: 4, speed: 80, life: 0.4, sizeRange: [1, 2.2], color: 'rgba(200,255,255,0.9)' } });
+                        texts.push({ x: e.x, y: e.y - 15, text: "PIERCE", life: 0.5, color: '#00ffff' });
+                        createExplosion(e.x, e.y, '#00ffff', 3);
+                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(30); e.dead = true; }
+                        if (e === d.target) { d.state = 'OVERSHOOT'; d.waitTimer = 0.15; }
+                    }
+                });
+            } else if (d.state === 'OVERSHOOT') {
+                d.x += d.velocity.x * dt; d.y += d.velocity.y * dt; d.waitTimer -= dt;
+                if (d.waitTimer <= 0) { d.state = 'STOPPED'; d.waitTimer = 0; }
+            } else if (d.state === 'STOPPED') {
+                let nextTarget = null; let minDist = 200;
+                enemies.forEach(e => {
+                    if (e.dead) return;
+                    if (!isOnScreen(e.x, e.y, 24)) return;
+                    const dist = Math.hypot(d.x - e.x, d.y - e.y);
+                    if (dist > 200) {
+                        if (!nextTarget || dist < Math.hypot(d.x - nextTarget.x, d.y - nextTarget.y)) { nextTarget = e; }
+                    }
+                });
+                if (nextTarget && d.chainCount < d.maxChains) { d.target = nextTarget; d.state = 'AIMING'; d.waitTimer = 0; } else { d.state = 'RETURNING'; }
+            } else if (d.state === 'AIMING') {
+                d.waitTimer += dt; d.rot = Math.atan2(d.target.y - d.y, d.target.x - d.x);
+                if (d.waitTimer >= d.aimDuration) { d.state = 'ATTACK'; d.chainCount++; d.hitList = []; d.velocity.x = Math.cos(d.rot) * d.speed; d.velocity.y = Math.sin(d.rot) * d.speed; }
+            } else if (d.state === 'RETURNING') {
+                const angle = Math.atan2(player.y - d.y, player.x - d.x);
+                d.x += Math.cos(angle) * d.speed * dt; d.y += Math.sin(angle) * d.speed * dt;
+                if (Math.hypot(player.x - d.x, player.y - d.y) < 20) { d.state = 'ORBIT'; d.cooldown = d.maxCooldown; }
+            }
+            d.x = clamp(d.x, 0, canvas.width);
+            d.y = clamp(d.y, 0, canvas.height);
         }
         function pointToLineDistance(px, py, x1, y1, x2, y2) { const A = px - x1; const B = py - y1; const C = x2 - x1; const D = y2 - y1; const dot = A * C + B * D; const len_sq = C * C + D * D; let param = -1; if (len_sq != 0) param = dot / len_sq; let xx, yy; if (param < 0) { xx = x1; yy = y1; } else if (param > 1) { xx = x2; yy = y2; } else { xx = x1 + param * C; yy = y1 + param * D; } const dx = px - xx; const dy = py - yy; return Math.sqrt(dx * dx + dy * dy); }
         function spawnDrop(x, y, rank) { if (difficulty === 'NORMAL') { const baseVal = Math.floor(Math.random() * 6) + 5; const val = Math.floor(baseVal * (1 + currentStage * 0.1)); drops.push({ x, y, type: 'fragment', val, life: 1.0, state: 'wait' }); } else { if (rank >= 2 || Math.random() < 0.05) { const val = (rank >= 2) ? Math.floor(Math.random() * 3) + 2 : 1; drops.push({ x, y, type: 'core', val, life: 1.0, state: 'wait' }); } } }
