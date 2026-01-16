@@ -135,6 +135,20 @@
         .lobby-options { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
         .option-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.45); font-size: 11px; letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.7); }
         .option-toggle input { width: 34px; height: 18px; accent-color: #68D391; }
+        .reset-meta-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 140, 140, 0.35);
+            background: rgba(0, 0, 0, 0.45);
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            color: rgba(255, 190, 190, 0.8);
+        }
+        .reset-meta-btn:active { transform: scale(0.98); filter: brightness(1.05); }
         #rotate-overlay .rotate-continue-btn{
             margin-top:18px; min-height:44px; padding:12px 18px;
             border-radius:14px;
@@ -186,7 +200,7 @@
                 <div class="title-block">
                     <h1 class="italic glow-text">GEOMETRY<br>CANNON</h1>
                     <button id="version-toggle" class="version-toggle tap-target" type="button" aria-label="버전 5회 탭 시 DEV 패널">
-                    <span id="version-text">v1.0.0</span>
+                    <span id="version-text">v1.0.2</span>
                     </button>
                 </div>
                 <div class="resource-stack">
@@ -232,6 +246,9 @@
                         <input id="opt-dmgtext" type="checkbox">
                         <span>데미지 숫자</span>
                     </label>
+                    <button id="btn-reset-meta" class="reset-meta-btn tap-target" type="button">
+                        메타 업그레이드 리셋
+                    </button>
                 </div>
                 <div class="h-8 text-white/20 text-[10px] tracking-widest uppercase">Target Systems Ready</div>
             </div>

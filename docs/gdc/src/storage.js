@@ -90,6 +90,15 @@ export const setMetaUpgrades = (payload) => {
   return writeStorage(keys.metaUpgrades, JSON.stringify(payload));
 };
 
+export const resetMetaUpgrades = () => {
+  try {
+    localStorage.removeItem(keys.metaUpgrades);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 const defaultSettings = {
   shake: true,
   dmgText: true,

@@ -1,5 +1,5 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
-import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades, getSettings, setSettings } from './storage.js';
+import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades, getSettings, setSettings, resetMetaUpgrades } from './storage.js';
 import { $ } from './dom.js';
 import { createUiLocker } from './uiLocker.js';
 import { bindModal } from './modals.js';
@@ -58,6 +58,7 @@ const boot = () => {
         let electroBarriers = [];
         let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 60 };
         let metaUpgrades = getMetaUpgrades();
+        let activeSpecialWeapons = new Set();
         const uiLocker = createUiLocker(container);
         let devTools = null;
         let devPanelModal = null;
@@ -83,11 +84,11 @@ const boot = () => {
             { id: 'multi', name: 'MULTI BARREL', desc: '투사체 개수 +1', icon: '💠', type: 'stat', effect: () => { player.multishot++; } },
             { id: 'hp', name: 'SHIELD REPAIR', desc: '최대 체력 +30 & 회복', icon: '❤️', type: 'stat', effect: () => { gameInfo.maxHp += 30; gameInfo.hp = gameInfo.maxHp; } },
 
-            { id: 'unlock_missile', name: 'INSTALL MISSILE', desc: '미사일 포드 장착', icon: '🚀', type: 'unlock', weapon: 'missile', effect: () => { player.activeWeapons.missile = true; } },
-            { id: 'unlock_laser', name: 'INSTALL LASER', desc: '궤도 레이저 장착', icon: '🛰️', type: 'unlock', weapon: 'laser', effect: () => { player.activeWeapons.laser = true; } },
-            { id: 'unlock_gravity', name: 'INSTALL GRAVITY', desc: '중력포 장착', icon: '🌌', type: 'unlock', weapon: 'gravity', effect: () => { player.activeWeapons.gravity = true; } },
-            { id: 'unlock_droplet', name: 'INSTALL DROPLET', desc: '물방울 프로브 장착', icon: '💧', type: 'unlock', weapon: 'droplet', effect: () => { player.activeWeapons.droplet = true; } },
-            { id: 'unlock_barrier', name: 'INSTALL BARRIER', desc: '전자기 장벽 장착', icon: '⚡', type: 'unlock', weapon: 'barrier', effect: () => { player.activeWeapons.barrier = true; } },
+            { id: 'unlock_missile', name: 'INSTALL MISSILE', desc: '미사일 포드 장착', icon: '🚀', type: 'unlock', weapon: 'missile', effect: () => { enableSpecialWeapon('missile'); } },
+            { id: 'unlock_laser', name: 'INSTALL LASER', desc: '궤도 레이저 장착', icon: '🛰️', type: 'unlock', weapon: 'laser', effect: () => { enableSpecialWeapon('laser'); } },
+            { id: 'unlock_gravity', name: 'INSTALL GRAVITY', desc: '중력포 장착', icon: '🌌', type: 'unlock', weapon: 'gravity', effect: () => { enableSpecialWeapon('gravity'); } },
+            { id: 'unlock_droplet', name: 'INSTALL DROPLET', desc: '물방울 프로브 장착', icon: '💧', type: 'unlock', weapon: 'droplet', effect: () => { enableSpecialWeapon('droplet'); } },
+            { id: 'unlock_barrier', name: 'INSTALL BARRIER', desc: '전자기 장벽 장착', icon: '⚡', type: 'unlock', weapon: 'barrier', effect: () => { enableSpecialWeapon('barrier'); } },
 
             { id: 'up_missile', name: 'MISSILE RELOAD', desc: '미사일 쿨다운 -20%', icon: '🚀', type: 'upgrade', weapon: 'missile', effect: () => { player.missileInterval *= 0.8; } },
             { id: 'up_laser', name: 'LASER RECHARGE', desc: '레이저 쿨다운 -20%', icon: '🛰️', type: 'upgrade', weapon: 'laser', effect: () => { player.laserInterval *= 0.8; } },
@@ -175,6 +176,7 @@ const boot = () => {
                 }
             });
             setupOverlayActions();
+            bindMetaResetButton();
             syncSettingsUi();
             updateLobbyUI();
             requestAnimationFrame(loop);
@@ -260,14 +262,59 @@ const boot = () => {
             alert('적용됨. START를 눌러 전투에서 확인하세요.');
         }
 
+        function enableSpecialWeapon(weaponKey) {
+            if (!player?.activeWeapons || !weaponKey) return;
+            player.activeWeapons[weaponKey] = true;
+            activeSpecialWeapons.add(weaponKey);
+        }
+
+        function syncActiveSpecialWeapons() {
+            activeSpecialWeapons = new Set();
+            if (!player?.activeWeapons) return;
+            Object.entries(player.activeWeapons).forEach(([key, isActive]) => {
+                if (isActive) activeSpecialWeapons.add(key);
+            });
+        }
 
         function getValidSkills() {
             return SKILL_POOL.filter(skill => {
                 if (skill.type === 'stat') return true;
-                if (skill.type === 'unlock') return !player.activeWeapons[skill.weapon];
-                if (skill.type === 'upgrade') return player.activeWeapons[skill.weapon];
+                if (skill.type === 'unlock') return !activeSpecialWeapons.has(skill.weapon);
+                if (skill.type === 'upgrade') return !skill.weapon || activeSpecialWeapons.has(skill.weapon);
                 return true;
             });
+        }
+
+        function buildSkillChoices(choiceCount, contextLabel) {
+            const validSkills = getValidSkills();
+            const choices = validSkills.sort(() => 0.5 - Math.random()).slice(0, Math.min(choiceCount, validSkills.length));
+            const globalSkills = SKILL_POOL.filter(skill => skill.type === 'stat');
+            const seen = new Set(choices.map(skill => skill.id));
+
+            if (choices.length < choiceCount) {
+                const filler = globalSkills.filter(skill => !seen.has(skill.id));
+                filler.sort(() => 0.5 - Math.random()).forEach((skill) => {
+                    if (choices.length >= choiceCount) return;
+                    choices.push(skill);
+                    seen.add(skill.id);
+                });
+            }
+
+            if (choices.length < choiceCount) {
+                const fallbackPool = globalSkills.length ? globalSkills : (validSkills.length ? validSkills : SKILL_POOL);
+                while (choices.length < choiceCount && fallbackPool.length > 0) {
+                    choices.push(fallbackPool[Math.floor(Math.random() * fallbackPool.length)]);
+                }
+            }
+
+            if (devTools?.enabled) {
+                console.log(`[DEV] ${contextLabel}`, {
+                    activeSpecialWeapons: Array.from(activeSpecialWeapons),
+                    choices: choices.map((skill) => skill.id)
+                });
+            }
+
+            return choices;
         }
 
         function updateLobbyUI() {
@@ -447,6 +494,7 @@ const boot = () => {
             if (Object.prototype.hasOwnProperty.call(activeWeapons, testState.weaponKey)) {
                 activeWeapons[testState.weaponKey] = true;
                 playerData.activeWeapons = activeWeapons;
+                syncActiveSpecialWeapons();
             }
             setTestModeIndicator(true);
         }
@@ -491,8 +539,10 @@ const boot = () => {
                 droplet: { active: true, state: 'ORBIT', x: 0, y: 0, rot: 0, orbitAngle: 0, chainCount: 0, maxChains: 5, target: null, waitTimer: 0, aimDuration: 1.0, cooldown: 0, maxCooldown: 5.0, hitList: [], velocity: {x:0, y:0}, dmg: 50, speed: 1200 }
             };
 
+            activeSpecialWeapons = new Set();
             applyMetaUpgrades();
             applyTestModeToPlayer(player);
+            syncActiveSpecialWeapons();
             
             updateIngameUI();
 
@@ -527,9 +577,8 @@ const boot = () => {
             
             container.innerHTML = '';
             
-            const validSkills = getValidSkills();
-            const choiceCount = Math.min(gameInfo.startChoices || 3, validSkills.length);
-            const choices = validSkills.sort(() => 0.5 - Math.random()).slice(0, choiceCount);
+            const choiceCount = gameInfo.startChoices || 3;
+            const choices = buildSkillChoices(choiceCount, 'STARTING PERK');
             
             choices.forEach(skill => {
                 const card = document.createElement('div');
@@ -966,6 +1015,24 @@ const boot = () => {
             }
         }
 
+        function bindMetaResetButton() {
+            const resetButton = document.getElementById('btn-reset-meta');
+            if (!resetButton) return;
+            resetButton.addEventListener('click', () => {
+                if (!confirm('메타 업그레이드를 리셋할까요? (자원은 유지됩니다)')) return;
+                if (!confirm('정말 리셋할까요? 되돌릴 수 없습니다.')) return;
+                const ok = resetMetaUpgrades();
+                if (!ok) {
+                    alert('리셋에 실패했습니다. 다시 시도해 주세요.');
+                    return;
+                }
+                metaUpgrades = getMetaUpgrades();
+                metaUpgradesUi?.renderMetaUpgradeList?.();
+                updateLobbyUI();
+                alert('메타 업그레이드가 리셋되었습니다.');
+            });
+        }
+
         function applyMetaUpgrades() {
             metaUpgrades = getMetaUpgrades();
             const meta = metaUpgrades;
@@ -1011,8 +1078,7 @@ const boot = () => {
             
             container.innerHTML = '';
             // [FIX] Valid Skill Selector using SKILL_POOL
-            const validSkills = getValidSkills();
-            const choices = validSkills.sort(() => 0.5 - Math.random()).slice(0, 3);
+            const choices = buildSkillChoices(3, 'LEVEL UP');
             
             choices.forEach(skill => {
                 const card = document.createElement('div');
