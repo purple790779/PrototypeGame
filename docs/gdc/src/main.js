@@ -1,7 +1,9 @@
 import { VERSION, STORAGE_PREFIX } from './version.js';
 import { loadSavedData, saveMeta, saveSavedData, getMetaUpgrades, getSettings, setSettings } from './storage.js';
 import { $ } from './dom.js';
-import { createUiLocker } from './modals.js';
+import { createUiLocker } from './uiLocker.js';
+import { bindModal } from './modals.js';
+import { bindSettingsUI } from './settings.js';
 import { createDevTools } from './devTools.js';
 import { createMetaUpgradesUi } from './metaUpgradesUi.js';
 import { createFx } from './fx.js';
@@ -21,6 +23,10 @@ const boot = () => {
         const testConfigClose = $('test-config-close');
         const testWeaponSelect = $('test-weapon-select');
         const testApplyButton = $('test-apply-btn');
+        const devGodButton = $('dev-god-btn');
+        const devTestButton = $('dev-test-btn');
+        const optShakeEl = $('opt-shake');
+        const optDmgTextEl = $('opt-dmgtext');
         const retryBtn = document.getElementById('btn-retry');
 
         let gameState = 'LOBBY';
@@ -33,7 +39,12 @@ const boot = () => {
         let orientationOverlayDismissed = false;
         let savedData = { clearData: { 'NORMAL': [1], 'HARD': [] }, resources: { fragments: 0, cores: 0 } };
         let tempResources = { fragments: 0, cores: 0 };
-        const settings = getSettings();
+        const { settings, sync: syncSettingsUi } = bindSettingsUI({
+            optShakeEl,
+            optDmgTextEl,
+            getSettings,
+            setSettings
+        });
         const fx = createFx();
 
         let player = null;
@@ -49,6 +60,8 @@ const boot = () => {
         let metaUpgrades = getMetaUpgrades();
         const uiLocker = createUiLocker(container);
         let devTools = null;
+        let devPanelModal = null;
+        let testConfigModal = null;
         let metaUpgradesUi = null;
 
         if (retryBtn) {
@@ -103,27 +116,50 @@ const boot = () => {
             metaUpgrades = getMetaUpgrades();
             resize();
             window.addEventListener('resize', resize);
+            devPanelModal = bindModal({
+                overlayEl: devPanel,
+                backdropEl: devBackdrop,
+                uiLocker,
+                onOpen: () => {
+                    versionToggle?.setAttribute('aria-expanded', 'true');
+                },
+                onClose: () => {
+                    versionToggle?.setAttribute('aria-expanded', 'false');
+                }
+            });
+            testConfigModal = bindModal({
+                overlayEl: testConfigOverlay,
+                closeBtnEl: testConfigClose,
+                backdropEl: testConfigBackdrop,
+                uiLocker
+            });
+            if (devSheet) {
+                devSheet.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+            }
             devTools = createDevTools({
                 storagePrefix: STORAGE_PREFIX,
-                versionToggle,
-                devPanel,
-                devBackdrop,
-                devSheet,
-                devGodButton: document.getElementById('dev-god-btn'),
-                devTestButton: document.getElementById('dev-test-btn'),
-                testConfigOverlay,
-                testConfigBackdrop,
-                testConfigClose,
-                testWeaponSelect,
-                testApplyButton,
+                versionEl: versionToggle,
                 uiLocker,
-                getSpecialWeaponKeys,
-                getSpecialWeaponLabel,
-                getTestModeState,
-                setTestModeState,
-                setTestModeIndicator,
-                onActivateGodMode: activateGodMode
+                onGodMode: activateGodMode,
+                onOpenTestConfig: openTestConfig,
+                onToggleDevPanel: toggleDevPanel
             });
+            if (devGodButton) {
+                devGodButton.addEventListener('click', activateGodMode);
+            } else {
+                console.warn('[DEV] GOD MODE 버튼을 찾을 수 없습니다.');
+            }
+            if (devTestButton) {
+                devTestButton.addEventListener('click', openTestConfig);
+            } else {
+                console.warn('[DEV] TEST STAGE 버튼을 찾을 수 없습니다.');
+            }
+            if (testApplyButton) {
+                testApplyButton.addEventListener('click', applyTestConfig);
+            }
+            setTestModeIndicator(getTestModeState().enabled);
             metaUpgradesUi = createMetaUpgradesUi({
                 overlay: document.getElementById('meta-upgrade-overlay'),
                 listEl: document.getElementById('meta-upgrade-list'),
@@ -139,7 +175,6 @@ const boot = () => {
                 }
             });
             setupOverlayActions();
-            bindSettingsUi();
             syncSettingsUi();
             updateLobbyUI();
             requestAnimationFrame(loop);
@@ -183,29 +218,48 @@ const boot = () => {
             }
         }
 
-        function syncSettingsUi() {
-            const shakeToggle = document.getElementById('opt-shake');
-            const dmgToggle = document.getElementById('opt-dmgtext');
-            if (shakeToggle) shakeToggle.checked = !!settings.shake;
-            if (dmgToggle) dmgToggle.checked = !!settings.dmgText;
+        function populateTestWeaponSelect() {
+            if (!testWeaponSelect) return 0;
+            const keys = getSpecialWeaponKeys();
+            testWeaponSelect.innerHTML = '';
+            keys.forEach((key) => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = getSpecialWeaponLabel(key);
+                testWeaponSelect.appendChild(option);
+            });
+            const saved = getTestModeState().weaponKey || '';
+            if (saved && keys.includes(saved)) {
+                testWeaponSelect.value = saved;
+            } else if (keys.length > 0) {
+                testWeaponSelect.value = keys[0];
+            }
+            return keys.length;
         }
 
-        function bindSettingsUi() {
-            const shakeToggle = document.getElementById('opt-shake');
-            const dmgToggle = document.getElementById('opt-dmgtext');
-            if (shakeToggle) {
-                shakeToggle.addEventListener('change', (event) => {
-                    settings.shake = event.target.checked;
-                    setSettings(settings);
-                });
-            }
-            if (dmgToggle) {
-                dmgToggle.addEventListener('change', (event) => {
-                    settings.dmgText = event.target.checked;
-                    setSettings(settings);
-                });
+        function toggleDevPanel() {
+            if (!devPanelModal) return;
+            if (devPanelModal.isHidden()) {
+                devPanelModal.open();
+            } else {
+                devPanelModal.close();
             }
         }
+
+        function applyTestConfig() {
+            if (!testWeaponSelect) return;
+            const weaponKey = testWeaponSelect.value;
+            if (!weaponKey) {
+                alert('특수 무기를 선택하세요.');
+                return;
+            }
+            setTestModeState(true, weaponKey);
+            setTestModeIndicator(true);
+            closeTestConfig();
+            devPanelModal?.close?.();
+            alert('적용됨. START를 눌러 전투에서 확인하세요.');
+        }
+
 
         function getValidSkills() {
             return SKILL_POOL.filter(skill => {
@@ -406,8 +460,8 @@ const boot = () => {
             }
 
             gameState = 'READY';
-            devTools?.closeDevPanel?.();
-            devTools?.closeTestConfig?.();
+            devPanelModal?.close?.();
+            testConfigModal?.close?.();
             metaUpgradesUi?.close?.();
             ['lobby-ui', 'clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById('ingame-ui').classList.remove('hidden');
@@ -866,11 +920,17 @@ const boot = () => {
         function cancelQuit() { gameState = 'PLAYING'; document.getElementById('quit-overlay').classList.add('hidden'); }
         function nextStage() { currentStage++; if(currentStage > STAGE_COUNT) currentStage = 1; prepareGame(isTestStage); }
         function openTestConfig() {
-            devTools?.openTestConfig?.();
+            const optionCount = populateTestWeaponSelect();
+            if (!optionCount) {
+                alert('특수 무기 목록을 찾을 수 없습니다.');
+                return;
+            }
+            devPanelModal?.close?.();
+            testConfigModal?.open?.();
         }
 
         function closeTestConfig() {
-            devTools?.closeTestConfig?.();
+            testConfigModal?.close?.();
         }
 
         function openMetaUpgradeModal() {
@@ -883,8 +943,8 @@ const boot = () => {
             document.getElementById('lobby-ui').classList.remove('hidden');
             metaUpgradesUi?.close?.();
             ['clear-overlay', 'gameover-popup', 'quit-overlay', 'test-config-overlay', 'upgrade-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            devTools?.closeDevPanel?.();
-            devTools?.closeTestConfig?.();
+            devPanelModal?.close?.();
+            testConfigModal?.close?.();
             saveGameData(); 
             updateLobbyUI();
             syncSettingsUi();

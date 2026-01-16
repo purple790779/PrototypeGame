@@ -1,32 +1,38 @@
-export function createUiLocker(containerEl) {
-    let depth = 0;
-
-    const apply = () => {
-        const locked = depth > 0;
-        if (containerEl) {
-            containerEl.classList.toggle('ui-locked', locked);
-        }
-        const lobby = document.getElementById('lobby-ui');
-        if (lobby) lobby.style.pointerEvents = locked ? 'none' : '';
-        const ingame = document.getElementById('ingame-ui');
-        if (ingame) ingame.style.pointerEvents = locked ? 'none' : '';
+export function bindModal({
+    overlayEl,
+    closeBtnEl,
+    backdropEl,
+    uiLocker,
+    onOpen,
+    onClose
+}) {
+    const isHidden = () => {
+        if (!overlayEl) return true;
+        return overlayEl.hidden || overlayEl.classList.contains('hidden');
     };
 
-    return {
-        lock() {
-            depth += 1;
-            apply();
-        },
-        unlock() {
-            depth = Math.max(0, depth - 1);
-            apply();
-        },
-        forceUnlock() {
-            depth = 0;
-            apply();
-        },
-        isLocked() {
-            return depth > 0;
-        }
+    const open = () => {
+        if (!overlayEl || !isHidden()) return;
+        overlayEl.hidden = false;
+        overlayEl.classList.remove('hidden');
+        uiLocker?.lock?.();
+        onOpen?.();
     };
+
+    const close = () => {
+        if (!overlayEl || isHidden()) return;
+        overlayEl.hidden = true;
+        overlayEl.classList.add('hidden');
+        uiLocker?.unlock?.();
+        onClose?.();
+    };
+
+    if (closeBtnEl) {
+        closeBtnEl.addEventListener('click', close);
+    }
+    if (backdropEl) {
+        backdropEl.addEventListener('click', close);
+    }
+
+    return { open, close, isHidden };
 }
