@@ -1,2 +1,2 @@
-export const VERSION = "v1.0.4";
+export const VERSION = "v1.1.0";
 export const STORAGE_PREFIX = "gdc";
