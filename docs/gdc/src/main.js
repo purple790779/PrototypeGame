@@ -70,7 +70,7 @@ const boot = () => {
         let missiles = [];
         let gravityOrbs = [];
         let electroBarriers = [];
-        let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 60 };
+        let gameInfo = { wave: 1, hp: 100, maxHp: 100, spawnTimer: 0, level: 1, exp: 0, nextExp: 100, timeLeft: 90 };
         let metaUpgrades = getMetaUpgrades();
         let activeSpecialWeapons = new Set();
         const uiLocker = createUiLocker(container);
@@ -220,28 +220,54 @@ const boot = () => {
         }
 
         function getStageConfig(stage, difficultyLevel) {
-            if (difficultyLevel === 'HARD') {
-                return {
-                    duration: 60,
-                    spawnInterval: clamp(0.75 - stage * 0.012, 0.28, 0.75),
-                    maxOnField: Math.round(clamp(28 + stage * 1.3, 28, 85)),
-                    hpMul: 1.05 + stage * 0.06,
-                    speedMul: 1.0 + stage * 0.012,
-                    eliteChance: clamp(0.1 + stage * 0.003, 0.1, 0.22),
-                    fastChance: clamp(0.22 + stage * 0.004, 0.22, 0.35),
-                    siegeChance: stage < 4 ? 0.02 : clamp(0.05 + (stage - 4) * 0.003, 0.05, 0.14)
-                };
+            const isHard = difficultyLevel === 'HARD';
+            const s = Math.max(1, stage);
+
+            const duration = 90;
+
+            let spawnInterval = 0.88 - s * 0.010;
+            spawnInterval = Math.max(0.33, spawnInterval);
+
+            let maxOnField = 24 + Math.floor(s * 1.2);
+            maxOnField = Math.min(85, maxOnField);
+
+            let hpMul = 0.95 + s * 0.055;
+            let speedMul = 0.98 + s * 0.012;
+
+            let eliteChance = 0.07 + s * 0.002;
+            eliteChance = Math.min(0.20, eliteChance);
+
+            let runnerChance = 0.18 + s * 0.004;
+            runnerChance = Math.min(0.40, runnerChance);
+
+            let tankChance = 0.08 + s * 0.0025;
+            tankChance = Math.min(0.22, tankChance);
+
+            let siegeChance = s < 5 ? 0.00 : (0.03 + (s - 5) * 0.003);
+            siegeChance = Math.min(0.16, siegeChance);
+
+            if (isHard) {
+                spawnInterval = Math.max(0.28, spawnInterval * 0.85);
+                maxOnField = Math.min(100, maxOnField + 10);
+                hpMul *= 1.15;
+                speedMul *= 1.06;
+                eliteChance = Math.min(0.28, eliteChance + 0.05);
+
+                runnerChance = Math.min(0.48, runnerChance + 0.06);
+                tankChance = Math.min(0.26, tankChance + 0.04);
+                siegeChance = Math.min(0.22, Math.max(0.03, siegeChance + 0.05));
             }
 
             return {
-                duration: 60,
-                spawnInterval: clamp(0.9 - stage * 0.01, 0.35, 0.9),
-                maxOnField: Math.round(clamp(22 + stage * 1, 22, 70)),
-                hpMul: 0.9 + stage * 0.05,
-                speedMul: 0.95 + stage * 0.01,
-                eliteChance: clamp(0.08 + stage * 0.002, 0.08, 0.18),
-                fastChance: clamp(0.18 + stage * 0.003, 0.18, 0.3),
-                siegeChance: stage < 6 ? 0 : clamp(0.03 + (stage - 6) * 0.002, 0.03, 0.1)
+                duration,
+                spawnInterval,
+                maxOnField,
+                hpMul,
+                speedMul,
+                eliteChance,
+                runnerChance,
+                tankChance,
+                siegeChance
             };
         }
 
@@ -716,14 +742,18 @@ const boot = () => {
             if (gameInfo.timeLeft <= 0 && enemies.length === 0) { stageClear(); return; }
 
             const cfg = getStageConfig(currentStage, difficulty);
-            let spawnRate = isTestStage ? 0.4 : cfg.spawnInterval;
+            const stageElapsed = isTestStage ? 0 : Math.max(0, cfg.duration - gameInfo.timeLeft);
+            const t = stageElapsed % 18;
+            const rush = t < 6;
+            const spawnMul = rush ? 0.75 : 1.0;
+            let spawnRate = isTestStage ? 0.4 : cfg.spawnInterval * spawnMul;
             if (gameInfo.timeLeft > 3) {
                 gameInfo.spawnTimer += dt;
                 if (gameInfo.spawnTimer > spawnRate) {
                     if (enemies.length < cfg.maxOnField) {
                         spawnEnemy(cfg);
                     }
-                    if (Math.random() < 0.1 && enemies.length < cfg.maxOnField - 1) {
+                    if (Math.random() < 0.12 && enemies.length <= cfg.maxOnField - 2) {
                         spawnEnemy(cfg);
                     }
                     gameInfo.spawnTimer = 0;
@@ -754,7 +784,7 @@ const boot = () => {
                             e.hp -= 2;
                             e.stunTimer = 1.0;
                             registerEnemyHit(e, 2, { hitTime: 0.08, burst: { count: 3, speed: 50, life: 0.3, sizeRange: [1, 2], color: 'rgba(210,255,255,0.9)' } });
-                            if (e.hp <= 0) { registerEnemyDeath(e); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; }
+                            if (e.hp <= 0) { registerEnemyDeath(e); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank, e.rewardMul); gainExp(10); e.dead = true; }
                         }
                     }
                 });
@@ -774,7 +804,7 @@ const boot = () => {
                                 e.hp -= 80;
                                 texts.push({ x: e.x, y: e.y - 15, text: "CRUSH!", life: 1.0, color: '#8800ff' });
                                 registerEnemyHit(e, 80, { hitTime: 0.12, burst: { count: 6, speed: 90, life: 0.45, sizeRange: [1.2, 2.6], color: 'rgba(200,240,255,0.9)' } });
-                                if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 16, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(50); e.dead = true; }
+                                if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 16, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank, e.rewardMul); gainExp(50); e.dead = true; }
                             }
                         });
                         gravityOrbs.splice(i, 1); continue;
@@ -786,7 +816,7 @@ const boot = () => {
                         if (dist < g.pullRange) {
                             const angle = Math.atan2(g.y - e.y, g.x - e.x); e.x += Math.cos(angle) * g.pullForce * dt; e.y += Math.sin(angle) * g.pullForce * dt; e.hp -= g.dotDmg * dt;
                             if (Math.random() < 0.1) texts.push({ x: e.x, y: e.y - 10, text: "1", life: 0.3, color: '#aa55ff' });
-                            if (e.hp <= 0 && !e.dead) { registerEnemyDeath(e); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(10); e.dead = true; }
+                            if (e.hp <= 0 && !e.dead) { registerEnemyDeath(e); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank, e.rewardMul); gainExp(10); e.dead = true; }
                         }
                     });
                 }
@@ -837,36 +867,25 @@ const boot = () => {
                     if (e.type === 'siege' && dist <= e.nearRange) {
                         e.x += Math.cos(angle) * e.speed * 0.25 * dt;
                         e.y += Math.sin(angle) * e.speed * 0.25 * dt;
-                        e.shootCooldown -= dt;
-                        if (e.shootCooldown <= 0) {
-                            const bulletAngle = Math.atan2(player.y - e.y, player.x - e.x);
-                            if (enemyBullets.length >= 120) {
-                                enemyBullets.shift();
-                            }
-                            enemyBullets.push({
-                                x: e.x,
-                                y: e.y,
-                                vx: Math.cos(bulletAngle) * e.projectileSpeed,
-                                vy: Math.sin(bulletAngle) * e.projectileSpeed,
-                                life: 3.0,
-                                dmg: e.projectileDamage,
-                                r: 2.2
-                            });
-                            e.shootCooldown = e.shootInterval;
+                        e.shootCd -= dt;
+                        if (e.shootCd <= 0) {
+                            spawnEnemyBullet(e, player);
+                            e.shootCd = e.shootInterval;
                         }
                     } else {
                         e.x += Math.cos(angle) * e.speed * dt;
                         e.y += Math.sin(angle) * e.speed * dt;
                     }
                 }
-                if (player.visible && Math.hypot(player.x - e.x, player.y - e.y) < 15) {
-                    gameInfo.hp -= 10;
+                const contactRadius = e.size + 6;
+                if (player.visible && Math.hypot(player.x - e.x, player.y - e.y) < contactRadius) {
+                    gameInfo.hp -= e.contactDamage ?? 10;
                     createParticles(e.x, e.y, '#ff0000', 10);
                     if (settings.shake) fx.shake.start(8, 0.22);
                     fx.vignette.trigger(1, 0.3);
                     enemies.splice(i, 1);
                     updateIngameUI();
-                    if(gameInfo.hp <= 0) gameOver();
+                    if (gameInfo.hp <= 0) gameOver();
                 }
             }
             for (let i = enemyBullets.length - 1; i >= 0; i--) {
@@ -874,11 +893,12 @@ const boot = () => {
                 b.x += b.vx * dt;
                 b.y += b.vy * dt;
                 b.life -= dt;
-                if (!isOnScreen(b.x, b.y, 24) || b.life <= 0) {
+                if (!isOnScreen(b.x, b.y, 80) || b.life <= 0) {
                     enemyBullets.splice(i, 1);
                     continue;
                 }
-                if (player.visible && Math.hypot(b.x - player.x, b.y - player.y) < (b.r + 10)) {
+                const playerRadius = 10;
+                if (player.visible && Math.hypot(b.x - player.x, b.y - player.y) < (b.r + playerRadius)) {
                     gameInfo.hp -= b.dmg;
                     createParticles(b.x, b.y, '#ff8855', 6);
                     if (settings.shake) fx.shake.start(3, 0.15);
@@ -897,7 +917,7 @@ const boot = () => {
                         e.hp -= player.atk;
                         registerEnemyHit(e, player.atk, { hitTime: 0.1, burst: { count: 5, speed: 80, life: 0.4, sizeRange: [1, 2.2] } });
                         bullets.splice(i, 1);
-                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(20); e.dead = true; }
+                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank, e.rewardMul); gainExp(20); e.dead = true; }
                         break;
                     }
                 }
@@ -920,7 +940,7 @@ const boot = () => {
                     registerEnemyHit(m.target, player.missileDmg, { hitTime: 0.16, burst: { count: 6, speed: 90, life: 0.45, sizeRange: [1.2, 2.6] } });
                     texts.push({ x: m.target.x, y: m.target.y - 15, text: "BOOM!", life: 0.8, color: '#ffaa00' });
                     createExplosion(m.x, m.y, '#ffaa00', 5);
-                    if (m.target.hp <= 0) { registerEnemyDeath(m.target, { burst: { count: 16, speed: 150, life: 0.7 } }); createExplosion(m.target.x, m.target.y, m.target.color); spawnDrop(m.target.x, m.target.y, m.target.rank); gainExp(40); m.target.dead = true; }
+                    if (m.target.hp <= 0) { registerEnemyDeath(m.target, { burst: { count: 16, speed: 150, life: 0.7 } }); createExplosion(m.target.x, m.target.y, m.target.color); spawnDrop(m.target.x, m.target.y, m.target.rank, m.target.rewardMul); gainExp(40); m.target.dead = true; }
                     missiles.splice(i, 1); continue;
                 }
                 if (m.life <= 1) missiles.splice(i, 1);
@@ -1019,7 +1039,7 @@ const boot = () => {
                 else { ctx.fillStyle = (e.hitTimer > 0) ? '#ffffff' : e.color; ctx.shadowColor = e.color; }
                 ctx.shadowBlur = 5; ctx.beginPath();
                 if (e.rank >= 2) { ctx.rect(e.x - e.size/2, e.y - e.size/2, e.size, e.size); ctx.strokeRect(e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4); } 
-                else if(e.type === 'fast') { ctx.moveTo(e.x + Math.cos(0)*e.size, e.y + Math.sin(0)*e.size); ctx.lineTo(e.x + Math.cos(2.1)*e.size, e.y + Math.sin(2.1)*e.size); ctx.lineTo(e.x + Math.cos(4.2)*e.size, e.y + Math.sin(4.2)*e.size); } 
+                else if (e.type === 'runner') { ctx.moveTo(e.x + Math.cos(0) * e.size, e.y + Math.sin(0) * e.size); ctx.lineTo(e.x + Math.cos(2.1) * e.size, e.y + Math.sin(2.1) * e.size); ctx.lineTo(e.x + Math.cos(4.2) * e.size, e.y + Math.sin(4.2) * e.size); } 
                 else { ctx.rect(e.x - e.size/2, e.y - e.size/2, e.size, e.size); }
                 ctx.fill(); ctx.stroke();
                 if (e.hp < e.maxHp) {
@@ -1245,6 +1265,22 @@ const boot = () => {
             overlay.classList.remove('hidden');
         }
 
+        function spawnEnemyBullet(enemy, target) {
+            const ang = Math.atan2(target.y - enemy.y, target.x - enemy.x);
+            if (enemyBullets.length >= 140) {
+                enemyBullets.splice(0, enemyBullets.length - 139);
+            }
+            enemyBullets.push({
+                x: enemy.x,
+                y: enemy.y,
+                vx: Math.cos(ang) * enemy.bulletSpeed,
+                vy: Math.sin(ang) * enemy.bulletSpeed,
+                life: enemy.bulletLife,
+                dmg: enemy.bulletDmg,
+                r: enemy.bulletR
+            });
+        }
+
         function spawnEnemy(cfg) {
             if (!cfg) {
                 cfg = getStageConfig(currentStage, difficulty);
@@ -1253,39 +1289,50 @@ const boot = () => {
             let x, y;
             if (isVertical) { x = Math.random() * width; y = (Math.random() < 0.5) ? -buffer : height + buffer; } 
             else { y = Math.random() * height; x = (Math.random() < 0.5) ? -buffer : width + buffer; }
-            const isElite = Math.random() < cfg.eliteChance;
-            const isSiege = Math.random() < cfg.siegeChance;
-            const isFast = !isSiege && Math.random() < cfg.fastChance;
+            const roll = Math.random();
             let rank = 1;
             let type = 'normal';
             let size = 8;
-            let hp = 10;
-            let speed = 32;
+            let hp = 12;
+            let speed = 34;
+            let contactDamage = 8;
             let color = '#ffffff';
+            let rewardMul = 1;
 
-            if (isFast) {
-                type = 'fast';
-                size = 5.5;
-                hp = 6.6;
-                speed = 64;
-                color = '#ff3366';
-            } else if (isSiege) {
+            if (roll < cfg.siegeChance) {
                 type = 'siege';
                 size = 9;
-                hp = 14;
-                speed = 26;
+                hp = 18;
+                speed = 28;
+                contactDamage = 9;
                 color = '#ff8855';
-            }
-
-            if (isElite) {
-                rank = 2;
-                size = 12;
-                hp = 30;
-                color = '#ffaa00';
+            } else if (roll < cfg.siegeChance + cfg.tankChance) {
+                type = 'tank';
+                size = 11;
+                hp = 36;
+                speed = 22;
+                contactDamage = 12;
+                color = '#66aaff';
+            } else if (roll < cfg.siegeChance + cfg.tankChance + cfg.runnerChance) {
+                type = 'runner';
+                size = 6;
+                hp = 8;
+                speed = 78;
+                contactDamage = 7;
+                color = '#ff3366';
             }
 
             hp *= cfg.hpMul;
             speed *= cfg.speedMul;
+
+            if (Math.random() < cfg.eliteChance) {
+                rank = 2;
+                hp *= 2.2;
+                size *= 1.25;
+                speed *= 0.92;
+                rewardMul = 1.2;
+                color = '#ffaa00';
+            }
 
             const enemy = {
                 x: x,
@@ -1297,16 +1344,20 @@ const boot = () => {
                 color: color,
                 hp: hp,
                 maxHp: hp,
+                contactDamage: contactDamage,
+                rewardMul: rewardMul,
                 hitTimer: 0,
                 stunTimer: 0
             };
 
             if (type === 'siege') {
-                enemy.shootCooldown = 0;
-                enemy.shootInterval = difficulty === 'HARD' ? 1.15 : 1.35;
-                enemy.nearRange = 140;
-                enemy.projectileSpeed = 220;
-                enemy.projectileDamage = difficulty === 'HARD' ? 8 : 6;
+                enemy.nearRange = 160;
+                enemy.shootCd = 0;
+                enemy.shootInterval = difficulty === 'HARD' ? 1.10 : 1.35;
+                enemy.bulletSpeed = 250;
+                enemy.bulletDmg = difficulty === 'HARD' ? 9 : 7;
+                enemy.bulletLife = 2.6;
+                enemy.bulletR = 2.4;
             }
 
             enemies.push(enemy);
@@ -1355,7 +1406,7 @@ const boot = () => {
                         registerEnemyHit(e, player.laserDmg, { hitTime: 0.12, burst: { count: 4, speed: 80, life: 0.4, sizeRange: [1, 2.2], color: 'rgba(230,210,255,0.9)' } });
                         texts.push({ x: e.x, y: e.y - 15, text: "LASER!", life: 0.8, color: '#ff00ff' });
                         createParticles(e.x, e.y, '#ff00ff', 3);
-                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(25); e.dead = true; }
+                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank, e.rewardMul); gainExp(25); e.dead = true; }
                     }
                 });
                 for(let i=enemies.length-1; i>=0; i--) { if(enemies[i].dead) enemies.splice(i, 1); }
@@ -1423,7 +1474,7 @@ const boot = () => {
                         registerEnemyHit(e, dmg, { hitTime: 0.12, burst: { count: 4, speed: 80, life: 0.4, sizeRange: [1, 2.2], color: 'rgba(200,255,255,0.9)' } });
                         texts.push({ x: e.x, y: e.y - 15, text: "PIERCE", life: 0.5, color: '#00ffff' });
                         createExplosion(e.x, e.y, '#00ffff', 3);
-                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank); gainExp(30); e.dead = true; }
+                        if (e.hp <= 0) { registerEnemyDeath(e, { burst: { count: 14, speed: 140, life: 0.7 } }); createExplosion(e.x, e.y, e.color); spawnDrop(e.x, e.y, e.rank, e.rewardMul); gainExp(30); e.dead = true; }
                         if (e === d.target) { d.state = 'OVERSHOOT'; d.waitTimer = 0.15; }
                     }
                 });
@@ -1500,7 +1551,19 @@ const boot = () => {
             d.y = clamp(d.y, 0, height);
         }
         function pointToLineDistance(px, py, x1, y1, x2, y2) { const A = px - x1; const B = py - y1; const C = x2 - x1; const D = y2 - y1; const dot = A * C + B * D; const len_sq = C * C + D * D; let param = -1; if (len_sq != 0) param = dot / len_sq; let xx, yy; if (param < 0) { xx = x1; yy = y1; } else if (param > 1) { xx = x2; yy = y2; } else { xx = x1 + param * C; yy = y1 + param * D; } const dx = px - xx; const dy = py - yy; return Math.sqrt(dx * dx + dy * dy); }
-        function spawnDrop(x, y, rank) { if (difficulty === 'NORMAL') { const baseVal = Math.floor(Math.random() * 6) + 5; const val = Math.floor(baseVal * (1 + currentStage * 0.1)); drops.push({ x, y, type: 'fragment', val, life: 1.0, state: 'wait' }); } else { if (rank >= 2 || Math.random() < 0.05) { const val = (rank >= 2) ? Math.floor(Math.random() * 3) + 2 : 1; drops.push({ x, y, type: 'core', val, life: 1.0, state: 'wait' }); } } }
+        function spawnDrop(x, y, rank, rewardMul = 1) {
+            if (difficulty === 'NORMAL') {
+                const baseVal = Math.floor(Math.random() * 6) + 5;
+                const val = Math.floor(baseVal * (1 + currentStage * 0.1) * rewardMul);
+                drops.push({ x, y, type: 'fragment', val, life: 1.0, state: 'wait' });
+            } else {
+                if (rank >= 2 || Math.random() < 0.05) {
+                    const baseVal = (rank >= 2) ? Math.floor(Math.random() * 3) + 2 : 1;
+                    const val = Math.max(1, Math.floor(baseVal * rewardMul));
+                    drops.push({ x, y, type: 'core', val, life: 1.0, state: 'wait' });
+                }
+            }
+        }
         function createExplosion(x, y, color, count=8) { createParticles(x, y, color, count); particles.push({ x, y, vx: 0, vy: 0, life: 1, color: color, type: 'shockwave', size: 10 }); }
 
         window.activateGodMode = activateGodMode;

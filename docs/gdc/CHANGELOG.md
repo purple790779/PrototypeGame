@@ -15,6 +15,14 @@
 ### Removed
 -
 
+## v1.1.0 - 2026-01-16
+### Added
+- Enemy types: runner / tank / siege(근접 원거리)
+- Enemy bullets system(siege 전용)
+### Changed
+- Stage duration 90s
+- Level design: stage/hard 물량 중심 스폰/상한/스케일 재설계
+
 ## v1.0.5 - 2026-01-16
 ### Fixed
 - Droplet 무기 화면 밖 이탈/미복귀 방지(타겟 상실/오버슈트 안전 처리)
@@ -23,13 +31,6 @@
 - 무기 발사 사운드(SFX) + 설정 토글
 ### Changed
 - 허브(GAMES.json) 내 gdc 버전/업데이트 날짜 동기화
-
-## v1.1.0 - 2026-01-20
-### Added
-- 새 적 타입: siege(기지 근처 원거리 공격)
-- enemyBullets(적 탄) 시스템
-### Changed
-- 레벨 디자인: 스테이지/하드 스폰, 동시 등장, 스케일 강화(물량 중심)
 
 ## v1.0.4 - 2026-01-19
 ### Fixed
