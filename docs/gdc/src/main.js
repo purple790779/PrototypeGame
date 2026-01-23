@@ -87,6 +87,49 @@ const boot = () => {
         const STAGE_NAMES = ["NEON GRID", "VOID SECTOR", "CRYSTAL CORE"];
         const TEST_MODE_ENABLED_KEY = `${STORAGE_PREFIX}:testModeEnabled`;
         const TEST_WEAPON_KEY = `${STORAGE_PREFIX}:testWeaponKey`;
+        const STAGE_TUNING = {
+            duration: 90,
+            spawn: { base: 0.90, perStage: 0.011, min: 0.35 },
+            maxOnField: { base: 22, perStage: 1.15, cap: 82 },
+            hpMul: { base: 0.92, perStage: 0.052 },
+            speedMul: { base: 0.97, perStage: 0.011 },
+            elite: { base: 0.06, perStage: 0.002, cap: 0.18 },
+            runner: { base: 0.16, perStage: 0.0035, cap: 0.38 },
+            tank: { base: 0.075, perStage: 0.0023, cap: 0.20 },
+            siege: { unlockStage: 5, base: 0.028, perStage: 0.0028, cap: 0.15 },
+            hard: {
+                spawnMul: 0.88,
+                spawnMin: 0.30,
+                maxOnFieldBonus: 8,
+                hpMul: 1.12,
+                speedMul: 1.05,
+                eliteBonus: 0.04,
+                eliteCap: 0.26,
+                runnerBonus: 0.05,
+                runnerCap: 0.46,
+                tankBonus: 0.035,
+                tankCap: 0.24,
+                siegeBonus: 0.045,
+                siegeCap: 0.20,
+                siegeMin: 0.03
+            }
+        };
+        const SIEGE_TUNING = {
+            nearRange: 160,
+            shootInterval: { NORMAL: 1.50, HARD: 1.25 },
+            bulletSpeed: 230,
+            bulletDmg: { NORMAL: 6, HARD: 8 },
+            bulletLife: 2.6,
+            bulletR: 2.4
+        };
+        const ENEMY_BULLET_LIMIT = 120;
+        const CLEAR_REWARD_TUNING = {
+            fragmentsBase: 14,
+            fragmentsPerStage: 2,
+            coresBase: 1,
+            coresPerStage: 0.2,
+            hardMultiplier: 1.25
+        };
 
         const getSpecialWeaponLabel = (key) => SPECIAL_WEAPON_LABELS[key] || key;
 
@@ -222,40 +265,44 @@ const boot = () => {
         function getStageConfig(stage, difficultyLevel) {
             const isHard = difficultyLevel === 'HARD';
             const s = Math.max(1, stage);
+            const duration = STAGE_TUNING.duration;
 
-            const duration = 90;
+            let spawnInterval = STAGE_TUNING.spawn.base - s * STAGE_TUNING.spawn.perStage;
+            spawnInterval = Math.max(STAGE_TUNING.spawn.min, spawnInterval);
 
-            let spawnInterval = 0.88 - s * 0.010;
-            spawnInterval = Math.max(0.33, spawnInterval);
+            let maxOnField = STAGE_TUNING.maxOnField.base + Math.floor(s * STAGE_TUNING.maxOnField.perStage);
+            maxOnField = Math.min(STAGE_TUNING.maxOnField.cap, maxOnField);
 
-            let maxOnField = 24 + Math.floor(s * 1.2);
-            maxOnField = Math.min(85, maxOnField);
+            let hpMul = STAGE_TUNING.hpMul.base + s * STAGE_TUNING.hpMul.perStage;
+            let speedMul = STAGE_TUNING.speedMul.base + s * STAGE_TUNING.speedMul.perStage;
 
-            let hpMul = 0.95 + s * 0.055;
-            let speedMul = 0.98 + s * 0.012;
+            let eliteChance = STAGE_TUNING.elite.base + s * STAGE_TUNING.elite.perStage;
+            eliteChance = Math.min(STAGE_TUNING.elite.cap, eliteChance);
 
-            let eliteChance = 0.07 + s * 0.002;
-            eliteChance = Math.min(0.20, eliteChance);
+            let runnerChance = STAGE_TUNING.runner.base + s * STAGE_TUNING.runner.perStage;
+            runnerChance = Math.min(STAGE_TUNING.runner.cap, runnerChance);
 
-            let runnerChance = 0.18 + s * 0.004;
-            runnerChance = Math.min(0.40, runnerChance);
+            let tankChance = STAGE_TUNING.tank.base + s * STAGE_TUNING.tank.perStage;
+            tankChance = Math.min(STAGE_TUNING.tank.cap, tankChance);
 
-            let tankChance = 0.08 + s * 0.0025;
-            tankChance = Math.min(0.22, tankChance);
-
-            let siegeChance = s < 5 ? 0.00 : (0.03 + (s - 5) * 0.003);
-            siegeChance = Math.min(0.16, siegeChance);
+            let siegeChance = s < STAGE_TUNING.siege.unlockStage
+                ? 0.00
+                : (STAGE_TUNING.siege.base + (s - STAGE_TUNING.siege.unlockStage) * STAGE_TUNING.siege.perStage);
+            siegeChance = Math.min(STAGE_TUNING.siege.cap, siegeChance);
 
             if (isHard) {
-                spawnInterval = Math.max(0.28, spawnInterval * 0.85);
-                maxOnField = Math.min(100, maxOnField + 10);
-                hpMul *= 1.15;
-                speedMul *= 1.06;
-                eliteChance = Math.min(0.28, eliteChance + 0.05);
+                spawnInterval = Math.max(STAGE_TUNING.hard.spawnMin, spawnInterval * STAGE_TUNING.hard.spawnMul);
+                maxOnField = Math.min(STAGE_TUNING.maxOnField.cap + 18, maxOnField + STAGE_TUNING.hard.maxOnFieldBonus);
+                hpMul *= STAGE_TUNING.hard.hpMul;
+                speedMul *= STAGE_TUNING.hard.speedMul;
+                eliteChance = Math.min(STAGE_TUNING.hard.eliteCap, eliteChance + STAGE_TUNING.hard.eliteBonus);
 
-                runnerChance = Math.min(0.48, runnerChance + 0.06);
-                tankChance = Math.min(0.26, tankChance + 0.04);
-                siegeChance = Math.min(0.22, Math.max(0.03, siegeChance + 0.05));
+                runnerChance = Math.min(STAGE_TUNING.hard.runnerCap, runnerChance + STAGE_TUNING.hard.runnerBonus);
+                tankChance = Math.min(STAGE_TUNING.hard.tankCap, tankChance + STAGE_TUNING.hard.tankBonus);
+                siegeChance = Math.min(
+                    STAGE_TUNING.hard.siegeCap,
+                    Math.max(STAGE_TUNING.hard.siegeMin, siegeChance + STAGE_TUNING.hard.siegeBonus)
+                );
             }
 
             return {
@@ -269,6 +316,14 @@ const boot = () => {
                 tankChance,
                 siegeChance
             };
+        }
+
+        function getStageClearReward(stage, difficultyLevel) {
+            const s = Math.max(1, stage);
+            const multiplier = difficultyLevel === 'HARD' ? CLEAR_REWARD_TUNING.hardMultiplier : 1;
+            const fragments = Math.round((CLEAR_REWARD_TUNING.fragmentsBase + s * CLEAR_REWARD_TUNING.fragmentsPerStage) * multiplier);
+            const cores = Math.round((CLEAR_REWARD_TUNING.coresBase + s * CLEAR_REWARD_TUNING.coresPerStage) * multiplier);
+            return { fragments, cores };
         }
 
         function getSpecialWeaponKeys() {
@@ -888,6 +943,9 @@ const boot = () => {
                     if (gameInfo.hp <= 0) gameOver();
                 }
             }
+            if (enemyBullets.length > ENEMY_BULLET_LIMIT) {
+                enemyBullets.splice(0, enemyBullets.length - ENEMY_BULLET_LIMIT);
+            }
             for (let i = enemyBullets.length - 1; i >= 0; i--) {
                 const b = enemyBullets[i];
                 b.x += b.vx * dt;
@@ -1119,7 +1177,20 @@ const boot = () => {
         function setDifficulty(diff) { difficulty = diff; document.getElementById('diff-normal').classList.toggle('active', diff === 'NORMAL'); document.getElementById('diff-hard').classList.toggle('active', diff === 'HARD'); updateLobbyUI(); }
         function changeStage(dir) { currentStage += dir; if(currentStage < 1) currentStage = STAGE_COUNT; if(currentStage > STAGE_COUNT) currentStage = 1; updateLobbyUI(); }
         function gameOver() { if (gameState === 'GAMEOVER') return; gameState = 'GAMEOVER'; createExplosion(player.x, player.y, '#00ffff', 50); player.visible = false; if (!isTestStage) { savedData.resources.fragments += tempResources.fragments; savedData.resources.cores += tempResources.cores; saveGameData(); } setTimeout(() => { document.getElementById('gameover-popup').classList.remove('hidden'); }, 1500); }
-        function stageClear() { gameState = 'CLEAR'; if (!isTestStage) { savedData.resources.fragments += tempResources.fragments; savedData.resources.cores += tempResources.cores; if(!savedData.clearData[difficulty].includes(currentStage)) { savedData.clearData[difficulty].push(currentStage); } saveGameData(); } document.getElementById('clear-overlay').classList.remove('hidden'); }
+        function stageClear() {
+            gameState = 'CLEAR';
+            if (!isTestStage) {
+                const bonus = getStageClearReward(currentStage, difficulty);
+                tempResources.fragments += bonus.fragments;
+                tempResources.cores += bonus.cores;
+                updateIngameResources();
+                savedData.resources.fragments += tempResources.fragments;
+                savedData.resources.cores += tempResources.cores;
+                if(!savedData.clearData[difficulty].includes(currentStage)) { savedData.clearData[difficulty].push(currentStage); }
+                saveGameData();
+            }
+            document.getElementById('clear-overlay').classList.remove('hidden');
+        }
         function quitGame() { returnToLobby(); }
         function showQuitPopup() { gameState = 'PAUSED'; document.getElementById('quit-overlay').classList.remove('hidden'); }
         function cancelQuit() { gameState = 'PLAYING'; document.getElementById('quit-overlay').classList.add('hidden'); }
@@ -1267,8 +1338,8 @@ const boot = () => {
 
         function spawnEnemyBullet(enemy, target) {
             const ang = Math.atan2(target.y - enemy.y, target.x - enemy.x);
-            if (enemyBullets.length >= 140) {
-                enemyBullets.splice(0, enemyBullets.length - 139);
+            if (enemyBullets.length >= ENEMY_BULLET_LIMIT) {
+                enemyBullets.splice(0, enemyBullets.length - (ENEMY_BULLET_LIMIT - 1));
             }
             enemyBullets.push({
                 x: enemy.x,
@@ -1351,13 +1422,13 @@ const boot = () => {
             };
 
             if (type === 'siege') {
-                enemy.nearRange = 160;
+                enemy.nearRange = SIEGE_TUNING.nearRange;
                 enemy.shootCd = 0;
-                enemy.shootInterval = difficulty === 'HARD' ? 1.10 : 1.35;
-                enemy.bulletSpeed = 250;
-                enemy.bulletDmg = difficulty === 'HARD' ? 9 : 7;
-                enemy.bulletLife = 2.6;
-                enemy.bulletR = 2.4;
+                enemy.shootInterval = difficulty === 'HARD' ? SIEGE_TUNING.shootInterval.HARD : SIEGE_TUNING.shootInterval.NORMAL;
+                enemy.bulletSpeed = SIEGE_TUNING.bulletSpeed;
+                enemy.bulletDmg = difficulty === 'HARD' ? SIEGE_TUNING.bulletDmg.HARD : SIEGE_TUNING.bulletDmg.NORMAL;
+                enemy.bulletLife = SIEGE_TUNING.bulletLife;
+                enemy.bulletR = SIEGE_TUNING.bulletR;
             }
 
             enemies.push(enemy);
